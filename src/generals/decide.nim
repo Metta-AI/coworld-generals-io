@@ -232,7 +232,7 @@ proc decideTurn*(engine: DecideEngine, sim: var Sim, seats: seq[int],
         user.add("\n\nYour previous reply was not usable. Reply with ONLY " &
           "the JSON object described above, starting with '{'.")
       let request = engine.client.requestFor(
-        systemPromptFor(sim.config), user)
+        systemPromptFor(sim.config), user, seat)
       requests.add(BatchRequest(seat: seat, url: request.url,
         headers: request.headers, body: request.body))
 
