@@ -103,12 +103,11 @@ suite "the manifest":
     check m["certification"]["game_config"]["wallClockBudgetSeconds"].getInt() <=
       660
 
-  test "the secret namespace equals game.name":
+  test "hosted inference needs no provider secret":
     let m = manifest()
     let name = m["game"]["name"].getStr()
     check name == GameName
-    check m["game"]["runnable"]["env"]["ANTHROPIC_API_KEY_URI"].getStr() ==
-      "secret://coworld/" & name & "/anthropic_api_key"
+    check not m["game"]["runnable"].hasKey("env")
 
   test "results_schema keys equal generalsResultsJson's keys, both ways":
     let m = manifest()
@@ -171,7 +170,7 @@ suite "the manifest":
     check "gen_generals_io:" in compose
     check "image: coworld-gen-generals-io:latest" in compose
     check "platform: linux/amd64" in compose
-    check "network: host" in compose
+    check "network: host" notin compose
     let m = manifest()
     check m["game"]["runnable"]["image"].getStr() == "{{GEN_GENERALS_IO_IMAGE}}"
     for entry in m["player"]:
