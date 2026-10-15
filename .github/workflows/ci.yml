@@ -17,7 +17,11 @@ jobs:
           python-version: '3.12'
       - name: Install engine + test deps
         run: |
+          pip install -r integrations/softmax/requirements.lock
           pip install -e '.[softmax]'
-          pip install pytest
+          pip install pytest playwright
+          python -m playwright install --with-deps chromium
       - run: python -m integrations.softmax.tools.manifest --check
       - run: pytest -q
+        env:
+          GENERALS_BROWSER_TESTS: "1"

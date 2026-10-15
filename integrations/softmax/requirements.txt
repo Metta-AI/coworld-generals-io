@@ -1,3 +1,4 @@
+anyio==4.15.1
 # CPU-only deployment inputs, separate from the research/training environment.
 jax==0.10.1
 jaxlib==0.10.1

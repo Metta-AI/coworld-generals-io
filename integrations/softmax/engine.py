@@ -1,5 +1,7 @@
 """Coworld boundary for classic 1v1, four-player FFA and castle building."""
 
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -14,20 +16,14 @@ from .protocol import PASS, VERSION
 RULESET = "classic"
 
 
-@jax.jit
-def executed_moves(state, actions):
+@partial(jax.jit, static_argnames=("general_trade",))
+def executed_moves(state, actions, general_trade=False):
     """Receipts for the base moves, using the engine's actual resolution order.
 
     Observe each action separately, before growth or the other action can mask
     its effects.
     """
-    executed = jnp.zeros((actions.shape[0],), dtype=bool)
-    for player in game._determine_move_order(state, actions):
-        action = actions[player]
-        r, c = action[1], action[2]
-        before = state.armies[r, c]
-        state = game.execute_action(state, player, action)
-        executed = executed.at[player].set((action[0] == 0) & (state.armies[r, c] < before))
+    _, executed = game.resolve_moves(state, actions, general_trade=general_trade)
     return executed
 
 
@@ -61,6 +57,7 @@ class Match:
             min_grid_size=18, max_grid_size=21, pad_to=21, truncation=2000,
             mountain_density_range=(0.24, 0.26), min_generals_distance=17 if num_players == 2 else 10,
             num_players=num_players, build_castles=ruleset == "build_castles", deathtouch_turn=None,
+            general_trade=ruleset == "classic",
         )
         self.state = make_board(self.env, seed)
         self.transition = jax.jit(make_transition(self.env))
@@ -69,7 +66,7 @@ class Match:
         # Compile before /healthz and before player deadlines begin.
         passes = jnp.array([PASS] * num_players, dtype=jnp.int32)
         jax.block_until_ready(self.transition(self.state, passes))
-        jax.block_until_ready(executed_moves(self.state, passes))
+        jax.block_until_ready(executed_moves(self.state, passes, general_trade=self.env.general_trade))
         if ruleset == "build_castles":
             jax.block_until_ready(build_receipts(self.state, passes))
         for slot in range(num_players):
@@ -160,7 +157,7 @@ class Match:
             built, executed = build_receipts(self.state, batch)
             self.last_build_executed = [bool(built[s]) if actions[s][0] == 2 else None for s in range(self.num_players)]
         else:
-            executed = executed_moves(self.state, batch)
+            executed = executed_moves(self.state, batch, general_trade=self.env.general_trade)
         self.state, info = self.transition(self.state, batch)
         self.last_move_executed = [bool(executed[s]) if actions[s][0] == 0 else None for s in range(self.num_players)]
         return int(info.winner) if bool(info.is_done) else -1

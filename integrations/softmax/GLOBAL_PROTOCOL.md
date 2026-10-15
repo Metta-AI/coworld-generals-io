@@ -39,3 +39,7 @@ It accepts raw JSON or gzip identified by magic bytes. Internal assets use
 relative URLs and replay fetching needs CORS when hosted on a different origin.
 The viewer sends `coworld-replay` loading/phase/ready/error messages to its
 embedding parent, autoplays, loops, and exposes pause, seek, speed and restart.
+
+Release 0.4.0 enables mutual general trades in classic mode. For resimulation,
+use the episode’s pinned source revision: older classic releases disabled this
+rule. Stored board frames remain the authoritative playback data.

@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 softmax = [
+    "anyio==4.15.1",
     "fastapi==0.135.1",
     "pydantic==2.13.5",
     "uvicorn==0.41.0",
@@ -28,7 +29,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://generals.bot"
-Repository = "https://github.com/strakam/generals-bots"
+Repository = "https://github.com/Metta-AI/coworld-generals-io"
 
 [build-system]
 requires = ["setuptools>=61.0"]

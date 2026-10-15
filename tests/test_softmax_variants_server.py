@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections import deque
 from contextlib import ExitStack
 
 import jax.numpy as jnp
@@ -109,3 +110,91 @@ def test_build_action_changes_replay_and_next_observation(tmp_path):
         replay = json.loads((tmp_path / "replay.json").read_text())
         assert replay["ruleset"] == "build_castles"
         assert replay["frames"][1]["type_grid"][0][1] == 3
+
+
+def test_classic_players_trade_generals_and_finish_with_replay(tmp_path):
+    """Two real players walk across a generated map and exchange generals together."""
+    cfg = GameConfig(
+        tokens=["trade-0", "trade-1"], players=[{"name": "Red"}, {"name": "Blue"}],
+        seed=7, max_turns=600, turn_timeout_seconds=1,
+    )
+    with TestClient(create_app(cfg, destinations(tmp_path))) as client, ExitStack() as stack:
+        sockets = [stack.enter_context(client.websocket_connect(f"/player?slot={s}&token=trade-{s}"))
+                   for s in range(2)]
+        generals = []
+        positions = []
+        previous = [PASS.copy(), PASS.copy()]
+        # Opposite flanks keep the two scripted armies from fighting before the trade.
+        flanked = [False, False]
+        blocked = [set(), set()]
+        traded_turn = None
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        for turn in range(600):
+            observations = [receive(ws, "observation") for ws in sockets]
+            if turn == 0:
+                generals = [next((r, c) for r, row in enumerate(o["type_grid"]) for c, kind in enumerate(row)
+                                 if kind == 4 and o["owner_grid"][r][c] == 1) for o in observations]
+                positions = generals.copy()
+            actions = [PASS.copy(), PASS.copy()]
+            ready = [False, False]
+            for slot, obs in enumerate(observations):
+                assert not obs["eliminated"]
+                if traded_turn is not None:
+                    if turn == traded_turn + 1:
+                        assert obs["last_move_executed"] is True
+                        r, c = generals[1 - slot]
+                        assert obs["type_grid"][r][c] == 4 and obs["owner_grid"][r][c] == 1
+                    continue
+                if previous[slot][0] == 0 and obs["last_move_executed"]:
+                    dr, dc = directions[previous[slot][3]]
+                    destination = (previous[slot][1] + dr, previous[slot][2] + dc)
+                    if obs["owner_grid"][destination[0]][destination[1]] == 1:
+                        positions[slot] = destination
+                if turn < 300:
+                    continue
+                for r, row in enumerate(obs["type_grid"]):
+                    for c, kind in enumerate(row):
+                        if kind in (2, 5):
+                            blocked[slot].add((r, c))
+                source = positions[slot]
+                target = generals[1 - slot]
+                flank_column = 0 if slot == 0 else obs["width"] - 1
+                if source[1] == flank_column:
+                    flanked[slot] = True
+                queue = deque([(source, [])])
+                visited = {source}
+                route = None
+                while queue:
+                    cell, path = queue.popleft()
+                    if (cell == target if flanked[slot] else cell[1] == flank_column):
+                        route = path
+                        break
+                    for direction, (dr, dc) in enumerate(directions):
+                        nxt = (cell[0] + dr, cell[1] + dc)
+                        if (0 <= nxt[0] < obs["height"] and 0 <= nxt[1] < obs["width"]
+                                and nxt not in blocked[slot] and nxt not in visited):
+                            visited.add(nxt)
+                            queue.append((nxt, path + [direction]))
+                assert route, "generated map must allow a route between generals"
+                ready[slot] = flanked[slot] and len(route) == 1
+                actions[slot] = [0, source[0], source[1], route[0], 0]
+            if all(ready):
+                traded_turn = turn
+            else:
+                for slot in range(2):
+                    if ready[slot]:
+                        actions[slot] = PASS.copy()
+            previous = actions
+            for ws, action in zip(sockets, actions):
+                ws.send_json({"type": "action", "turn": turn, "action": action})
+        result = receive(sockets[0], "final")["result"]
+        assert traded_turn is not None and traded_turn < 599, (generals, positions)
+        assert result["scores"] == [0, 0] and result["timeouts"] == [0, 0]
+        replay = client.get("/replay.json").json()
+        assert replay["result"] == result
+        frame = replay["frames"][traded_turn + 1]
+        assert frame["eliminated"] == [False, False]
+        for slot in range(2):
+            r, c = generals[1 - slot]
+            assert frame["type_grid"][r][c] == 4 and frame["owner_grid"][r][c] == slot + 1
+        assert json.loads((tmp_path / "results.json").read_text()) == result

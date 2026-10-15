@@ -7,7 +7,7 @@ from pathlib import Path
 from integrations.softmax.config import GameConfig
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = "https://github.com/strakam/generals-bots/tree/softmax/integrations/softmax"
+SOURCE = "https://github.com/Metta-AI/coworld-generals-io/tree/main/integrations/softmax"
 
 
 def document(filename):
@@ -37,7 +37,7 @@ def template():
         "tags": ["strategy", "1v1", "ffa", "fog-of-war", "territory-control"],
         "game": {
             "name": "generals-competition",
-            "owner": "Matej Straka",
+            "owner": "Softmax",
             "description": (
                 "Fog-of-war territory strategy: classic 1v1, four-player free-for-all, "
                 "and build-your-own-castles 1v1. Capture generals to win; no Deathtouch."

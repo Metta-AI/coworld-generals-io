@@ -6,6 +6,13 @@ engine with fog of war and normal combat. Deathtouch is disabled. The
 authoritative engine is Python/JAX on CPU; separate players connect over
 WebSocket. The lightweight stdio bridge also supports existing competition bots.
 
+Release 0.4.0 moves maintenance to `Metta-AI/coworld-generals-io` and enables
+mutual general trades in classic 1v1 and FFA. When two players capture each
+other's generals in the same turn, both survive and exchange generals and land.
+Castle-building retains its previous rules. Move acknowledgements use the same
+resolver as gameplay, including trades. WebSocket shutdown now waits for its
+owned tasks to finish cleanup under cancellation.
+
 Release 0.3.0 adds the `ffa` and `castles` variants, plus paced human versions
 `ffa-human` and `castles-human`. Existing `competition` and `human` IDs retain
 classic 1v1 rules. The bot variants (`competition`, `ffa`, `castles`) cap at
@@ -205,7 +212,17 @@ coworld build --project integrations/softmax --version <next version>
 coworld certify integrations/softmax/dist/coworld_manifest.json
 ```
 
-`compose.yaml` builds separate CPU game and lightweight player images. The
+`compose.yaml` builds separate CPU game and lightweight player images.
+Deployment defaults to `linux/amd64`. On Apple Silicon, certify native containers:
+
+```bash
+GENERALS_ARCH=arm64 coworld build --project integrations/softmax --version <next version>
+coworld certify integrations/softmax/dist/coworld_manifest.json --no-open-report
+```
+
+Then rebuild without `GENERALS_ARCH` for the hosted amd64 release. Image tags
+include the architecture, so native validation does not replace the deployable
+image. JAX's amd64 wheel requires AVX, which local amd64 emulation may not expose. The
 manifest template embeds the protocol/rules docs and derives its config schema
 from the runtime model. If those sources change, regenerate it with
 `python -m integrations.softmax.tools.manifest`. The build hook recreates the

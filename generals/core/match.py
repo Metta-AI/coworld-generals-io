@@ -64,6 +64,6 @@ def make_transition(env):
             state, actions = _bc.apply_build_actions(state, actions)
         if env.deathtouch_turn is not None:
             return _dt.step(state, actions, env.deathtouch_turn)
-        return game.step(state, actions)
+        return game.step(state, actions, general_trade=env.general_trade)
 
     return transition

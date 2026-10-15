@@ -1,9 +1,20 @@
+# Coworld Generals.io
+
+Softmax-owned Generals game, player bridge, browser client, and replay viewer.
+Start with [the Softmax integration](integrations/softmax/README.md).
+
+Based on [Matej Straka’s generals-bots](https://github.com/strakam/generals-bots/tree/softmax),
+imported at `0fcb5a00226387670624d2f326f6d5ad61914584`. The upstream MIT license
+and attribution are retained. The deployed Coworld remains `generals-competition`.
+See [the migration record](integrations/softmax/MIGRATION.md) for provenance,
+archived releases, validation, and remaining official-engine work.
+
 <div align="center">
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/strakam/generals-bots/master/generals/assets/images/game1.webp" width="250" alt="Self-play game 1" />
-  <img src="https://raw.githubusercontent.com/strakam/generals-bots/master/generals/assets/images/game2.webp" width="250" alt="Self-play game 2" />
-  <img src="https://raw.githubusercontent.com/strakam/generals-bots/master/generals/assets/images/game3.webp" width="250" alt="Self-play game 3" />
+  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game1.webp" width="250" alt="Self-play game 1" />
+  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game2.webp" width="250" alt="Self-play game 2" />
+  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game3.webp" width="250" alt="Self-play game 3" />
 </p>
 
 ## **Generals.io Bots**
@@ -22,8 +33,8 @@ A high-performance JAX-based simulator for [generals.io](https://generals.io), d
 ## 📦 Installation
 
 ```bash
-git clone https://github.com/strakam/generals-bots
-cd generals-bots
+git clone https://github.com/Metta-AI/coworld-generals-io
+cd coworld-generals-io
 pip install -e .
 ```
 

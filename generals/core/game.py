@@ -554,8 +554,12 @@ def _execute_general_trade(state: GameState, actions: jnp.ndarray, e, t) -> Game
     return state._replace(armies=armies, ownership=ownership, general_positions=gp)
 
 
-def _moves_with_general_trades(state: GameState, actions: jnp.ndarray, order: jnp.ndarray) -> GameState:
-    """Execute the turn's moves in `order`, resolving general trades where
+def resolve_moves(
+    state: GameState, actions: jnp.ndarray, general_trade: bool = False,
+) -> tuple[GameState, jnp.ndarray]:
+    """Resolve moves and return the board plus per-player execution receipts.
+
+    When enabled, resolve general trades where
     generals.io's ``Game.update`` does: when the walk reaches a move, it looks
     for a LATER move of the target player onto the mover's general such that
     both attacks capture on the board as it stands (``getMutualGeneralSwapMoveIndex``);
@@ -563,17 +567,26 @@ def _moves_with_general_trades(state: GameState, actions: jnp.ndarray, order: jn
     marked used. Everything else in the turn runs on the board the trade left
     (a third player's move between the two positions included).
     """
+    order = _determine_move_order(state, actions)
     N = actions.shape[0]
     consumed = jnp.zeros((N,), dtype=bool)
+    executed = jnp.zeros((N,), dtype=bool)
     for k in range(N):
         player = order[k]
-        for m in range(k + 1, N):
-            other = order[m]
-            trade = _is_general_trade(state, actions, player, other) & ~consumed[player] & ~consumed[other]
-            state = lax.cond(trade, lambda s: _execute_general_trade(s, actions, player, other), lambda s: s, state)
-            consumed = consumed.at[player].set(consumed[player] | trade).at[other].set(consumed[other] | trade)
+        if general_trade:
+            for m in range(k + 1, N):
+                other = order[m]
+                trade = _is_general_trade(state, actions, player, other) & ~consumed[player] & ~consumed[other]
+                state = lax.cond(trade, lambda s: _execute_general_trade(s, actions, player, other), lambda s: s, state)
+                consumed = consumed.at[player].set(consumed[player] | trade).at[other].set(consumed[other] | trade)
+                executed = executed.at[player].set(executed[player] | trade).at[other].set(executed[other] | trade)
+        action = actions[player]
+        r, c = action[1], action[2]
+        before = state.armies[r, c]
         state = lax.cond(consumed[player], lambda s: s, lambda s: execute_action(s, player, actions[player]), state)
-    return state
+        moved = ~consumed[player] & (action[0] == 0) & (state.armies[r, c] < before)
+        executed = executed.at[player].set(executed[player] | moved)
+    return state, executed
 
 
 def _last_team_standing(state: GameState) -> jnp.ndarray:
@@ -613,13 +626,7 @@ def step(state: GameState, actions: jnp.ndarray,
         raise ValueError(f"got actions for {N} players but the state has {state.ownership.shape[0]}")
     done_before = state.winner >= 0
 
-    order = _determine_move_order(state, actions)
-    if general_trade:
-        state = _moves_with_general_trades(state, actions, order)
-    else:
-        for k in range(N):
-            player = order[k]
-            state = execute_action(state, player, actions[player])
+    state, _ = resolve_moves(state, actions, general_trade=general_trade)
 
     state = state._replace(time=jnp.where(done_before, state.time, state.time + 1))
 

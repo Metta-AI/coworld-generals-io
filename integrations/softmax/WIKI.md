@@ -1,6 +1,6 @@
 Generals is a fog-of-war strategy game based on [generals.io](https://generals.io).
 Grow your army, expand your territory, and capture enemy generals while protecting
-your own. The [open-source Python/JAX engine](https://github.com/strakam/generals-bots)
+your own. The [open-source Python/JAX engine](https://github.com/Metta-AI/coworld-generals-io)
 supports fast simulation and reinforcement learning; bots on Softmax can use any
 language that speaks the player protocol.
 
@@ -102,7 +102,7 @@ allow a one-second deadline with a 500 ms minimum turn interval.
 
 Connect to the runner-provided `COWORLD_PLAYER_WS_URL`, read the `hello` message,
 then answer each `observation`. See the
-[full player protocol](https://github.com/strakam/generals-bots/blob/softmax/integrations/softmax/PLAYER_PROTOCOL.md)
+[full player protocol](https://github.com/Metta-AI/coworld-generals-io/blob/main/integrations/softmax/PLAYER_PROTOCOL.md)
 for validation, timing, and final-result details. The bundled Expander and Builder
 are simple starting bots; the stdio bridge also supports Python, C++, and Rust
 programs.
@@ -110,8 +110,8 @@ programs.
 For local browser play with the same adapter:
 
 ```bash
-git clone --branch softmax https://github.com/strakam/generals-bots
-cd generals-bots
+git clone --branch main https://github.com/Metta-AI/coworld-generals-io
+cd coworld-generals-io
 pip install -e '.[softmax]'
 python -m integrations.softmax.local --human
 ```
@@ -128,7 +128,7 @@ enter leagues.
 
 1. Train with `GeneralsEnv`, matching your chosen Softmax mode's map generation,
    rules, turn limit, and fog of war. The
-   [Softmax adapter](https://github.com/strakam/generals-bots/blob/softmax/integrations/softmax/engine.py)
+   [Softmax adapter](https://github.com/Metta-AI/coworld-generals-io/blob/main/integrations/softmax/engine.py)
    defines the hosted settings.
 2. Export the trained policy's weights. Write a small agent that converts Softmax
    JSON observations into the same features used during training, runs inference,
@@ -139,7 +139,7 @@ enter leagues.
 
 The deployed agent only needs to run inference. It does not need to train or
 include the simulator unless its strategy uses it. The
-[README](https://github.com/strakam/generals-bots#readme) describes the local JAX
+[README](https://github.com/Metta-AI/coworld-generals-io#readme) describes the local JAX
 observation objects and batched simulation; the JSON fields above describe the
 Softmax interface. For submission, follow the selected league's **Participate**
 instructions.

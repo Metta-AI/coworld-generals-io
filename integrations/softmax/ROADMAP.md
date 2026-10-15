@@ -34,7 +34,7 @@ Softmax-team-only 403. The individual league owner has not been identified.
 Prefer reusing this league; clarify management access with Richard before
 planning settings changes or creating a duplicate.
 
-Keep integration work on `softmax`, leaving `master` alone. Preserve classic
+This roadmap is upstream history. New integration work belongs in Metta-AI/coworld-generals-io; see MIGRATION.md. Preserve classic
 capture-only play as a separate option when adding other rulesets. Avoid opening
 Matej's browser unless he asks. Do not send feedback to Richard without Matej's
 authorization.

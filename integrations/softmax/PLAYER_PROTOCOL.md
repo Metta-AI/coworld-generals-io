@@ -53,7 +53,10 @@ extra message fields, and malformed shapes before entering JAX. Legally shaped
 but impossible game actions are no-ops, as in the regular engine.
 
 Only the **first valid message for the current turn** is accepted. Actions from
-all surviving players resolve together using the existing engine's move-order rules.
+all surviving players resolve together using the engine's move-order rules.
+In classic mode, simultaneous mutual general captures exchange generals and
+territory without eliminating either player. Both moves are acknowledged as
+executed. Castle-building mode retains ordinary ordered captures.
 The server has no action queue: act only on the newest observation. The browser
 player stores premoves locally and submits one action per observation using this
 same protocol. The game advances

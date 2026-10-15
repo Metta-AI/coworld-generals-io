@@ -1,7 +1,7 @@
 # Generals modes and leagues
 
 One `generals-competition` Coworld carries every mode; each bot mode runs as its
-own Softmax league. Work stays on `softmax`.
+own Softmax league. New releases are maintained in `Metta-AI/coworld-generals-io`.
 
 ## Modes (since release 0.3.2)
 
