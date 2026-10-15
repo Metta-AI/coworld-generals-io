@@ -72,3 +72,14 @@ The 0.4.0 rule change enables mutual general trades only for classic modes.
 Castle-building retains its previous rules. The transition and action receipts
 share the same resolver. Historical JSON replay frames still render directly;
 resimulation must use each episode's pinned source revision.
+
+Native arm64 container certification passed all ten checks for classic, FFA,
+and castle-building. Container testing also exposed host-umask-dependent source
+permissions; both image stages now make application sources readable before
+starting unprivileged players.
+
+The existing `Coworld release` workflow is retained with a new Python-game build
+path and SDK 0.1.60. Dispatch it with the release version to build native amd64,
+certify all modes, and publish using the repository's existing `SOFTMAX_TOKEN`.
+It never skips certification or cancels an in-progress release. Local upload on
+Apple Silicon cannot certify the amd64 JAX wheel because emulation lacks AVX.

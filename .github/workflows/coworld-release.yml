@@ -1,0 +1,82 @@
+name: Coworld release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Coworld version to publish (MAJOR.MINOR.PATCH)
+        required: true
+        type: string
+
+concurrency:
+  group: coworld-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  COWORLD_PKG: coworld[auth]==0.1.60
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python - <<'PY'
+          import os, re
+          assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", os.environ["VERSION"]), "invalid version"
+          PY
+      - name: Build release
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          uvx --from "$COWORLD_PKG" coworld build --project integrations/softmax --version "$VERSION"
+      - name: Certify all modes on native amd64
+        run: |
+          python - <<'PY'
+          import copy, json
+          from pathlib import Path
+          root = Path("integrations/softmax/dist")
+          manifest = json.loads((root / "coworld_manifest.json").read_text())
+          for variant, count in [("ffa", 4), ("castles", 2)]:
+              fixture = copy.deepcopy(manifest)
+              fixture["certification"]["game_config"] = {
+                  "seed": 7, "max_turns": 40, "tick_interval_seconds": 0.05,
+                  "ruleset": "build_castles" if variant == "castles" else "classic",
+                  "players": [{"name": name} for name in ["Red", "Blue", "Green", "Purple"][:count]],
+              }
+              fixture["certification"]["players"] = [
+                  {"player_id": "builder" if slot == 1 else "expander"} for slot in range(count)
+              ]
+              (root / f"{variant}-certification.json").write_text(json.dumps(fixture))
+          PY
+          for manifest in coworld_manifest ffa-certification castles-certification; do
+            uvx --from "$COWORLD_PKG" coworld certify "integrations/softmax/dist/$manifest.json" --no-open-report --timeout-seconds 180
+          done
+      - name: Publish and await hosted certification
+        env:
+          SOFTMAX_TOKEN: ${{ secrets.SOFTMAX_TOKEN }}
+        run: |
+          test -n "$SOFTMAX_TOKEN"
+          uvx --from "$COWORLD_PKG" softmax set-token "$SOFTMAX_TOKEN"
+          uvx --from "$COWORLD_PKG" coworld --elevated upload-coworld integrations/softmax/dist/coworld_manifest.json --wait-certification --certification-timeout-seconds 1200
+      - name: Save release manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generals-release
+          path: integrations/softmax/dist/coworld_manifest.json
+          if-no-files-found: warn
