@@ -1,87 +1,229 @@
-# cogame-gen-generals-io
+# Coworld Generals.io
 
-**Four crowns, one grid, and a fog you have to walk into.**
+Softmax-owned Generals game, player bridge, browser client, and replay viewer.
+Start with [the Softmax integration](integrations/softmax/README.md).
 
-`gen-generals-io` is a four-seat, free-for-all, fog-of-war conquest game on a
-16 × 10 grid — a standalone generals.io-style coworld. Every commander starts
-on one crowned tile in one corner of a four-fold-symmetric board, sees only
-the tiles it owns and the ring of tiles touching them, and spends one move a
-turn pushing armies outward.
+Based on [Matej Straka’s generals-bots](https://github.com/strakam/generals-bots/tree/softmax),
+imported at `0fcb5a00226387670624d2f326f6d5ad61914584`. The upstream MIT license
+and attribution are retained. The deployed Coworld remains `generals-competition`.
+See [the migration record](integrations/softmax/MIGRATION.md) for provenance,
+archived releases, validation, and remaining official-engine work.
 
-Armies grow on cities and crowns every turn, and on **every owned tile every
-25 turns** — land is production. Neutral cities hold 40 armies and are the
-only toll on the board. And then the snowball: **capture another commander's
-crown and you inherit every tile they own** — their land, their armies
-(halved), their cities — and they are out. Last crown standing wins; if the
-clock runs out first the ranking is survival, then land, then army, then
-cities.
+<div align="center">
 
-You always know, from the public standings, exactly how much land and army
-each rival has. You never know **where** any of it is, or where their crown
-is, until you walk a scout into their half and see it.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game1.webp" width="250" alt="Self-play game 1" />
+  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game2.webp" width="250" alt="Self-play game 2" />
+  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game3.webp" width="250" alt="Self-play game 3" />
+</p>
 
-## A policy is just a prompt
+## **Generals.io Bots**
 
-Both champions are LLM prompt policies; both fillers are scripted baselines;
-all four are the same image, switched by environment:
+[Installation](#-installation) • [Getting Started](#-getting-started) • [Environment](#-environment) • [Deployment](#-deployment)
+</div>
 
-```bash
-coworld upload-policy coworld-gen-generals-io:latest \
-  --name my-generals --run /bin/gen-generals-io-player \
-  --secret-env PLAYER_PROMPT="Land is the only thing that compounds..."
-```
+A high-performance JAX-based simulator for [generals.io](https://generals.io), designed for reinforcement learning research.
 
-`PLAYER_SCRIPTED=sprawl` or `PLAYER_SCRIPTED=crown` seats a scripted baseline
-instead. A seat that sets neither plays `sprawl`.
+**Highlights:**
+* ⚡ **10M+ steps/second** — fully JIT-compiled JAX simulator with vectorized `vmap` for massive parallelism
+* 🎯 **Pure functional design** — immutable state, reproducible trajectories
+* 🚀 **Live deployment** — deploy agents to [generals.io](https://generals.io) servers
+* 🎮 **Built-in GUI** — visualize games and debug agent behavior
 
-The LLM decides the **plan**, once every eight turns: an intent, a target
-cell, a crown reserve, a city policy and how much of the next eight turns
-goes to scouting. A deterministic captain compiles that plan into exactly one
-legal move per turn, every turn, **from the seat's own fogged view** — and
-the browser runs the identical Nim code, which is why the replay carries 120
-plans rather than 960 moves.
-
-## Watching it
-
-The replay is a **static wasm bundle**, never a pod: `tools/build_replay_viewer.sh`
-compiles the same `src/generals` sim modules to wasm through
-`Dockerfile.replay-viewer` and bundles them with the starter's broadcast
-chrome. The viewer re-simulates every turn in the browser and checks its
-`gameHash` against the recording every tick.
-
-The board draws edge to edge with the exact garrison integer on every
-occupied cell, and a **fog lens** chip row lets a spectator watch the board as
-any one commander saw it — a raid arriving out of the dark exactly as the
-victim experienced it.
-
-See [TRAINING.md](TRAINING.md) for native post-training exports.
-
-## Layout
-
-```
-src/gen_generals_io.nim         the game server entrypoint
-src/gen_generals_io_player.nim  the thin seat registrar
-src/generals/                   the sim, the decision layer, the server
-replay-viewer/gen_replay.nim    the wasm entry (same sim modules)
-client/                         chrome_common.js + broadcast_core.js + the page
-tools/                          the build hook, the CI harness, forensics
-docs/RULES.md                   the rules, and the divergences from generals.io
-docs/PROTOCOL.md                the wire protocol
-docs/COMMANDING.md              how to write a plan prompt
-```
-
-## Building and testing
-
-The sandbox has no Docker, no Nim and no emsdk: `ci.yml` is the harness.
+## 📦 Installation
 
 ```bash
-nim r --path:src tests/tests.nim          # the sim, scoring, replay and manifest tests
-./tools/ci/docker_smoke.sh coworld-gen-generals-io:ci
-./tools/build_replay_viewer.sh "$PWD/dist/static-replay-viewer"
-node tools/ci/viewer_smoke.mjs --bundle dist/static-replay-viewer \
-  --replay dist/smoke/replay.json --timeout 90 --soak 10 --strict-text-bounds
+git clone https://github.com/Metta-AI/coworld-generals-io
+cd coworld-generals-io
+pip install -e .
 ```
 
-Forked from [`Metta-AI/coworld-ctf`](https://github.com/Metta-AI/coworld-ctf)
-(paintbot): the tick loop, the four-team seating and aliases, the decision
-layer, the replay codec and the static wasm viewer are all its.
+> [!Note]
+> This repository is based on the [generals.io](https://generals.io) game.
+> The goal is to provide a fast bot development platform for reinforcement learning research.
+> The simulator follows the current rules of the game: 10,000 ranked games played in 2026 replay
+> through it with a board identical to generals.io's own engine after every turn.
+
+## 🌱 Getting Started
+
+### Basic Game Loop
+
+```python
+import jax.numpy as jnp
+import jax.random as jrandom
+
+from generals import GeneralsEnv, get_observation
+from generals.agents import RandomAgent, ExpanderAgent
+
+# Create environment (customize grid size and truncation)
+env = GeneralsEnv(grid_dims=(10, 10), truncation=500)
+
+# Create agents
+agent_0 = RandomAgent()
+agent_1 = ExpanderAgent()
+
+# Initialize — reset returns the auto-reset pool plus the first state
+key = jrandom.PRNGKey(42)
+pool, state = env.reset(key)
+
+# Game loop
+while True:
+    # Get observations
+    obs_0 = get_observation(state, 0)
+    obs_1 = get_observation(state, 1)
+
+    # Get actions
+    key, k1, k2 = jrandom.split(key, 3)
+    action_0 = agent_0.act(obs_0, k1)
+    action_1 = agent_1.act(obs_1, k2)
+    actions = jnp.stack([action_0, action_1])
+
+    # Step environment (auto-resets from the pre-generated pool)
+    timestep, state = env.step(state, actions, pool)
+
+    if timestep.terminated or timestep.truncated:
+        break
+
+print(f"Winner: Player {int(timestep.info.winner)}")
+```
+
+### ⚡Vectorized Parallel Environments
+
+Run **thousands** of games in parallel using `jax.vmap`:
+
+```python
+import jax
+import jax.random as jrandom
+from generals import GeneralsEnv, get_observation
+
+# Create single environment
+env = GeneralsEnv(grid_dims=(10, 10), truncation=500)
+
+# Generate state pool once, then create per-env starting states
+NUM_ENVS = 1024
+key = jrandom.PRNGKey(0)
+key, pool_key = jrandom.split(key)
+pool, _ = env.reset(pool_key)  # generates the shared pool
+
+keys = jrandom.split(key, NUM_ENVS)
+states = jax.vmap(env.init_state)(keys)  # Batched states
+
+# Step all environments in parallel (auto-resets from the shared pool)
+# ... get batched observations and actions ...
+step_vmap = jax.vmap(lambda s, a: env.step(s, a, pool))
+timesteps, states = step_vmap(states, actions)
+```
+
+See `examples/vectorized_example.py` for a complete example.
+
+### 👥 Teams and Free-For-All
+
+The same env plays 1v1 (the default), N-player free-for-all, and team games:
+
+```python
+env = GeneralsEnv(grid_dims=(15, 15))                   # 1v1
+env = GeneralsEnv(grid_dims=(15, 15), num_players=4)    # 4-player free-for-all
+env = GeneralsEnv(grid_dims=(15, 15), teams=[0, 0, 1, 1])   # 2v2: players 0+1 vs 2+3
+```
+
+With N players, actions are `(N, 5)`, `state.ownership` is `(N, H, W)`, and
+observations and rewards are stacked `(N, ...)`. Rules beyond 1v1:
+
+* Moving onto a **teammate's** cell pools the armies and hands the cell to the mover.
+* **Capturing a general** transfers all of the victim's cells to the capturer with
+  every army halved (rounded up); the general becomes a castle and the victim is
+  eliminated (their actions are ignored from then on). The game goes on while
+  another team is alive.
+* A team loses only when **every** one of its generals has fallen; the **last
+  team standing** wins. `info.winner` is the winning team id (the player index
+  in 1v1 / free-for-all), and every player on that team gets reward `+1`,
+  everyone else `-1`.
+* **Sight is shared** within a team. Observations carry `allied_cells`,
+  `allied_land_count` and `allied_army_count` (all zero when you have no
+  teammate); `opponent_*` covers every enemy team together.
+
+See `examples/multiplayer_example.py` for batched 2v2 / FFA / 1v1 games under `jax.jit`.
+
+## 🌍 Environment
+
+### Softmax Coworld integration
+
+The optional [Softmax integration](integrations/softmax/README.md) packages
+classic 1v1, four-player FFA and build-your-own-castles 1v1 with networked
+players, browser controls, and portable replays. Run `pip install -e '.[softmax]'`, then
+`python -m integrations.softmax.local --human` to play locally.
+
+### Observation
+
+Each player receives an `Observation` with these fields:
+
+| Field | Shape | Description |
+|-------|-------|-------------|
+| `armies` | `(H,W)` | Army counts in visible cells |
+| `generals` | `(H,W)` | Mask of visible generals |
+| `castles` | `(H,W)` | Mask of visible castles (formerly `cities` — a deprecated alias remains) |
+| `mountains` | `(H,W)` | Mask of visible mountains |
+| `owned_cells` | `(H,W)` | Mask of cells you own |
+| `opponent_cells` | `(H,W)` | Mask of opponent's visible cells |
+| `neutral_cells` | `(H,W)` | Mask of neutral visible cells |
+| `fog_cells` | `(H,W)` | Mask of fog (unexplored) cells |
+| `structures_in_fog` | `(H,W)` | Mask of castles/mountains in fog |
+| `owned_land_count` | scalar | Total cells you own |
+| `owned_army_count` | scalar | Total armies you have |
+| `opponent_land_count` | scalar | Opponent's cell count |
+| `opponent_army_count` | scalar | Opponent's army count |
+| `timestep` | scalar | Current game step |
+| `allied_cells` | `(H,W)` | Mask of teammates' visible cells (team games; all-False otherwise) |
+| `allied_land_count` | scalar | Teammates' cell count |
+| `allied_army_count` | scalar | Teammates' army count |
+
+`obs.as_tensor()` stacks the first 14 fields into a `(14, H, W)` tensor;
+`obs.as_tensor(include_allied=True)` appends the three allied channels.
+
+### Action
+
+Actions are arrays of 5 integers: `[pass, row, col, direction, split]`
+
+| Index | Field | Values |
+|-------|-------|--------|
+| 0 | `pass` | `1` to pass, `0` to move |
+| 1 | `row` | Source cell row |
+| 2 | `col` | Source cell column |
+| 3 | `direction` | `0`=up, `1`=down, `2`=left, `3`=right |
+| 4 | `split` | `1` to send half army, `0` to send all-1 |
+
+Use `compute_valid_move_mask` to get legal moves:
+
+```python
+from generals import compute_valid_move_mask
+
+mask = compute_valid_move_mask(obs.armies, obs.owned_cells, obs.mountains)
+# mask shape: (H, W, 4) - True where move from (i,j) in direction d is valid
+```
+
+## 🚀 Deployment
+
+Deploy agents to live [generals.io](https://generals.io) servers:
+
+```python
+from generals.remote import autopilot
+from generals.agents import ExpanderAgent
+
+agent = ExpanderAgent()
+autopilot(agent, user_id="your_user_id", lobby_id="your_lobby")
+```
+
+Register at [generals.io](https://generals.io) to get your user ID.
+
+## 📄 Citation
+
+```bibtex
+@misc{generals_rl,
+      author    = {Matej Straka, Martin Schmid},
+      title     = {Artificial Generals Intelligence: Mastering Generals.io with Reinforcement Learning},
+      year      = {2025},
+      eprint    = {2507.06825},
+      archivePrefix = {arXiv},
+      primaryClass = {cs.LG},
+}
+```
