@@ -1,0 +1,274 @@
+# Generals · Softmax Coworld
+
+One Coworld with three competitive modes: **classic 1v1**, **four-player FFA**,
+and **build-your-own-castles 1v1**. All reuse this repository's `GeneralsEnv`
+engine with fog of war and normal combat. Deathtouch is disabled. The
+authoritative engine is Python/JAX on CPU; separate players connect over
+WebSocket. The lightweight stdio bridge also supports existing competition bots.
+
+Release 0.3.0 adds the `ffa` and `castles` variants, plus paced human versions
+`ffa-human` and `castles-human`. Existing `competition` and `human` IDs retain
+classic 1v1 rules. The bot variants (`competition`, `ffa`, `castles`) cap at
+2,000 turns; the paced human variants remain at 1,200. Each bot mode runs as its
+own Softmax league under the same `generals-competition` Coworld: Classic 1v1,
+FFA 1v1v1v1 and Build 1v1. The bundled Builder player
+funds an opening castle before expanding; Expander works in every mode but does
+not build. These are integration baselines, not strong competitive players.
+
+Release 0.2.0 replaces the competition modifiers used by 0.1.0. The registered
+Coworld name (`generals-competition`) and bot variant ID (`competition`) remain
+stable so existing links work. The repository's competition preset is unchanged.
+
+Release 0.2.1 fixes human lobby connections through Softmax's hosted proxy.
+Browser pages accept its `address` parameter containing the complete player
+WebSocket URL, while local player links continue to accept `slot` and `token`.
+Release 0.2.2 also serves live assets and completed replays under `/client/`,
+which Softmax's hosted-play proxy forwards. Replay access still requires the
+match to finish; no live hidden state is exposed.
+Release 0.2.3 keeps tile icons and queue arrows mounted across turn updates,
+updating army counts and arrow state in place to avoid visual flicker.
+Release 0.2.4 sends automatic passes early enough for the hosted proxy and gives
+human lobbies a one-second network deadline. Their normal minimum tick interval
+remains 500 ms; slow connections can extend a turn. Status text stays steady
+while idle instead of alternating messages each tick.
+Release 0.2.5 tracks separately selected army routes: a failed route is removed
+while other queued routes continue in order.
+Release 0.3.1 raises the competition turn cap to 2,000. Human, FFA, and
+castle-building variants remain at 1,200 turns. All modes also move to the
+engine's replay-verified generals.io move order: defensive moves first, moves
+onto a general last, then larger armies first (previously smaller first),
+with ties broken by player order reversed on odd turns.
+Release 0.3.2 raises the FFA and castle-building bot variants to 2,000 turns,
+matching classic. Human variants stay at 1,200 so a paced game fits Softmax's
+20-minute hosted episode limit.
+Release 0.3.3 changes documentation only: per-mode turn caps, the move order
+and one league per bot mode.
+
+## Play locally
+
+From the repository root, with Python 3.12:
+
+```bash
+pip install -e '.[softmax]'
+python -m integrations.softmax.local --human
+# Other modes (omit --human for bundled bots):
+python -m integrations.softmax.local --variant ffa --human
+python -m integrations.softmax.local --variant castles --human
+```
+
+Open the printed player link. Select an owned tile, then use arrow keys/WASD or
+click neighboring cells to queue a route. Black arrows with white outlines show queued moves;
+a white arrow marks the move already submitted for this turn. E undoes the last
+queued action; Q clears all remaining actions. Neither cancels an action already
+submitted. H toggles half-army moves for new inputs, and Space clears the tile
+selection while keeping queued moves intact. The Pass
+button queues a pass. Moves execute one per turn. If a move cannot execute
+(including insufficient army), fails to secure its destination, or an obstacle
+blocks the queued route, only that route is cancelled. Other queued routes
+continue in order, starting on the same turn when possible. Selecting another
+owned tile starts a separate route; use Space first when an adjacent click would
+otherwise extend your current route. A failure clears the selection only if it
+belongs to the failed route. The general is never selected automatically.
+Mountains and fog obstacles cannot be queued into. A castle
+hidden by a fog obstacle can be entered once revealed.
+In castle-building mode, select an eligible owned plain tile and press B or
+Build; the control shows its current army cost. Builds use the same action
+queue as moves. Failed builds cancel their route; other routes continue.
+The browser passes automatically if you do not act. Queues are local
+to the browser and reset on disconnect or reload. The human
+configuration advances at two turns per second. After the match, use the same
+page to watch the full replay. Ctrl+C stops the local server.
+
+For two bundled bots playing as fast as they can:
+
+```bash
+python -m integrations.softmax.local --seed 7 --keep-open
+```
+
+`--max-turns 40` makes a short smoke test. Without it, local games use the hosted
+caps: 2,000 turns for bots and 1,200 with `--human`. Each local run writes into its own ignored `local-output/episode-*`
+directory. `config.json` contains local player tokens; do not publish it. The
+shareable outputs are `results.json` and `replay.json`. `--port` selects another
+local port. The local launcher binds only to loopback.
+
+## Rules and scoring
+
+- Two opposing generals (four in FFA) on an independently sampled 18–21 by
+  18–21 board. The spawn-distance target is 17 steps for 1v1 and 10 for FFA;
+  the map generator uses its connected fallback when a target cannot fit.
+- Fog of war: a player sees its owned tiles and their neighbors. Public army
+  and land totals remain visible. Unexplored mountains/castles share one
+  structure marker. Enemy generals are hidden until visible.
+- A move sends all but one army, or half the source army (rounded down), into
+  one orthogonally adjacent cell. Mountains cannot be entered. Friendly armies
+  combine; attacking armies subtract from defenders. You must exceed the
+  defending army to take a cell under normal combat.
+- Moves resolve one at a time, each on the board the previous one left, in
+  generals.io's order: moves onto your own land first, moves onto a general
+  last, then larger armies before smaller ones; equal armies go in player order,
+  reversed on odd turns. A move whose source another move is entering waits
+  for that move, unless the two armies swap head-on.
+- Generals and owned castles grow each even tick; owned land grows every 50
+  ticks. Neutral castles start on the map with 40–50 defenders and can be captured.
+- Classic 1v1 and FFA disable building and contain neutral castles. The building
+  variant starts without neutral castles and accepts `[2,row,col,0,0]` on your
+  own plain land. The army on that tile pays 35 plus, for each of your generals
+  and castles, `max(0, 14 - 2 * Manhattan distance)`. Building beside your
+  general initially costs 47. Enemy structures never affect the price. Builds
+  resolve before moves and produce ordinary castles; an invalid build is a pass.
+- In FFA, capturing a general eliminates that player, transfers their territory
+  and half their armies to the captor, and turns the captured general into a
+  castle. The last surviving general wins. Eliminated players no longer owe
+  actions; they can remain connected until the final result.
+- General capture always requires beating its defending army, including after
+  turn 800. There is no Deathtouch rule.
+- Capture scores **+1** for the winner and **−1** for each other player. Reaching
+  the turn cap (2,000 in bot variants, 1,200 in human variants) scores **0 for everyone**, including eliminated players,
+  regardless of army or land advantage. FFA does not award intermediate ranks.
+
+The hosted runtime adds explicit failure rules: bot matches have a 500 ms action
+deadline; human lobbies allow one second for transport, while normally advancing
+at two turns per second. Deadlines start at publication of each observation. A missing action is
+a pass. After 20 consecutive missed turns a player forfeits; if both reach the
+threshold together, both score zero. In FFA, a timeout forfeit eliminates only
+that player: their tiles become neutral with unchanged armies and their general
+becomes a neutral castle. The surviving players continue. One survivor wins;
+no survivors draw. A valid pass resets the counter. If a
+player never connects before the 180-second start deadline, the episode emits a
+typed player failure instead of competitive scores. Reconnection is allowed
+during play with the original token, but never resets timeout counters.
+
+Competitive episodes omit `seed`, generating a fresh server-private 32-bit seed.
+Explicit seeds are for reproducible local tests/evaluations. The seed is recorded
+only in the completed replay. Do not pin a league to a known fixed seed: a bot
+could reconstruct the hidden map.
+
+## Player protocol
+
+See [PLAYER_PROTOCOL.md](PLAYER_PROTOCOL.md) for the exact JSON contract and
+the existing [competition protocol](../../competition/protocol.py) for stdio bots.
+The bundled player is the repository's pure-Python Expander; it does not need
+JAX or access to the engine.
+
+To bridge another bot, run in its player container:
+
+```bash
+python -m integrations.softmax.player -- /path/to/compiled-bot
+```
+
+The runner supplies `COWORLD_PLAYER_WS_URL`. Python scripts can be passed as
+`-- python -u /path/to/main.py`. Build C++/Rust executables into the player image
+ahead of time. The bridge owns only its child process; the game owns scoring.
+
+## Spectators and replays
+
+`/client/global` shows live public scores and match status. **It deliberately
+does not show the live board.** Player containers can reach the game server, so
+an unauthenticated omniscient WebSocket would defeat fog of war. Player pages
+and `/player` require the slot's token. The public stream accepts no game-control
+commands, and `/replay.json` is unavailable until all success artifacts are saved.
+
+The completed replay includes every board frame and the submitted/applied
+actions, seed, timeout flags, and result. The tile renderer and styles from `generals-competition` serve player views
+and replays. Crown, castle, and mountain sprites come directly from this repo's
+`generals/assets/images`, with the same assets copied into the static bundle. The static replay bundle needs no Python server, JAX, WASM,
+or network access beyond fetching its replay and local assets. It supports
+autoplay, looping, pause, seek, playback speed, resize, and gzip replay bytes.
+Historical releases keep their own immutable viewer bundle.
+
+For a standalone replay, serve the generated bundle and a replay over HTTP:
+
+```bash
+integrations/softmax/tools/build_replay_viewer.sh integrations/softmax/dist/replay-viewer
+# Copy only a completed replay into dist/replay-viewer/replay.json, then:
+python -m http.server 8090 --directory integrations/softmax/dist/replay-viewer
+# Open http://localhost:8090/#replay=replay.json
+```
+
+See [GLOBAL_PROTOCOL.md](GLOBAL_PROTOCOL.md). Full live board spectating would
+require a separate trusted-viewer authorization contract with Softmax; it must
+not be enabled by copying the example's public omniscient stream.
+
+## Build and certify
+
+The project lives in this directory so the training package does not depend on
+the Coworld SDK. It needs Docker with Compose/Buildx and Docker daemon access.
+Keep the SDK in a separate Python environment. The initial integration targets
+the public Coworld contract at commit
+`4c26e51` (2026-09-08); pin and review SDK updates before releases.
+
+From the repository root:
+
+```bash
+python -m integrations.softmax.tools.manifest --check
+coworld build --project integrations/softmax --version <next version>
+coworld certify integrations/softmax/dist/coworld_manifest.json
+```
+
+`compose.yaml` builds separate CPU game and lightweight player images. The
+manifest template embeds the protocol/rules docs and derives its config schema
+from the runtime model. If those sources change, regenerate it with
+`python -m integrations.softmax.tools.manifest`. The build hook recreates the
+static replay directory and Coworld resolves images to immutable identifiers.
+
+Before publishing, commit and push the release inputs on the integration branch
+so the pinned source URL resolves, inspect a full-length match and static replay,
+and confirm the game name/account ownership with Softmax. Then use the
+authenticated SDK:
+
+```bash
+coworld upload-coworld integrations/softmax/dist/coworld_manifest.json
+```
+
+Hosted verification must exercise real episodes, result scores, player shutdown,
+logs, and the hosted replay. A local pass is not evidence of hosted operation.
+League setup uses Softmax's platform scheduler; no custom commissioner,
+reporter, grader, or optimizer is required for this release.
+
+## Maintenance and tests
+
+```bash
+JAX_PLATFORMS=cpu pytest -q tests/test_softmax.py tests/test_matchup.py
+```
+
+The integration tests cover real engine observation/wire parity, action
+validation, authentication, information boundaries, deterministic replay,
+timeouts, startup failures, regular general-capture scoring, neutral castles,
+rejected build actions, and failed artifact writes.
+Before releases, run the complete engine suite, local container certification,
+and browser checks for live player controls and the static replay bundle.
+
+To run the real Chromium checks (including mobile layout, gzip, corrupt replays,
+and WebSocket pong), install `playwright` and Chromium, then run:
+
+```bash
+GENERALS_BROWSER_TESTS=1 pytest -q tests/test_softmax_browser.py
+```
+
+Set `CHROMIUM_PATH` if Chromium is not on PATH, or use Playwright's installed
+browser. Deployment dependencies, including transitive packages, are pinned in
+`requirements.lock`; regenerate it with `uv pip compile requirements.txt
+--python-version 3.12 --output-file requirements.lock` from this directory when
+deliberately updating the runtime.
+
+Both this adapter and the local competition runner call `generals.core.match`.
+The adapter selects regular rules; the competition runner keeps its competition
+preset. Publish a new Coworld version for rules,
+protocol, rendering, or dependency changes. Preserve old replay fixtures when
+the format changes. Keep participant support and league balancing distinct from
+technical adapter maintenance. Hosting/resource allowances and ongoing support
+ownership need agreement with Softmax.
+
+## Visual sources
+
+`static/board.js` reuses the tile-rendering function from
+`generals-competition/board.js` at commit `83a9b23`. `static/board.css` contains
+that repo's tile styles and color variables from the same commit. Only the
+Coworld snapshot-to-tile mapping and selected-cell indicator are adapter-specific.
+The surrounding layout follows its `assets/site.css` replay viewer. There is no
+procedural game fallback or second game simulation in this renderer.
+
+Keep the tile styling aligned with the competition site when updating it.
+Sprites stay owned by `generals/assets/images`, and the Quicksand font comes
+from `generals/assets/fonts`, including its license in the replay bundle. No
+copied source assets need to be synchronized manually.
