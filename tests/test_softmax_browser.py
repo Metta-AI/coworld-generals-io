@@ -364,7 +364,7 @@ def test_browser_premove_controls(tmp_path, hosted):
             page.keyboard.press("ArrowDown")
             expect(page.locator("#queue-count")).to_have_text("1 queued")
             sockets[0].close()
-            expect(page.locator("#status")).to_contain_text("Connection closed")
+            expect(page.locator("#mode")).to_have_text("RECONNECTING")
             expect(page.locator("#queue-count")).to_have_text("0 queued")
             expect(page.locator(".move-arrow")).to_have_count(0)
             page.keyboard.press("ArrowRight")
@@ -389,13 +389,16 @@ def test_browser_premove_controls(tmp_path, hosted):
         http.server_close()
 
 
-def test_browser_play_and_standalone_replay(tmp_path):
+@pytest.mark.parametrize("variant", ["competition", "ffa", "castles"])
+def test_browser_play_and_standalone_replay(tmp_path, variant):
     port = free_port()
+    count = 4 if variant == "ffa" else 2
     config = {
-        "tokens": ["browser-red", "browser-blue"],
-        "players": [{"name": "Human"}, {"name": "Expander"}],
+        "tokens": ["browser-red", "browser-blue", "browser-green", "browser-purple"][:count],
+        "players": [{"name": "Human"}] + [{"name": f"Bot {slot}"} for slot in range(1, count)],
+        "ruleset": "build_castles" if variant == "castles" else "classic",
         "seed": 7,
-        "max_turns": 16,
+        "max_turns": 28,
         "tick_interval_seconds": 0.5,
     }
     (tmp_path / "config.json").write_text(json.dumps(config))
@@ -449,12 +452,16 @@ def test_browser_play_and_standalone_replay(tmp_path):
             page.on("websocket", on_socket)
             query = urlencode({"address": f"ws://127.0.0.1:{port}/player?slot=0&token=browser-red"})
             page.goto(f"http://127.0.0.1:{port}/client/player?{query}")
-            player_env = {
-                **os.environ,
-                "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{port}/player?slot=1&token=browser-blue",
-            }
-            bot = subprocess.Popen([sys.executable, "-m", "integrations.softmax.player"], cwd=ROOT, env=player_env)
-            processes.append(bot)
+            bots = []
+            for slot in range(1, count):
+                player_env = {
+                    **os.environ,
+                    "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{port}/player?slot={slot}&token={config['tokens'][slot]}",
+                }
+                module = "builder_player" if variant == "castles" else "player"
+                bot = subprocess.Popen([sys.executable, "-m", f"integrations.softmax.{module}"], cwd=ROOT, env=player_env)
+                bots.append(bot)
+                processes.append(bot)
             page.wait_for_function("Number(document.getElementById('turn').textContent) >= 2")
             obs = observations[-1]
             general = next(
@@ -470,12 +477,27 @@ def test_browser_play_and_standalone_replay(tmp_path):
                 for dr, dc, key in [(-1, 0, "ArrowUp"), (1, 0, "ArrowDown"), (0, -1, "ArrowLeft"), (0, 1, "ArrowRight")]
                 if 0 <= r + dr < obs["height"] and 0 <= c + dc < obs["width"] and obs["type_grid"][r + dr][c + dc] == 1
             )
-            page.keyboard.press(direction)
+            # The touch controls submit through the same queue as the keyboard.
+            direction_labels = {"ArrowUp": "Move up", "ArrowDown": "Move down", "ArrowLeft": "Move left", "ArrowRight": "Move right"}
+            page.get_by_role("button", name=direction_labels[direction], exact=True).click()
+            page.wait_for_function("Number(document.getElementById('turn').textContent) >= 5")
+            # Interrupt the actual connection, then recover against the same server.
+            context = page.context
+            context.set_offline(True)
+            page.wait_for_function("document.getElementById('mode').textContent === 'RECONNECTING'")
+            context.set_offline(False)
+            expect(page.locator("#mode")).to_have_text("PLAYER")
+            page.wait_for_function("Number(document.getElementById('turn').textContent) >= 8")
             page.screenshot(path=str(tmp_path / "player.png"), full_page=True)
             page.wait_for_function("document.getElementById('mode').textContent === 'REPLAY'", timeout=20000)
-            assert bot.wait(timeout=5) == 0
+            assert all(bot.wait(timeout=5) == 0 for bot in bots)
             recorded = json.loads((tmp_path / "replay.json").read_text())
-            assert recorded["result"]["timeouts"] == [0, 0]
+            assert recorded["result"]["reason"] != "forfeit"
+            assert recorded["result"]["timeouts"][1:] == [0] * (count - 1)
+            expect(page.locator("#match-result")).to_be_visible()
+            with page.expect_download() as download_info:
+                page.get_by_role("link", name="Download replay").click()
+            assert json.loads(Path(download_info.value.path()).read_text()) == recorded
             assert any(turn["actions"][0][0] == 0 for turn in recorded["turns"])
             assert not errors
             page.close()
@@ -499,7 +521,9 @@ def test_browser_play_and_standalone_replay(tmp_path):
                 base = f"http://127.0.0.1:{http.server_port}"
                 page = browser.new_page(viewport={"width": 1100, "height": 1100})
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                page.goto(base + "/#replay=replay.json")
+                page.goto(base + "/")
+                expect(page.get_by_role("link", name="Create a Generals lobby")).to_be_visible()
+                page.locator("#replay-file").set_input_files(bundle / "replay.json")
                 page.wait_for_function("Number(document.getElementById('seek').value) > 0")
                 page.click("#pause")
                 page.locator("#seek").fill("8")
@@ -507,6 +531,16 @@ def test_browser_play_and_standalone_replay(tmp_path):
                 page.screenshot(path=str(tmp_path / "replay-desktop.png"), full_page=True)
                 page.click("#restart")
                 assert page.locator("#turn").inner_text() == "0"
+                page.locator("#perspective").select_option("0")
+                first = observations[0]
+                kinds = first["type_grid"]
+                for row, cells in enumerate(kinds):
+                    for col, kind in enumerate(cells):
+                        tile = page.locator("#board > .tile").nth(row * len(cells) + col)
+                        if kind in (0, 5):
+                            assert "fog" in tile.get_attribute("class")
+                page.locator("#perspective").select_option("all")
+                expect(page.locator("#board > .fog")).to_have_count(0)
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.screenshot(path=str(tmp_path / "replay-mobile.png"), full_page=True)
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

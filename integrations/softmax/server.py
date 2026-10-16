@@ -317,6 +317,7 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
             raise HTTPException(403, "invalid player credentials")
         return FileResponse(STATIC / "index.html")
 
+    @app.get("/client/launch")
     @app.get("/client/global")
     @app.get("/client/replay")
     async def global_client():

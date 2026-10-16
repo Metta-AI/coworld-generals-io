@@ -9,6 +9,7 @@
   let board = null, slot = null, selected = null, half = false, ws = null;
   let currentTurn = -1, sent = true, passTimer = null, replay = null, frameIndex = 0;
   let playing = true, replayTimer = null, readySent = false, replayLoad = 0;
+  let reconnectTimer = null, reconnectAttempt = 0, terminal = false, replayDownload = null;
   let ruleset = 'classic', playerCount = 2, eliminated = false;
   const moves = [[-1,0],[1,0],[0,-1],[0,1]], queue = [];
   let inFlight = null, selectedRoute = null, nextRoute = 0;
@@ -167,6 +168,9 @@
     if (board.owner_grid[r][c] === slot+1) selectTile([r,c]);
     draw(); boardElement.focus();
   });
+  document.querySelectorAll('[data-direction]').forEach(button => {
+    button.onclick = () => move(Number(button.dataset.direction));
+  });
   $('split').onclick = () => { half = !half; $('split').setAttribute('aria-pressed', String(half)); };
   $('pass').onclick = () => enqueue([1,0,0,0,0]);
   $('deselect').onclick = () => { selectTile(null); draw(); status('Selection cleared.'); };
@@ -192,7 +196,23 @@
     return `${text} · ${reasons[result.reason] || result.reason}`;
   }
   function showReplayFrame() {
-    board = replay.frames[frameIndex]; scoreboard(board.turn, board.army, board.land, board.eliminated); draw();
+    const frame = replay.frames[frameIndex], perspective = $('perspective').value;
+    board = frame;
+    if (perspective !== 'all') {
+      const owner = Number(perspective) + 1;
+      const visible = frame.owner_grid.map((row, r) => row.map((_, c) => {
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+          if (frame.owner_grid[r+dr]?.[c+dc] === owner) return true;
+        }
+        return false;
+      }));
+      board = {...frame,
+        type_grid: frame.type_grid.map((row, r) => row.map((kind, c) => visible[r][c] ? kind : [2,3].includes(kind) ? 5 : 0)),
+        owner_grid: frame.owner_grid.map((row, r) => row.map((value, c) => visible[r][c] ? value : 0)),
+        army_grid: frame.army_grid.map((row, r) => row.map((value, c) => visible[r][c] ? value : 0)),
+      };
+    }
+    scoreboard(board.turn, board.army, board.land, board.eliminated); draw();
     $('seek').value = frameIndex;
     status(`${outcome(replay.result)} · Frame ${frameIndex+1} of ${replay.frames.length}`);
   }
@@ -206,8 +226,15 @@
   $('restart').onclick = () => { frameIndex = 0; showReplayFrame(); };
   $('seek').oninput = () => { frameIndex = Number($('seek').value); showReplayFrame(); };
   $('speed').onchange = resetReplayTimer;
+  $('perspective').onchange = showReplayFrame;
   async function loadReplay(url) {
+    $('launch').hidden = true;
+    document.querySelector('.matchbar').hidden = false;
+    document.querySelector('.arena').hidden = false;
+    $('match-result').hidden = true;
     const load = ++replayLoad;
+    terminal = true; clearTimeout(reconnectTimer);
+    if (ws) ws.close();
     clearInterval(replayTimer); clearTimeout(passTimer);
     replay = null; board = null; readySent = false; slot = null; sent = true;
     eliminated = false; updateBuildControl();
@@ -233,6 +260,14 @@
     }
     replay = data; ruleset = data.ruleset || 'competition'; slot = null; selected = null; clearTimeout(passTimer);
     names(data.players); $('mode').textContent = 'REPLAY';
+    $('perspective').replaceChildren(new Option('Full map', 'all'),
+      ...data.players.map((name, i) => new Option(name, String(i))));
+    $('result-title').textContent = outcome(data.result);
+    $('result-detail').textContent = `${data.frames[data.frames.length-1].turn} turns · ${data.players.length} players`;
+    $('match-result').hidden = false;
+    if (replayDownload) URL.revokeObjectURL(replayDownload);
+    replayDownload = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+    $('download-replay').href = replayDownload;
     $('play-controls').hidden = true; $('replay-controls').hidden = false; $('seek').max = data.frames.length-1;
     post({type:'phase', phase:'replay_parsed'});
     readySent = false; frameIndex = 0; showReplayFrame(); resetReplayTimer();
@@ -296,6 +331,7 @@
     ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data);
+        reconnectAttempt = 0;
         if (message.type === 'hello') {
           ruleset = message.ruleset || 'classic';
           slot = message.slot; names(message.players); $('play-controls').hidden = false;
@@ -317,15 +353,42 @@
           if (inFlight) stopRoute(inFlight.route, message.message);
           else status(message.message, true);
         }
-        else if (message.type === 'failure') fail('The episode could not complete.');
+        else if (message.type === 'failure') { terminal = true; fail('The episode could not complete.'); }
       } catch (err) { fail(err.message); }
     };
     ws.onerror = () => status('Connection failed. Check the player link and game server.', true);
-    ws.onclose = () => {
+    ws.onclose = event => {
       clearTimeout(passTimer); queue.length = 0; inFlight = null; sent = true; draw();
-      if (!replay) status('Connection closed. Reopen your player link to reconnect.', true);
+      if (terminal) return;
+      $('mode').textContent = 'RECONNECTING';
+      if (!navigator.onLine) {
+        status('You are offline. Reconnecting when your connection returns.'); return;
+      }
+      if ([1008, 4001, 4003].includes(event.code)) {
+        terminal = true; fail('This seat is unavailable. Reopen the game from its lobby.'); return;
+      }
+      if (reconnectAttempt >= 6) {
+        fail('Could not reconnect. Reopen the game from its lobby.'); return;
+      }
+      const delay = Math.min(500 * 2 ** reconnectAttempt++, 4000);
+      $('mode').textContent = 'RECONNECTING';
+      status('Connection interrupted. Reconnecting; queued moves have been cleared.');
+      reconnectTimer = setTimeout(connectLive, delay);
     };
   }
+  window.addEventListener('offline', () => {
+    if (!terminal && ws) { clearTimeout(reconnectTimer); ws.close(); }
+  });
+  window.addEventListener('online', () => {
+    if (!terminal && ws?.readyState === WebSocket.CLOSED) {
+      clearTimeout(reconnectTimer); reconnectAttempt = 0; connectLive();
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    terminal = true; clearTimeout(reconnectTimer); clearTimeout(passTimer); clearInterval(replayTimer);
+    if (ws) ws.close();
+    if (replayDownload) URL.revokeObjectURL(replayDownload);
+  });
   new ResizeObserver(draw).observe(boardElement.parentElement);
   window.addEventListener('hashchange', () => {
     const url = new URLSearchParams(location.hash.slice(1)).get('replay');
@@ -333,6 +396,19 @@
   });
   if (replayURL) loadReplay(replayURL).catch(err => fail(err.message));
   else if (location.pathname.endsWith('/client/replay')) loadReplay(livePrefix+'/client/replay.json').catch(err => fail(err.message));
-  else if (location.pathname.includes('/client/')) connectLive();
-  else fail('Open this viewer with a replay URL in #replay=.');
+  else if (['/client/player', '/client/global'].some(route => location.pathname.endsWith(route))) connectLive();
+  else {
+    $('launch').hidden = false;
+    document.querySelector('.matchbar').hidden = true;
+    document.querySelector('.arena').hidden = true;
+    $('mode').textContent = 'WELCOME';
+    status('One battlefield for people and bots.');
+  }
+  $('replay-file').onchange = async () => {
+    const [file] = $('replay-file').files;
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    await loadReplay(url).catch(err => fail(err.message));
+    URL.revokeObjectURL(url);
+  };
 })();

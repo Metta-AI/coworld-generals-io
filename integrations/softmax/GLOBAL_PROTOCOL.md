@@ -43,3 +43,9 @@ embedding parent, autoplays, loops, and exposes pause, seek, speed and restart.
 Release 0.4.0 enables mutual general trades in classic mode. For resimulation,
 use the episode’s pinned source revision: older classic releases disabled this
 rule. Stored board frames remain the authoritative playback data.
+
+The shared viewer accepts local JSON/gzip files on its entry screen. During
+replay, its perspective selector derives each player's 3×3 territory visibility
+from the recorded board frame. Hidden castles and mountains appear as obstacles;
+hidden generals, ownership, and armies remain concealed. This is a playback
+option only; the public live stream never sends hidden board data.

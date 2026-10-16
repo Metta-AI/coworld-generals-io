@@ -52,3 +52,19 @@ footer { display: flex; justify-content: space-between; gap: 20px; color: var(--
   .matchbar { grid-template-columns: 1fr 45px 1fr; gap: 6px; } .player { padding: 8px; } .player b { font-size: 12px; } .player small { font-size: 9px; }
   .divider { padding: 0 2px; } .arena { height: min(60vh, 480px); } .hint { flex-basis: 100%; text-align: left; padding-top: 5px; } footer { font-size: 9px; }
 }
+
+#match-result { border: 1px solid var(--border); padding: 16px; margin: 12px 0; }
+#match-result h2 { font-size: 18px; margin: 0 0 6px; }
+#match-result p { color: var(--muted); font-size: 12px; }
+#match-result a { display: inline-block; color: var(--fg); padding: 10px 0; margin-right: 20px; }
+.directions { display: flex; gap: 6px; }
+.directions button { min-width: 44px; min-height: 44px; font-size: 20px; }
+@media (pointer: coarse), (max-width: 600px) {
+  button, select { min-height: 44px; }
+  .directions { flex-basis: 100%; justify-content: center; }
+}
+
+#launch { padding: 32px 0; line-height: 1.6; }
+#launch p { max-width: 560px; }
+.launch-link { display: inline-block; padding: 12px 18px; background: var(--fg); color: var(--bg); text-decoration: none; }
+#replay-file { max-width: 100%; }
