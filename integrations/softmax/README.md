@@ -51,6 +51,28 @@ matching classic. Human variants stay at 1,200 so a paced game fits Softmax's
 Release 0.3.3 changes documentation only: per-mode turn caps, the move order
 and one league per bot mode.
 
+## Shared play experience
+
+The same browser assets render local play, hosted seats, public live scores,
+and static replays. Open `/client/launch` on a running local server, or open
+`index.html` through a static HTTP server after building the replay bundle.
+The entry screen accepts saved JSON/gzip replays and links to the Generals
+lobby flow on Softmax. Hosted lobbies own mode selection, human invitations,
+bot seats, authentication, and match creation.
+
+The player screen has keyboard and touch direction controls. Disconnection
+clears queued moves; offline/online events resume the same seat, with six
+bounded retries for other connection failures. Reconnecting cannot undo a
+server timeout or elimination. The server remains authoritative for actions.
+
+Completed matches show their outcome, replay download, and a new-match link.
+Replay views include the full map and each player's fog-of-war perspective;
+public scores remain visible in every perspective. Live public spectators
+continue to see scores only. Old Nim recordings retain their original viewer.
+
+The game owns these assets in `static/`. Softmax embeds them through its
+existing live/replay components; do not copy the renderer into the website.
+
 ## Play locally
 
 From the repository root, with Python 3.12:

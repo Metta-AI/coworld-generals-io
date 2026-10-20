@@ -11,7 +11,14 @@
 </head>
 <body>
   <main>
-    <header><a class="brand" href="https://generals.bot" target="_blank" rel="noreferrer">GENERALS<span id="variant-title">CLASSIC 1v1</span></a><span id="mode" class="badge">CONNECTING</span></header>
+    <header><a class="brand" href="https://softmax.com/generals" target="_blank" rel="noreferrer">GENERALS<span id="variant-title">CLASSIC 1v1</span></a><span id="mode" class="badge">CONNECTING</span></header>
+    <section id="launch" hidden>
+      <h1>Play Generals</h1>
+      <p>Choose classic 1v1, four-player free-for-all, or build your own castles. Invite people or fill seats with bots.</p>
+      <a class="launch-link" href="https://softmax.com/observatory/v2/coworld-play/create?coworld=generals-competition" target="_blank" rel="noopener noreferrer">Create a Generals lobby</a>
+      <p>Have a saved match? <label for="replay-file">Open a replay</label></p>
+      <input id="replay-file" type="file" accept=".json,.gz,application/json,application/gzip">
+    </section>
     <section class="matchbar">
       <div class="player red"><span class="dot"></span><div><b id="name0">Player 1</b><small><span id="army0">—</span> army <span class="divider">/</span> <span id="land0">—</span> land</small></div></div>
       <div class="clock"><b id="turn">0</b><small id="turn-label">TURN</small></div>
@@ -22,7 +29,18 @@
       <div id="cover"><h1 id="cover-title">Preparing the battlefield</h1><p id="cover-text">Waiting for the match to begin.</p></div>
     </section>
     <div id="status" role="status" aria-live="polite">Connecting…</div>
+    <section id="match-result" hidden aria-label="Match result">
+      <h2 id="result-title"></h2><p id="result-detail"></p>
+      <a id="new-match" href="https://softmax.com/observatory/v2/coworld-play/create?coworld=generals-competition" target="_blank" rel="noopener noreferrer">New match</a>
+      <a id="download-replay" download="generals-replay.json">Download replay</a>
+    </section>
     <section id="play-controls" class="controls" hidden>
+      <div class="directions" aria-label="Move selected army">
+        <button data-direction="0" aria-label="Move up">↑</button>
+        <button data-direction="2" aria-label="Move left">←</button>
+        <button data-direction="1" aria-label="Move down">↓</button>
+        <button data-direction="3" aria-label="Move right">→</button>
+      </div>
       <button id="split" aria-pressed="false">Half army <kbd>H</kbd></button>
       <button id="pass">Pass</button>
       <button id="deselect">Deselect <kbd>Space</kbd></button>
@@ -33,6 +51,7 @@
       <span class="hint">Select your tile · Arrow keys or WASD to queue moves</span>
     </section>
     <section id="replay-controls" class="controls" hidden>
+      <label>View <select id="perspective" aria-label="Replay perspective"><option value="all">Full map</option></select></label>
       <button id="pause">Pause</button><button id="restart" aria-label="Restart replay">↺</button>
       <input id="seek" type="range" min="0" max="1" value="0" aria-label="Replay turn">
       <select id="speed" aria-label="Playback speed"><option value="2">½×</option><option value="4" selected>1×</option><option value="8">2×</option><option value="20">5×</option><option value="60">15×</option></select>

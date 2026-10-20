@@ -1,7 +1,20 @@
 # Coworld Generals.io
 
 Softmax-owned Generals game, player bridge, browser client, and replay viewer.
-Start with [the Softmax integration](integrations/softmax/README.md).
+Use [the Generals lobby](https://softmax.com/observatory/v2/coworld-play/create?coworld=generals-competition)
+for hosted matches, or run the same browser client locally:
+
+```bash
+pip install -e '.[softmax]'
+python -m integrations.softmax.local --human
+# Add --variant ffa or --variant castles to change mode.
+```
+
+Follow the printed player link. Completed games become replays in the same
+screen, with full-map/player perspectives and a download button.
+See [the Softmax integration](integrations/softmax/README.md) for bot matches,
+protocols, and replay packaging. The desktop GUI and engine examples below
+remain research/debugging tools; the browser client is the product interface.
 
 Based on [Matej Straka’s generals-bots](https://github.com/strakam/generals-bots/tree/softmax),
 imported at `0fcb5a00226387670624d2f326f6d5ad61914584`. The upstream MIT license
@@ -12,9 +25,9 @@ archived releases, validation, and remaining official-engine work.
 <div align="center">
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game1.webp" width="250" alt="Self-play game 1" />
-  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game2.webp" width="250" alt="Self-play game 2" />
-  <img src="https://raw.githubusercontent.com/Metta-AI/coworld-generals-io/main/generals/assets/images/game3.webp" width="250" alt="Self-play game 3" />
+  <img src="generals/assets/images/game1.webp" width="250" alt="Self-play game 1" />
+  <img src="generals/assets/images/game2.webp" width="250" alt="Self-play game 2" />
+  <img src="generals/assets/images/game3.webp" width="250" alt="Self-play game 3" />
 </p>
 
 ## **Generals.io Bots**
@@ -41,8 +54,9 @@ pip install -e .
 > [!Note]
 > This repository is based on the [generals.io](https://generals.io) game.
 > The goal is to provide a fast bot development platform for reinforcement learning research.
-> The simulator follows the current rules of the game: 10,000 ranked games played in 2026 replay
-> through it with a board identical to generals.io's own engine after every turn.
+> Upstream reports matching 10,000 ranked replays from 2026. That is historical
+> validation, not a comparison against the privately supplied engine revision;
+> see the migration record for remaining dependencies and parity work.
 
 ## 🌱 Getting Started
 
