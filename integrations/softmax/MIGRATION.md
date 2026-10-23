@@ -21,9 +21,17 @@ without creating a duplicate competition.
 ## Official-engine alignment
 
 The privately supplied engine is not included or licensed by this repository.
-It lacks GameOptions, the base Map implementation, BadWords.js, good-words.json,
-and dependency/bootstrap files. Complete cross-engine replay comparison is
-blocked until those dependencies are supplied.
+The original live-game bundle still lacks GameOptions, BadWords.js,
+good-words.json, and dependency/bootstrap files. A separately supplied replay
+core now includes Map and an updated MoveResolver, with its own smaller
+Constants module. Keep the original live-game Constants separate.
+
+The [private reference adapter](../../paper/validation/README.md#privately-supplied-replay-core)
+can export base-game boards without the missing EventGameOptions or
+EventReplaySimulation wrappers. This unblocks board comparison, not full live
+engine, fog, event-statistics, or castle-building certification. Keep reference
+source outside the checkout and all distributed artifacts. Record source hashes
+and comparison results before claiming parity.
 
 Use identical initial boards and action streams to compare complete games,
 including FFA captures, simultaneous general trades, rounding, move dependencies,
