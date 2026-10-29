@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 import socket
 import subprocess
 import sys
@@ -38,13 +37,15 @@ from integrations.softmax.config import GameConfig
 from integrations.softmax.server import create_app
 root = Path(sys.argv[1])
 app = create_app(GameConfig.model_validate_json((root / "config.json").read_text()),
-                 {key: (root / (key + ".json")).as_uri() for key in ("results", "replay", "failure")})
+                 {key: (root / (key + ".json")).as_uri() for key in ("results", "replay", "failure")},
+                 shutdown=lambda: setattr(server, "should_exit", True))
 @app.middleware("http")
 async def retired_proxy(request, call_next):
     if (root / "results.json").exists():
         return JSONResponse({"detail": "Game is not accepting connections"}, status_code=410)
     return await call_next(request)
-uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[2]), log_level="error")
+server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=int(sys.argv[2]), log_level="error"))
+server.run()
 '''
     with (tmp_path / "server.log").open("w") as log:
         server = subprocess.Popen([sys.executable, "-c", script, str(tmp_path), str(port)], cwd=ROOT,
@@ -78,17 +79,19 @@ uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[2]), log_level="error")
                         for page in (player, spectator):
                             expect(page.locator("#mode")).to_have_text("REPLAY", timeout=30000)
                             expect(page.locator("#board .tile").first).to_be_visible()
-                        assert client.get(base + "/client/replay.json").status_code == 410
                         assert json.loads((tmp_path / "results.json").read_text())["timeouts"] == [0, 0]
                         bot.wait(timeout=10)
                         assert bot.returncode == 0
-                        server.terminate()
                         server.wait(timeout=10)
+                        assert server.returncode == 0
                         for page in (player, spectator):
                             page.get_by_role("button", name="Pause", exact=True).click()
                             page.locator("#seek").fill("12")
                             expect(page.locator("#turn")).to_have_text("12")
-                            expect(page.locator("#download-replay")).to_have_attribute("href", re.compile("^blob:"))
+                            with page.expect_download() as saved:
+                                page.get_by_role("link", name="Download replay", exact=True).click()
+                            assert json.loads(Path(saved.value.path()).read_text()) == json.loads(
+                                (tmp_path / "replay.json").read_text())
                     finally:
                         browser.close()
         finally:

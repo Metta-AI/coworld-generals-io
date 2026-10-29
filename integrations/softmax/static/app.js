@@ -348,6 +348,7 @@
           names(message.players); scoreboard(message.turn, message.army, message.land, message.eliminated);
           if (message.phase === 'finished') { loadReplay(message.replay).catch(err => fail(err.message)); }
           else {
+            if (message.phase === 'failed') terminal = true;
             $('cover-title').textContent = message.phase === 'waiting' ? 'Waiting for the generals' : message.phase === 'failed' ? 'Match could not finish' : 'The battle is underway';
             $('cover-text').textContent = 'The live map stays hidden to protect fog of war. Watch the score here, then explore the full replay.';
             status(message.phase === 'waiting' ? 'Waiting for all players.' : message.phase === 'failed' ? 'The episode failed. Check the game logs.' : 'Live score · Board revealed after the match.'); ready();

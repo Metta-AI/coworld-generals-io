@@ -56,3 +56,6 @@ after replay and result artifacts are saved. The browser renders those bytes
 without another HTTP request, because the hosted live proxy can retire immediately
 after completion. Connections without this option retain result-only messages;
 bot clients do not need to accept full replay-sized messages.
+
+Finished and failed global updates close the spectator socket cleanly. Hosted
+shutdown waits for its owned terminal sends to finish before stopping the server.

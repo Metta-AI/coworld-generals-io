@@ -97,7 +97,8 @@ Apple Silicon cannot certify the amd64 JAX wheel because emulation lacks AVX.
 The live HTTP proxy can retire after results are saved. Browser clients now
 request `replay=1` and receive the completed recording on their existing socket.
 Both player and spectator views enter replay mode without another HTTP request.
-Bot connections retain result-only terminal messages. Hidden frames remain
+Bot connections retain result-only terminal messages. Shutdown waits for owned
+socket senders to finish instead of relying on a fixed delay. Hidden frames remain
 unavailable until both replay and result artifacts are saved.
 
 Validation for the next release, using Coworld SDK 0.1.60:
@@ -113,9 +114,9 @@ Validation for the next release, using Coworld SDK 0.1.60:
 - Native arm64 build for version 0.4.2 and all ten container certification steps
   pass separately for classic, FFA, and castle-building.
 - Certified game image:
-  `sha256:1f655933fbe20036de2b34225ff744d3fb3f0b174d36856a3ecaf4edf5c7ba86`.
+  `sha256:70c6eadc7c90b18f2abbfdcc83eb323a76fa8d07395fa7061bb18f18252f6580`.
   Certified player image:
-  `sha256:4f7d391da14e3b08c73364b9e495b48a34ba34d86a8488d7002519630570dc46`.
+  `sha256:3743a9beabdd13d72c979594ad90a8d3dabbe248d4c8645754bcae63993c8c92`.
 
 These are local validation results. Publishing a canonical amd64 release still
 uses the existing release workflow. Late navigation to an expired live URL is
