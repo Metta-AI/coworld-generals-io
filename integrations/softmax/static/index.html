@@ -19,15 +19,24 @@
       <p>Have a saved match? <label for="replay-file">Open a replay</label></p>
       <input id="replay-file" type="file" accept=".json,.gz,application/json,application/gzip">
     </section>
-    <section class="matchbar">
-      <div class="player red"><span class="dot"></span><div><b id="name0">Player 1</b><small><span id="army0">—</span> army <span class="divider">/</span> <span id="land0">—</span> land</small></div></div>
-      <div class="clock"><b id="turn">0</b><small id="turn-label">TURN</small></div>
-      <div class="player blue"><div><b id="name1">Player 2</b><small><span id="army1">—</span> army <span class="divider">/</span> <span id="land1">—</span> land</small></div><span class="dot"></span></div>
-    </section>
-    <section class="arena" aria-label="Game board">
-      <div id="board" tabindex="0" aria-label="Select an owned tile, then use arrow keys to queue moves. E undoes one move; Q clears the queue."></div>
-      <div id="cover"><h1 id="cover-title">Preparing the battlefield</h1><p id="cover-text">Waiting for the match to begin.</p></div>
-    </section>
+    <div class="battlefield">
+      <section class="matchbar">
+        <div class="player red"><span class="dot"></span><div><b id="name0">Player 1</b><small><span id="army0">—</span> army <span class="divider">/</span> <span id="land0">—</span> land</small></div></div>
+        <div class="clock"><b id="turn">0</b><small id="turn-label">TURN</small></div>
+        <div class="player blue"><div><b id="name1">Player 2</b><small><span id="army1">—</span> army <span class="divider">/</span> <span id="land1">—</span> land</small></div><span class="dot"></span></div>
+        <aside id="replay-left" class="replay-sidebar" aria-label="Players and playback">
+          <div id="replay-players-left" class="replay-players"></div>
+        </aside>
+        <aside id="replay-right" class="replay-sidebar" aria-label="Players and match result">
+          <div id="replay-players-right" class="replay-players"></div>
+        </aside>
+      </section>
+      <section class="arena" aria-label="Game board">
+        <div id="board" tabindex="0" aria-label="Select an owned tile, then use arrow keys to queue moves. E undoes one move; Q clears the queue."></div>
+        <div id="cover"><h1 id="cover-title">Preparing the battlefield</h1><p id="cover-text">Waiting for the match to begin.</p></div>
+      </section>
+      <div id="replay-timeline" hidden></div>
+    </div>
     <div id="status" role="status" aria-live="polite">Connecting…</div>
     <section id="match-result" hidden aria-label="Match result">
       <h2 id="result-title"></h2><p id="result-detail"></p>

@@ -46,7 +46,11 @@
         matchbar.append(card);
       }
     }
-    players.forEach((name, i) => { if ($(`name${i}`).textContent !== name) $(`name${i}`).textContent = name; });
+    players.forEach((name, i) => {
+      const label = $(`name${i}`);
+      if (label.textContent !== name) label.textContent = name;
+      if (replay) $(`replay-players-${i % 2 === 0 ? 'left' : 'right'}`).append(label.closest('.player'));
+    });
     const title = ruleset === 'build_castles' ? 'BUILD YOUR CASTLES' : playerCount === 4 ? '4-PLAYER FFA' : 'CLASSIC 1v1';
     $('variant-title').textContent = title; document.title = `Generals · ${title}`;
   }
@@ -228,6 +232,12 @@
   $('speed').onchange = resetReplayTimer;
   $('perspective').onchange = showReplayFrame;
   async function loadReplay(url) {
+    document.body.classList.add('replay');
+    $('replay-controls').prepend(document.querySelector('.clock'));
+    $('replay-left').append($('replay-controls'));
+    $('replay-right').append($('match-result'));
+    $('replay-timeline').append($('seek'));
+    $('replay-timeline').hidden = true;
     $('launch').hidden = true;
     document.querySelector('.matchbar').hidden = false;
     document.querySelector('.arena').hidden = false;
@@ -269,6 +279,7 @@
     replayDownload = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
     $('download-replay').href = replayDownload;
     $('play-controls').hidden = true; $('replay-controls').hidden = false; $('seek').max = data.frames.length-1;
+    $('replay-timeline').hidden = false;
     post({type:'phase', phase:'replay_parsed'});
     readySent = false; frameIndex = 0; showReplayFrame(); resetReplayTimer();
   }
