@@ -222,9 +222,15 @@ class Episode:
         LOG.info("episode complete: %s, turn %d, winner %d", reason, self.match.turn, winner)
 
 
-async def send_messages(ws, queue):
+async def send_messages(ws, queue, episode):
     while True:
         message = await queue.get()
+        # Browser clients need the completed recording before the hosted proxy
+        # retires. Bot clients keep their bounded result-only terminal message.
+        if ws.query_params.get("replay") == "1" and (
+            message["type"] == "final" or message["type"] == "global" and message["phase"] == "finished"
+        ):
+            message = {**message, "replay": episode.replay}
         async with asyncio.timeout(2):
             await ws.send_json(message)
         if message.get("type") in ("final", "failure"):
@@ -232,8 +238,8 @@ async def send_messages(ws, queue):
             return
 
 
-async def socket_session(ws, queue, receive):
-    sender = asyncio.create_task(send_messages(ws, queue))
+async def socket_session(ws, queue, receive, episode):
+    sender = asyncio.create_task(send_messages(ws, queue, episode))
     receiver = asyncio.create_task(receive())
     try:
         await asyncio.wait((sender, receiver), return_when=asyncio.FIRST_COMPLETED)
@@ -380,7 +386,7 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                     )
 
         try:
-            await socket_session(ws, queue, receive)
+            await socket_session(ws, queue, receive, episode)
         finally:
             if episode.players.get(slot) is queue:
                 del episode.players[slot]
@@ -400,7 +406,7 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                 await ws.receive_text()
 
         try:
-            await socket_session(ws, queue, receive)
+            await socket_session(ws, queue, receive, episode)
         finally:
             episode.viewers.discard(queue)
 

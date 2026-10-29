@@ -91,3 +91,32 @@ path and SDK 0.1.60. Dispatch it with the release version to build native amd64,
 certify all modes, and publish using the repository's existing `SOFTMAX_TOKEN`.
 It never skips certification or cancels an in-progress release. Local upload on
 Apple Silicon cannot certify the amd64 JAX wheel because emulation lacks AVX.
+
+### Hosted completion handoff — October 29, 2026
+
+The live HTTP proxy can retire after results are saved. Browser clients now
+request `replay=1` and receive the completed recording on their existing socket.
+Both player and spectator views enter replay mode without another HTTP request.
+Bot connections retain result-only terminal messages. Hidden frames remain
+unavailable until both replay and result artifacts are saved.
+
+Validation for the next release, using Coworld SDK 0.1.60:
+
+- `GENERALS_BROWSER_TESTS=1 python -m pytest -q`: 220 passed, one private-reference
+  check skipped. This includes real player controls, reconnect, and static replay.
+- The new system workflow returns HTTP 410 immediately after completion. Human
+  play and spectating still reach replay, then seek and retain their download
+  after server shutdown. The original implementation fails this workflow;
+  restoring the change passes it.
+- `python -m integrations.softmax.tools.manifest --check` and JavaScript syntax
+  validation pass.
+- Native arm64 build for version 0.4.2 and all ten container certification steps
+  pass separately for classic, FFA, and castle-building.
+- Certified game image:
+  `sha256:1f655933fbe20036de2b34225ff744d3fb3f0b174d36856a3ecaf4edf5c7ba86`.
+  Certified player image:
+  `sha256:4f7d391da14e3b08c73364b9e495b48a34ba34d86a8488d7002519630570dc46`.
+
+These are local validation results. Publishing a canonical amd64 release still
+uses the existing release workflow. Late navigation to an expired live URL is
+owned by the platform proxy, which must resolve the episode's recorded replay.

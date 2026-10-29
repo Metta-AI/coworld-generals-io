@@ -227,7 +227,7 @@
   $('seek').oninput = () => { frameIndex = Number($('seek').value); showReplayFrame(); };
   $('speed').onchange = resetReplayTimer;
   $('perspective').onchange = showReplayFrame;
-  async function loadReplay(url) {
+  async function loadReplay(source) {
     $('launch').hidden = true;
     document.querySelector('.matchbar').hidden = false;
     document.querySelector('.arena').hidden = false;
@@ -244,13 +244,16 @@
     $('cover').hidden = false; $('cover-title').textContent = 'Loading the replay';
     $('cover-text').textContent = 'Reconstructing the battlefield.';
     post({type:'loading'}); post({type:'phase', phase:'replay_fetch_start'});
-    const response = await fetch(url, {credentials:'omit'});
-    if (!response.ok) throw new Error(`Replay could not be loaded (${response.status}).`);
-    let bytes = new Uint8Array(await response.arrayBuffer());
-    const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
-    post({type:'phase', phase:'replay_fetch_end', bytes:bytes.length, compressed});
-    if (compressed) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-    const data = JSON.parse(new TextDecoder().decode(bytes));
+    let data = source;
+    if (typeof source === 'string') {
+      const response = await fetch(source, {credentials:'omit'});
+      if (!response.ok) throw new Error(`Replay could not be loaded (${response.status}).`);
+      let bytes = new Uint8Array(await response.arrayBuffer());
+      const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
+      post({type:'phase', phase:'replay_fetch_end', bytes:bytes.length, compressed});
+      if (compressed) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+      data = JSON.parse(new TextDecoder().decode(bytes));
+    }
     if (load !== replayLoad) return;
     if (data.format !== 'generals-coworld' || data.version !== 1 || !Array.isArray(data.frames) || !data.frames.length || data.frames.length > 2001 ||
         !Number.isInteger(data.height) || !Number.isInteger(data.width) || data.height < 1 || data.height > 21 || data.width < 1 || data.width > 21 ||
@@ -326,6 +329,9 @@
       url = new URL(route, location.href); url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       if (isPlayer) { url.searchParams.set('slot', params.get('slot') || ''); url.searchParams.set('token', params.get('token') || ''); }
     }
+    // The live HTTP proxy can disappear as soon as results are saved.
+    // Receive the recording on this established socket instead of fetching it.
+    url.searchParams.set('replay', '1');
     ws = new WebSocket(url);
     ws.onopen = () => { $('mode').textContent = isPlayer ? 'PLAYER' : 'LIVE'; status('Waiting for all players.'); };
     ws.onmessage = event => {
@@ -340,7 +346,7 @@
         else if (message.type === 'global') {
           ruleset = message.ruleset || ruleset;
           names(message.players); scoreboard(message.turn, message.army, message.land, message.eliminated);
-          if (message.phase === 'finished') { loadReplay(livePrefix+'/client/replay.json').catch(err => fail(err.message)); }
+          if (message.phase === 'finished') { loadReplay(message.replay).catch(err => fail(err.message)); }
           else {
             $('cover-title').textContent = message.phase === 'waiting' ? 'Waiting for the generals' : message.phase === 'failed' ? 'Match could not finish' : 'The battle is underway';
             $('cover-text').textContent = 'The live map stays hidden to protect fog of war. Watch the score here, then explore the full replay.';
@@ -348,7 +354,7 @@
           }
         } else if (message.type === 'final') {
           sent = true; clearTimeout(passTimer); status(outcome(message.result));
-          loadReplay(livePrefix+'/client/replay.json').catch(err => fail(err.message));
+          loadReplay(message.replay).catch(err => fail(err.message));
         } else if (message.type === 'error') {
           if (inFlight) stopRoute(inFlight.route, message.message);
           else status(message.message, true);
