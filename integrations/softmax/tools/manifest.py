@@ -17,7 +17,7 @@ def document(filename):
 def ffa_variant(count, human=False):
     variant_id = "ffa" if count == 4 else f"ffa-{count}"
     config = {"players": [{"name": name} for name in PLAYER_NAMES[:count]],
-              "ruleset": "classic", "max_turns": 1200 if human else 2000}
+              "ruleset": "classic", "max_turns": 1200 if human else 50002}
     if human:
         config.update(tick_interval_seconds=0.5, turn_timeout_seconds=1)
     return {
@@ -25,7 +25,8 @@ def ffa_variant(count, human=False):
         "name": f"{'Human play FFA' if human else 'Free-for-all'} ({count} players)",
         "description": (
             f"{count} independent generals on ranked-size maps; last survivor wins. "
-            + ("Paced at two turns per second." if human else "Neutral castles, 2000-turn cap.")
+            + ("Paced at two engine ticks per second." if human else
+               "FFA Survival scoring; official idle and long-game adjudication.")
         ),
         "game_config": config,
     }
@@ -41,11 +42,17 @@ def template():
         "properties": {
             "scores": scores,
             "winner": {"type": "integer", "enum": list(range(-1, 8))},
-            "reason": {"type": "string", "enum": ["general_capture", "turn_limit", "forfeit", "double_forfeit"]},
-            "turns": {"type": "integer", "minimum": 0, "maximum": 2000},
+            "reason": {"type": "string", "enum": [
+                "general_capture", "turn_limit", "forfeit", "double_forfeit", "idle_limit"
+            ]},
+            "turns": {"type": "integer", "minimum": 0, "maximum": 50002},
             "army": counts,
             "land": counts,
             "timeouts": counts,
+            "placements": counts,
+            "kills": counts,
+            "captured_by": {**counts, "items": {"type": "integer", "minimum": -1, "maximum": 7}},
+            "elimination_order": {**counts, "minItems": 0},
         },
     }
     players = [{"name": "Red"}, {"name": "Blue"}]

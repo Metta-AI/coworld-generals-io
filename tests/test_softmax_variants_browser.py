@@ -55,7 +55,7 @@ def test_ffa_visible_owners_scores_and_elimination(viewer):
     obs["type_grid"][0][0] = 0
     obs["visible_owner_grid"][0][0] = 4
     ws.send(json.dumps(obs))
-    expect(page.locator("#turn")).to_have_text("1")
+    expect(page.locator("#turn")).to_have_text("0.")
     expect(page.locator("#variant-title")).to_have_text("4-PLAYER FFA")
     expect(page.locator(".matchbar .player")).to_have_count(4)
     for i, color in enumerate(["red", "blue", "green", "purple"]):
@@ -99,7 +99,7 @@ def test_castle_queue_cost_and_failure_receipt(viewer):
     def observe(turn):
         obs["turn"] = turn
         ws.send(json.dumps(obs))
-        expect(page.locator("#turn")).to_have_text(str(turn))
+        expect(page.locator("#turn")).to_have_text(f"{turn // 2}{'.' if turn % 2 else ''}")
 
     observe(1)
     expect(page.locator("#build")).to_be_visible()

@@ -47,7 +47,7 @@ def test_eight_bots_finish_and_replay_on_desktop_and_mobile(tmp_path, viewer):
     page.locator("#perspective").select_option("7")
     expect(page.locator("#board .fog").first).to_be_visible()
     page.locator("#seek").fill(str(len(replay["frames"]) - 1))
-    expect(page.locator("#turn")).to_have_text(str(replay["result"]["turns"]))
+    expect(page.locator("#turn")).to_have_text(str(replay["result"]["turns"] // 2) + ('.' if replay["result"]["turns"] % 2 else ''))
 
     page.set_viewport_size({"width": 390, "height": 844})
     page.locator("#seek").fill("0")

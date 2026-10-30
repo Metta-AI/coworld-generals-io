@@ -28,9 +28,16 @@ language that speaks the player protocol.
 - Capturing a general eliminates its owner. Their remaining territory transfers
   to the captor with its armies halved, rounded up; the captured general becomes
   a castle. The last surviving player wins.
-- The winner scores **+1** and every other player **−1**. At the turn limit,
-  **2,000 turns** in every bot mode, everyone scores **0**, including eliminated
-  players in FFA.
+- FFA uses the official **Survival** ordering: players with a kill, or the
+  winner, rank above kill-less players; each group follows reverse elimination
+  order. First place scores +1 and other places score
+  `-(place - 1) / (players - 1)`. These are Softmax outcomes, not official stars.
+- FFA stops after more than 2,000 consecutive engine ticks without a valid move,
+  or at the official long-game threshold, completing tick 50,002. Remaining
+  players are ranked by army, then land, then higher seat; the last one wins.
+  Two engine ticks make one full official game turn. Bot games are accelerated.
+  Paced human lobbies still have a 1,200-tick hosting budget.
+- Classic/build bot modes retain a 2,000-tick cap, +1/-1 scoring, and all-zero draws at that cap.
 
 ## Modes
 
@@ -66,7 +73,7 @@ give the board size; coordinates are zero-based. Grid fields have shape **H × W
 | `turn`, `slot`, `players` | Current turn, your zero-based seat index, and player names in seat order |
 | `my_land`, `my_army` | Your total territory and army |
 | `opp_land`, `opp_army` | Totals across all opponents |
-| `public_scores` | Per-seat `army`, `land`, and `eliminated` arrays |
+| `public_scores` | Per-seat `army`, `land`, `eliminated`, `has_kill`, and `neutralize_in` arrays |
 | `eliminated` | Whether you have been eliminated; stop sending actions and await the final result |
 | `build_cost_grid` | Building mode only: current cost on your plain tiles, 0 elsewhere |
 | `last_move_executed`, `last_build_executed` | Whether your previous move/build executed; otherwise null. Executing an attack does not guarantee capture. |
@@ -96,10 +103,18 @@ This moves right from row 5, column 8. Pass with `[1,0,0,0,0]`; build at that
 tile with `[2,5,8,0,0]`. Only the first valid action message for each turn is
 accepted. A correctly formatted but impossible move or build has no effect.
 
-Bot games allow **500 ms** per turn. A missing action is a pass; **20 consecutive
-misses** cause a forfeit. In FFA, that player's territory becomes neutral and
-survivors continue; one survivor wins and no survivors draw. Human variants
-allow a one-second deadline with a 500 ms minimum turn interval.
+Bot games allow **500 ms** per action. A missing action is a pass. Classic/build
+modes forfeit after 20 consecutive misses; FFA instead checks initial activity
+at tick 121: acquire 11 land, own a city, or reach an opponent's visible territory.
+Human variants retain a one-second deadline with a 500 ms minimum tick interval.
+
+In FFA, use the Surrender button or send `{"type":"surrender","turn":CURRENT_TICK}`.
+Disconnecting also surrenders. Your territory remains owned, grows, and can be
+captured for 50 more ticks. Then it becomes neutral with its armies intact, and
+your general becomes a city. A living opponent who destroyed the most of your
+army receives the kill credit, if anyone did. Softmax's league still uses Elo;
+[the official site](https://generals.io/copyright) identifies OpenSkill for stars
+and matchmaking. The official updater and exact parameters remain unavailable.
 
 ## Build a bot or try locally
 

@@ -18,10 +18,11 @@ Each observation has:
 | `protocol_version`, `slot`, `height`, `width`, `players` | Same as the handshake |
 | `turn` | Current state tick, starting at 0 |
 | `last_move_executed` | Whether your preceding turn's move executed; `null` initially or after pass/build. An executed attack need not capture its destination. |
-| `max_turns` | Episode cap; 2000 in the bot variants (`competition`, `ffa`, `castles`) and 1200 in the human variants |
+| `max_turns` | Engine-tick cap: 50002 for FFA bots, 2000 for other bots, 1200 for human variants |
+| `afk_warning` | FFA initial inactivity warning, ticks 99–120 |
 | `turn_timeout_seconds` | Deadline duration from server observation publication |
 | `my_land`, `my_army`, `opp_land`, `opp_army` | Public totals; opponents aggregate all other players |
-| `public_scores` | Per-slot `army`, `land`, and `eliminated` arrays |
+| `public_scores` | Per-slot `army`, `land`, `eliminated`, `has_kill`, and `neutralize_in` arrays |
 | `eliminated` | Whether your slot is eliminated; stop sending actions and await final |
 | `ruleset` | Same as handshake |
 | `visible_owner_grid` | Fog-masked absolute owners: 0 neutral/unknown, otherwise slot + 1 |
@@ -65,22 +66,39 @@ or when the deadline elapses. The human variant's minimum interval is 500 ms,
 with a one-second action deadline to allow for proxy transport. Browser clients
 send idle passes early; queued inputs after that pass execute on the next tick.
 The competitive bot variant has no artificial delay and retains a 500 ms deadline.
+FFA starts with the official 1.5-second initial input window. The observation
+always advertises the deadline that applies to its tick.
 
 Protocol errors return `{"type":"error","message":"..."}` and do not fill
 the action slot. You may correct the action before the deadline. Oversized
-messages close the connection. A missed action becomes a pass; 20 consecutive
-misses forfeit. Reconnection resumes with `hello` and, if an action window is
-open, its current observation. Accepted actions and timeout counters survive
-reconnection. Forfeits eliminate the missing players. In FFA, other players continue;
-forfeited territory becomes neutral and their general becomes a castle. One
-survivor wins and no survivors draw. Eliminated slots no longer have deadlines. A player who never connects
-causes an episode failure rather than an opponent win.
+messages close the connection. A missed action becomes a pass. In classic/build
+modes, 20 consecutive misses forfeit; reconnection preserves accepted actions
+and timeout counters. FFA does not eliminate players for transport misses.
+Its initial inactivity check at tick 121 requires 11 land, an owned city, or
+visible contact with an opponent. Eliminated seats no longer owe actions.
+
+In FFA, send `{"type":"surrender","turn":CURRENT_TICK}` to surrender.
+Disconnecting also surrenders. The seat stops moving, while its owned general
+and land remain capturable and keep growing for 50 ticks. Then uncaptured land
+becomes neutral and the general becomes a city. `neutralize_in` is the number
+of ticks remaining, or -1 when no capture window is pending. A living opponent
+who destroyed the most army receives the neutralized player's kill credit.
+Classic/build forfeits retain immediate neutralization. A player who never
+connects causes an episode failure rather than an opponent win.
 
 The final message is `{"type":"final","result":{...}}`, followed by a clean
-close. `result.scores` is one number per absolute slot (+1 for the winner, -1 for all others, or all zeros on a draw), `winner`
-is an absolute slot or -1 for a draw, `reason` is `general_capture`, `turn_limit`, `forfeit`,
-or `double_forfeit`, `turns` is the final state tick, and `army`, `land`, and
-`timeouts` have one entry per slot. Exit cleanly after receiving the final message.
+close. `winner` is an absolute seat or -1 for a classic/build draw. `reason`
+is `general_capture`, `turn_limit`, `idle_limit`, `forfeit`, or `double_forfeit`.
+`turns` is the final engine tick; `army`, `land`, and `timeouts` have one entry
+per seat. Classic/build `scores` remain +1/-1, or all zeros on a draw.
+
+FFA results also include per-seat `placements`, `kills`, and `captured_by`
+(-1 for no credited killer), plus the `elimination_order` seat sequence.
+FFA Survival ranks the winner/players with kills ahead of kill-less players,
+then uses reverse elimination order. Scores encode this order: +1 for first,
+`-(place - 1) / (players - 1)` for others. These are outcomes, not official
+star ratings. Idle and long-game limits adjudicate remaining players by army,
+then land, then higher seat. Exit cleanly after receiving the final message.
 `{"type":"failure","result":null}` means the game failed to complete.
 
 No map seed, hidden board, other player's token, or opponent action is provided

@@ -8,6 +8,7 @@
   const livePrefix = location.pathname.includes('/client/') ? location.pathname.split('/client/')[0] : '';
   let board = null, slot = null, selected = null, half = false, ws = null;
   let currentTurn = -1, sent = true, passTimer = null, replay = null, frameIndex = 0;
+  let decodeReplayFrame;
   let playing = true, replayTimer = null, readySent = false, replayLoad = 0;
   let reconnectTimer = null, reconnectAttempt = 0, terminal = false, replayDownload = null;
   let ruleset = 'classic', playerCount = 2, eliminated = false;
@@ -53,16 +54,26 @@
       label.closest('.player').style.setProperty('--player-row', Math.floor(i / 2) + 1);
       label.closest('.player').style.setProperty('--player-column', i % 2 === 0 ? 1 : 3);
       if (label.textContent !== name) label.textContent = name;
+      if (playerCount > 2 && !$(`kills${i}`)) {
+        const badge = document.createElement('small'); badge.id = `kills${i}`;
+        label.parentElement.append(badge);
+      }
       if (replay) $(`replay-players-${i % 2 === 0 ? 'left' : 'right'}`).append(label.closest('.player'));
     });
     const title = ruleset === 'build_castles' ? 'BUILD YOUR CASTLES' : playerCount > 2 ? `${playerCount}-PLAYER FFA` : 'CLASSIC 1v1';
     $('variant-title').textContent = title; document.title = `Generals · ${title}`;
   }
-  function scoreboard(turn, army, land, eliminatedPlayers = []) {
-    $('turn').textContent = turn;
+  function displayTurn(tick) {
+    return `${Math.floor(tick / 2)}${tick % 2 ? '.' : ''}`;
+  }
+  function scoreboard(turn, army, land, eliminatedPlayers = [], kills = []) {
+    $('turn').textContent = displayTurn(turn);
+    $('turn').dataset.tick = turn;
     for (let i = 0; i < playerCount; i++) {
       $(`army${i}`).textContent = army[i] ?? '—'; $(`land${i}`).textContent = land[i] ?? '—';
       $(`name${i}`).closest('.player').classList.toggle('eliminated', !!eliminatedPlayers[i]);
+      if ($(`kills${i}`)) $(`kills${i}`).textContent = !kills.length ? '' :
+        typeof kills[i] === 'boolean' ? (kills[i] ? 'Kill' : 'No kill') : `${kills[i]} kills`;
     }
     $('endgame').textContent = ruleset === 'competition'
       ? (turn >= 800 ? 'DEATHTOUCH ACTIVE · Reach the enemy general to win' : 'Deathtouch from turn 800')
@@ -181,6 +192,13 @@
   });
   $('split').onclick = () => { half = !half; $('split').setAttribute('aria-pressed', String(half)); };
   $('pass').onclick = () => enqueue([1,0,0,0,0]);
+  $('surrender').onclick = () => {
+    if (!canQueue()) return;
+    ws.send(JSON.stringify({type:'surrender', turn:currentTurn}));
+    queue.length = 0; clearTimeout(passTimer); sent = true;
+    $('surrender').disabled = true;
+    status('Surrender submitted. Your territory remains capturable for 50 ticks.');
+  };
   $('deselect').onclick = () => { selectTile(null); draw(); status('Selection cleared.'); };
   $('undo').onclick = undoMove;
   $('clear').onclick = clearQueue;
@@ -200,11 +218,11 @@
   });
   function outcome(result) {
     const text = result.winner < 0 ? 'Draw' : `${$('name'+result.winner).textContent} wins`;
-    const reasons = {general_capture:'general captured', turn_limit:'turn limit reached', forfeit:'timeout elimination', double_forfeit:'remaining players timed out'};
+    const reasons = {general_capture:'general captured', turn_limit:'turn limit reached', forfeit:'surrender', idle_limit:'inactivity adjudication', double_forfeit:'remaining players timed out'};
     return `${text} · ${reasons[result.reason] || result.reason}`;
   }
   function showReplayFrame() {
-    const frame = replay.frames[frameIndex], perspective = $('perspective').value;
+    const frame = decodeReplayFrame(frameIndex), perspective = $('perspective').value;
     board = frame;
     if (perspective !== 'all') {
       const owner = Number(perspective) + 1;
@@ -220,7 +238,7 @@
         army_grid: frame.army_grid.map((row, r) => row.map((value, c) => visible[r][c] ? value : 0)),
       };
     }
-    scoreboard(board.turn, board.army, board.land, board.eliminated); draw();
+    scoreboard(board.turn, board.army, board.land, board.eliminated, board.kills); draw();
     $('seek').value = frameIndex;
     status(`${outcome(replay.result)} · Frame ${frameIndex+1} of ${replay.frames.length}`);
   }
@@ -259,7 +277,10 @@
     $('cover-text').textContent = 'Reconstructing the battlefield.';
     post({type:'loading'}); post({type:'phase', phase:'replay_fetch_start'});
     let data = source;
-    if (typeof source === 'string') {
+    if (source?.encoding === 'gzip+base64') {
+      const bytes = Uint8Array.from(atob(source.data), value => value.charCodeAt(0));
+      data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+    } else if (typeof source === 'string') {
       const response = await fetch(source, {credentials:'omit'});
       if (!response.ok) throw new Error(`Replay could not be loaded (${response.status}).`);
       let bytes = new Uint8Array(await response.arrayBuffer());
@@ -269,18 +290,13 @@
       data = JSON.parse(new TextDecoder().decode(bytes));
     }
     if (load !== replayLoad) return;
-    if (data.format !== 'generals-coworld' || data.version !== 1 || !Array.isArray(data.frames) || !data.frames.length || data.frames.length > 2001 ||
-        !Number.isInteger(data.height) || !Number.isInteger(data.width) || data.height < 1 || data.height > 33 || data.width < 1 || data.width > 33 ||
-        !Array.isArray(data.players) || data.players.length < 2 || data.players.length > 8 || !data.result) throw new Error('Unsupported or incomplete Generals replay.');
-    for (const frame of data.frames) for (const key of ['type_grid','owner_grid','army_grid']) {
-      if (!Array.isArray(frame[key]) || frame[key].length !== data.height || frame[key].some(row => !Array.isArray(row) || row.length !== data.width || row.some(n => !Number.isInteger(n)))) throw new Error('Replay contains an invalid board.');
-    }
+    decodeReplayFrame = GeneralsReplay(data);
     replay = data; ruleset = data.ruleset || 'competition'; slot = null; selected = null; clearTimeout(passTimer);
     names(data.players); $('mode').textContent = 'REPLAY';
     $('perspective').replaceChildren(new Option('Full map', 'all'),
       ...data.players.map((name, i) => new Option(name, String(i))));
     $('result-title').textContent = outcome(data.result);
-    $('result-detail').textContent = `${data.frames[data.frames.length-1].turn} turns · ${data.players.length} players`;
+    $('result-detail').textContent = `${displayTurn(data.frames[data.frames.length-1].turn)} turns · ${data.frames[data.frames.length-1].turn} ticks · ${data.players.length} players` + (data.result.placements ? ' · Survival place: ' + data.result.placements.join(', ') : '');
     $('match-result').hidden = false;
     if (replayDownload) URL.revokeObjectURL(replayDownload);
     replayDownload = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
@@ -292,6 +308,7 @@
   }
   function observe(message) {
     const firstTurn = currentTurn < 0;
+    $('surrender').hidden = message.players.length < 3;
     const previousMove = inFlight;
     slot = message.slot; currentTurn = message.turn; sent = false; inFlight = null;
     ruleset = message.ruleset || ruleset; eliminated = !!message.eliminated; names(message.players);
@@ -310,8 +327,9 @@
       army[slot] = message.my_army; army[1-slot] = message.opp_army;
       land[slot] = message.my_land; land[1-slot] = message.opp_land;
     }
-    scoreboard(message.turn, army, land, message.public_scores?.eliminated); draw();
-    if (firstTurn) status('Select a tile and queue moves with the arrow keys.');
+    scoreboard(message.turn, army, land, message.public_scores?.eliminated, message.public_scores?.has_kill); draw();
+    if (message.afk_warning) status('Expand to 11 land, own a city, or reach an opponent before tick 121 to avoid inactivity elimination.');
+    else if (firstTurn) status('Select a tile and queue moves with the arrow keys.');
     clearTimeout(passTimer);
     if (eliminated) {
       queue.length = 0; selectTile(null); sent = true; draw();
@@ -360,7 +378,7 @@
         } else if (message.type === 'observation') observe(message);
         else if (message.type === 'global') {
           ruleset = message.ruleset || ruleset;
-          names(message.players); scoreboard(message.turn, message.army, message.land, message.eliminated);
+          names(message.players); scoreboard(message.turn, message.army, message.land, message.eliminated, message.has_kill);
           if (message.phase === 'finished') { loadReplay(message.replay).catch(err => fail(err.message)); }
           else {
             if (message.phase === 'failed') terminal = true;

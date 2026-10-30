@@ -10,8 +10,8 @@ New releases are maintained in `Metta-AI/coworld-generals-io`.
 | Variant | Seats | Rules | Turn cap |
 | --- | --- | --- | --- |
 | `competition` | 2 | Classic rules, neutral castles | 2,000 |
-| `ffa` | 4 | Ranked map generation, last surviving general wins | 2,000 |
-| `ffa-3`, `ffa-5` through `ffa-8` | 3, 5–8 | Corresponding ranked-size FFA | 2,000 |
+| `ffa` | 4 | Ranked FFA maps, Survival outcomes and official adjudication | 50,002 |
+| `ffa-3`, `ffa-5` through `ffa-8` | 3, 5–8 | Corresponding ranked-size FFA | 50,002 |
 | `castles` | 2 | Build castles on owned plain land; no starting neutral castles | 2,000 |
 | `human`, `ffa-human`, `castles-human` | 2, 4, 2 | Corresponding rules, 500 ms minimum tick and 1 s deadline | 1,200 |
 | `ffa-3-human`, `ffa-5-human` through `ffa-8-human` | 3, 5–8 | Corresponding paced FFA | 1,200 |
@@ -19,9 +19,13 @@ New releases are maintained in `Metta-AI/coworld-generals-io`.
 Human variants keep 1,200 turns: at two turns per second, 2,000 turns would take
 at least 17 minutes and risk Softmax's 20-minute hosted episode deadline. Every
 mode disables Deathtouch and resolves moves in generals.io's order (see README).
-FFA uses +1 for the winner, -1 for every other player, and all zeros at the turn
-cap; it does not yet award intermediate finishing ranks. See README and the
-player protocol for capture, timeout, building-cost, and fog rules.
+FFA uses Survival ordering: a kill or win qualifies a player for the upper
+partition, then each partition sorts by reverse elimination order. Caps
+adjudicate remaining players by army, land, and seat rather than drawing.
+The official long-game threshold completes engine tick 50,002. Two engine
+ticks correspond to one full official game turn. Softmax's accelerated bot
+clock, finite job deadline, and Elo rating remain hosting differences.
+See README and the player protocol for surrender, inactivity, and scoring.
 
 ## Leagues
 
@@ -57,7 +61,7 @@ build receipts, player counts, or browser queues. Certify the container and run
 hosted verification for each affected mode; classic-only certification does not
 prove FFA or building works.
 
-Local smoke/full matches (bot games default to the hosted 2,000-turn cap):
+Local smoke/full matches (omit `--max-turns` for the hosted mode budget):
 
 ```bash
 python -m integrations.softmax.local --variant ffa --seed 7

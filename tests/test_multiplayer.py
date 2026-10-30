@@ -485,7 +485,7 @@ def test_surrendered_general_can_still_be_captured_with_the_usual_spoils():
 def test_surrender_of_the_last_opponent_ends_the_game_like_a_capture():
     """The site decides the game in killPlayer (isOver) and still plays that
     turn; the engine sets the winner at the end of the tick: the tick counts
-    (time advances) and, as after a final capture, no income is paid."""
+    (time advances) and final-tick income is still paid."""
     s = board({0: (0, 0), 1: (0, 5), 2: (5, 0)}, teams=FFA3)._replace(time=jnp.int32(1))
     s = game.surrender(s, 1)
     s, info = game.step(s, passes(3))
@@ -497,10 +497,10 @@ def test_surrender_of_the_last_opponent_ends_the_game_like_a_capture():
     assert int(s.armies[0, 1]) == 1 and int(s.armies[0, 0]) == 1
     later, _ = game.step(s, passes(3))                                          # the game is over: time and income stop
     assert int(later.time) == 3 and jnp.array_equal(later.armies, s.armies)
-    # income is not paid in the deciding tick either
+    # income is paid in the deciding tick too
     e = board({0: (0, 0), 1: (0, 5)}, size=6)._replace(time=jnp.int32(1))
     e, info = game.step(game.surrender(e, 1), passes(2))                        # time -> 2, an income tick
-    assert int(info.winner) == 0 and int(e.time) == 2 and int(e.armies[0, 0]) == 1
+    assert int(info.winner) == 0 and int(e.time) == 2 and int(e.armies[0, 0]) == 2
 
 
 def test_surrender_in_a_team_game_ends_only_when_the_whole_team_is_gone():

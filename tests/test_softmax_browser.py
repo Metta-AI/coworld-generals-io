@@ -152,7 +152,7 @@ def test_browser_premove_controls(tmp_path, hosted):
                 obs["owner_grid"][r][c] = 1
                 obs["army_grid"][r][c] = army
                 sockets[0].send(json.dumps(obs))
-                expect(page.locator("#turn")).to_have_text(str(turn))
+                expect(page.locator("#turn")).to_have_text(f"{turn // 2}{'.' if turn % 2 else ''}")
 
             def selected(r, c):
                 expect(page.locator("#board > .tile").nth(r * 8 + c)).to_have_class(re.compile(r"\bselected\b"))
@@ -462,7 +462,7 @@ def test_browser_play_and_standalone_replay(tmp_path, variant):
                 bot = subprocess.Popen([sys.executable, "-m", f"integrations.softmax.{module}"], cwd=ROOT, env=player_env)
                 bots.append(bot)
                 processes.append(bot)
-            page.wait_for_function("Number(document.getElementById('turn').textContent) >= 2")
+            page.wait_for_function("Number(document.getElementById('turn').dataset.tick) >= 2")
             obs = observations[-1]
             general = next(
                 (r, c)
@@ -480,14 +480,14 @@ def test_browser_play_and_standalone_replay(tmp_path, variant):
             # The touch controls submit through the same queue as the keyboard.
             direction_labels = {"ArrowUp": "Move up", "ArrowDown": "Move down", "ArrowLeft": "Move left", "ArrowRight": "Move right"}
             page.get_by_role("button", name=direction_labels[direction], exact=True).click()
-            page.wait_for_function("Number(document.getElementById('turn').textContent) >= 5")
+            page.wait_for_function("Number(document.getElementById('turn').dataset.tick) >= 5")
             # Interrupt the actual connection, then recover against the same server.
             context = page.context
             context.set_offline(True)
             page.wait_for_function("document.getElementById('mode').textContent === 'RECONNECTING'")
             context.set_offline(False)
             expect(page.locator("#mode")).to_have_text("PLAYER")
-            page.wait_for_function("Number(document.getElementById('turn').textContent) >= 8")
+            page.wait_for_function("Number(document.getElementById('turn').dataset.tick) >= 8")
             page.screenshot(path=str(tmp_path / "player.png"), full_page=True)
             page.wait_for_function("document.getElementById('mode').textContent === 'REPLAY'", timeout=20000)
             assert all(bot.wait(timeout=5) == 0 for bot in bots)
@@ -527,7 +527,7 @@ def test_browser_play_and_standalone_replay(tmp_path, variant):
                 page.wait_for_function("Number(document.getElementById('seek').value) > 0")
                 page.click("#pause")
                 page.locator("#seek").fill("8")
-                assert page.locator("#turn").inner_text() == "8"
+                assert page.locator("#turn").inner_text() == "4"
                 page.screenshot(path=str(tmp_path / "replay-desktop.png"), full_page=True)
                 page.click("#restart")
                 assert page.locator("#turn").inner_text() == "0"

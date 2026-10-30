@@ -65,6 +65,9 @@ class GameState(NamedTuple):
             their general was captured (their territory is gone) or they
             surrendered (see surrender: the territory stays). Their actions
             are ignored either way.
+        death_order: (N,) elimination sequence, -1 while not eliminated.
+        captured_by: (N,) credited killer, -1 when nobody has earned the kill.
+        annihilated: (N, N) enemy army destroyed, attacker by defender.
         time: Scalar, current game timestep.
         winner: Scalar, -1 if game ongoing, otherwise the team id of the
             last team standing (== the player index in 1v1 / free-for-all).
@@ -81,6 +84,9 @@ class GameState(NamedTuple):
     general_positions: jnp.ndarray
     teams: jnp.ndarray
     eliminated: jnp.ndarray
+    death_order: jnp.ndarray
+    captured_by: jnp.ndarray
+    annihilated: jnp.ndarray
     time: jnp.ndarray
     winner: jnp.ndarray
     pool_idx: jnp.ndarray
@@ -172,6 +178,9 @@ def create_initial_state(grid: jnp.ndarray, teams=None, num_players: int | None 
         general_positions=general_positions,
         teams=teams,
         eliminated=~jnp.any(ownership, axis=(1, 2)),
+        death_order=jnp.full((N,), -1, dtype=jnp.int32),
+        captured_by=jnp.full((N,), -1, dtype=jnp.int32),
+        annihilated=jnp.zeros((N, N), dtype=jnp.int32),
         time=jnp.int32(0),
         winner=jnp.int32(-1),
         pool_idx=jnp.int32(0),
@@ -299,6 +308,9 @@ def _apply_move(state: GameState, player_idx: int, si: int, sj: int, di: int, dj
         ownership_neutral=ownership_neutral,
         generals=generals,
         castles=castles,
+        annihilated=state.annihilated.at[player_idx, jnp.argmax(target_owners)].add(
+            jnp.where(valid & ~friendly & jnp.any(target_owners), jnp.minimum(army_to_move, target_army), 0)
+        ),
     )
     if spoils:
         state = lax.cond(
@@ -341,6 +353,10 @@ def eliminate_player(state: GameState, captured_idx, capturer_idx) -> GameState:
         generals=generals,
         castles=castles,
         eliminated=eliminated,
+        death_order=state.death_order.at[captured_idx].set(jnp.where(
+            state.eliminated[captured_idx], state.death_order[captured_idx], jnp.sum(state.death_order >= 0)
+        )),
+        captured_by=state.captured_by.at[captured_idx].set(capturer_idx),
         winner=winner,
     )
 
@@ -353,11 +369,16 @@ def surrender(state: GameState, player_idx) -> GameState:
     keeps receiving income, and their general can still be captured (the
     capturer then takes the land, halved, as usual). The game ends when one
     team is left alive: the next step sets the winner, completing that tick
-    like the tick of a final capture (moves run, time advances, no income).
+    like the tick of a final capture (moves, time advancement, and income).
     Idempotent. Pure; apply it to the state before the tick's step.
     """
     N = state.ownership.shape[0]
-    return state._replace(eliminated=state.eliminated | (jnp.arange(N) == player_idx))
+    return state._replace(
+        eliminated=state.eliminated | (jnp.arange(N) == player_idx),
+        death_order=state.death_order.at[player_idx].set(jnp.where(
+            state.eliminated[player_idx], state.death_order[player_idx], jnp.sum(state.death_order >= 0)
+        )),
+    )
 
 
 @jax.jit
@@ -379,11 +400,16 @@ def neutralize(state: GameState, player_idx) -> GameState:
     mates = (state.teams == state.teams[player_idx]) & ~state.eliminated & (players != player_idx)
     has_mate = jnp.any(mates)
     heir = (players == jnp.argmax(mates)) & has_mate                   # (N,) one-hot, or nobody
+    damage = jnp.where(~state.eliminated & (players != player_idx), state.annihilated[:, player_idx], 0)
+    credit = still_mine & ~has_mate & (jnp.max(damage) > 0)
     return state._replace(
         ownership=jnp.where(cells[None], heir[:, None, None], state.ownership),
         ownership_neutral=state.ownership_neutral | (cells & ~has_mate),
         castles=state.castles | (state.generals & cells),
         generals=state.generals & ~cells,
+        captured_by=state.captured_by.at[player_idx].set(jnp.where(
+            credit, jnp.argmax(damage), state.captured_by[player_idx]
+        )),
     )
 
 
@@ -634,8 +660,8 @@ def step(state: GameState, actions: jnp.ndarray,
     the game is decided) finds no army to command.
 
     The tick that decides the game (by capture or, via surrender, by the last
-    opposing player leaving) completes: its moves run and time advances, but
-    the income is not paid. Later ticks leave time alone.
+    opposing player leaving) completes: its moves run, time advances, and
+    income is paid, matching the official update. Later ticks leave time alone.
     """
     N = actions.shape[0]
     if N != state.ownership.shape[0]:
@@ -650,7 +676,7 @@ def step(state: GameState, actions: jnp.ndarray,
     # in killPlayer): the tick completes like the tick of a final capture.
     state = state._replace(winner=jnp.where(state.winner >= 0, state.winner, _last_team_standing(state)))
 
-    state = global_update(state, active=state.winner < 0)
+    state = global_update(state, active=~done_before)
 
     return state, get_info(state)
 

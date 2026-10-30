@@ -87,7 +87,7 @@ server.run()
                         for page in (player, spectator):
                             page.get_by_role("button", name="Pause", exact=True).click()
                             page.locator("#seek").fill("12")
-                            expect(page.locator("#turn")).to_have_text("12")
+                            expect(page.locator("#turn")).to_have_text("6")
                             with page.expect_download() as saved:
                                 page.get_by_role("link", name="Download replay", exact=True).click()
                             assert json.loads(Path(saved.value.path()).read_text()) == json.loads(

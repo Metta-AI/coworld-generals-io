@@ -198,3 +198,66 @@ Validation used Python 3.12, the locked runtime dependencies, and Chromium:
 The public episode route opens hosted replay without signing in. The theater's
 league-filtered `?e=` route does not select an out-of-league verification request;
 use the episode's public page or its Replay link for these runs.
+
+### Further ranked FFA alignment — 0.6.0 preparation
+
+The supplied live Game defines the primary `ffa` ladder as FFA Survival.
+The [official version history](https://generals.io/versions) documents its
+kill/win partition. This release records elimination sequence, credited killers,
+and enemy army destroyed inside the authoritative transition. FFA outcomes now
+follow that partition and reverse elimination order. Scores preserve the ordering
+for Softmax; its Elo updater remains separate from the omitted official star updater.
+
+The adapter follows the live source's 50-tick surrender capture window,
+neutralization credit, inactivity check at tick 121, and army/land/seat
+adjudication after more than 2,000 idle ticks or the 50,000-tick long-game
+threshold. Bot FFA permits the resulting terminal tick 50,002. Transport misses
+are passes; explicit surrender and disconnect are game events. FFA's initial
+input window is 1.5 seconds, as in the official pre-game delay. Accelerated bot
+execution, human budgets, network deadlines, and the platform job deadline remain
+hosting constraints. Two engine ticks correspond to one full official game turn.
+
+The shared base engine now pays the final tick's growth, including on a capture
+or surrender ending. The external comparison includes that final board rather
+than exempting its income difference. Historical episode frames and pinned source
+revisions remain unchanged.
+
+Replay format 2 uses a full keyframe every 256 frames and sparse tile replacements
+between them. Python and browser readers reconstruct a single sought frame from
+its nearest keyframe. Published v1 full-frame recordings retain their explicit
+reader. Browser terminal handoff uses one gzip/base64 recording after artifact
+persistence, so long recordings do not require a new request after proxy retirement.
+Observations are batched and converted to host arrays once per tick; the player
+wire format and fog masks remain unchanged.
+
+The retained real-session workflows exercise play past the old 2,000-tick cap,
+idle adjudication and replay seeking, and a surrendered general captured within
+the window. That killer then surrenders and must outrank a later kill-less survivor.
+The existing reference workflow now requires an identical terminal board too.
+
+The replay/live clock also follows the official client counter: `floor(tick / 2)`
+with a dot on odd ticks. Network actions and the replay seek slider still address
+engine ticks. The initial 1.5-second input window prevents eight stdio subprocesses
+from being mistaken for disconnects while initializing, matching the supplied
+live game's pre-game delay. Live kill information is a boolean `has_kill`, as in
+the official score stream; exact counts are recorded only for completed replays/results.
+
+The official copyright page identifies OpenSkill for stars and matchmaking.
+The public `strakam/generals-bots` tree at
+`954927f508aa47899019d66317cc313af3e9cc19` contains no rating updater.
+Softmax already implements OpenSkill, but its settings API refuses an algorithm
+change while standings exist. Existing Elo history is preserved pending an
+explicit choice of a fresh OpenSkill league; exact official star parameters
+remain unverified.
+
+Pre-release checks: 600 generated Survival-order cases and 600 surrender/neutralization
+cases matched the supplied live Game methods across three through eight seats.
+These compare isolated official methods on valid states, not live rated games.
+The ordinary local eight-bot variant completed 50,002 ticks with zero timeouts
+and a 30 MB recording. Two deliberate regressions (one-tick neutralization and
+the old 2,000-tick cap) each failed the corresponding retained system workflow.
+
+Manual browser proof used the saved eight-seat recording on
+`http://127.0.0.1:18995/#replay=long.json`, at 1440×1000 and 390×844.
+Seeking from tick 49,000 back to 512, changing to Maroon fog, the official
+clock, scorecards and result all rendered without browser errors.

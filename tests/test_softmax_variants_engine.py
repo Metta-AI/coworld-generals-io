@@ -27,6 +27,10 @@ def matches(engines):
         match.state, match.height, match.width = saved[name]
         match.last_move_executed = [None] * match.num_players
         match.last_build_executed = [None] * match.num_players
+        match.neutralize_at[:] = -1
+        match.afk_warning[:] = False
+        match.idle_ticks = 0
+        match.end_reason = "general_capture"
 
 
 def board(match, grid):
@@ -111,20 +115,20 @@ def test_ffa_capture_eliminates_one_player_but_match_continues(matches):
     assert match.active_slots == [0]
 
 
-def test_ffa_forfeit_neutralizes_territory_and_preserves_remaining_players(matches):
+def test_ffa_surrender_preserves_capturable_territory_and_remaining_players(matches):
     match = matches["ffa"]
     board(match, [[1, 2, -2, 0], [0, 0, 0, 0], [0, 0, 40, 0], [3, 0, 0, 4]])
     match.state = match.state._replace(armies=match.state.armies.at[0, 1].set(25))
     original_armies = np.asarray(match.state.armies).copy()
     assert match.forfeit([1]) == -1
     assert match.active_slots == [0, 2, 3]
-    assert bool(match.state.ownership_neutral[0, 1])
-    assert bool(match.state.castles[0, 1]) and not bool(match.state.generals[0, 1])
+    assert bool(match.state.ownership[1, 0, 1])
+    assert not bool(match.state.castles[0, 1]) and bool(match.state.generals[0, 1])
     assert bool(match.state.castles[2, 2]) and bool(match.state.mountains[0, 2])
     np.testing.assert_array_equal(match.state.armies, original_armies)
     assert match.advance([PASS] * 4) == -1
-    assert match.forfeit([0, 2, 3]) == -1
-    assert match.active_slots == []
+    assert match.forfeit([0, 2, 3]) == 3
+    assert match.active_slots == [3]
 
 
 def test_castle_build_price_action_and_receipt_match_engine(matches):

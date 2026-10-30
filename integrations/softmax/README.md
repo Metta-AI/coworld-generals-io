@@ -56,6 +56,14 @@ FFA variants select an exact seat count: `ffa` and `ffa-human` have four seats;
 Append `-human` for their paced versions. The league scheduler chooses the size
 that fits its current entrants, up to eight, without cloning policies.
 
+Release 0.6.0 aligns FFA outcomes and player exits with the supplied official
+base game. FFA Survival orders players with a kill, or the winner, ahead of
+kill-less players; each group follows reverse elimination order. Surrender leaves
+territory capturable for 50 ticks. Inactivity checks and the official idle/long-game
+adjudication replace the 2,000-tick draw. Compact recordings retain every tick
+without storing every board in full. See the current rules below; earlier release
+paragraphs describe their historical settings.
+
 ## Shared play experience
 
 The same browser assets render local play, hosted seats, public live scores,
@@ -122,7 +130,7 @@ python -m integrations.softmax.local --seed 7 --keep-open
 ```
 
 `--max-turns 40` makes a short smoke test. Without it, local games use the hosted
-caps: 2,000 turns for bots and 1,200 with `--human`. Each local run writes into its own ignored `local-output/episode-*`
+caps: 50,002 engine ticks for FFA bots, 2,000 for other bots, and 1,200 with `--human`. Each local run writes into its own ignored `local-output/episode-*`
 directory. `config.json` contains local player tokens; do not publish it. The
 shareable outputs are `results.json` and `replay.json`. `--port` selects another
 local port. The local launcher binds only to loopback.
@@ -162,21 +170,46 @@ local port. The local launcher binds only to loopback.
   actions; they can remain connected until the final result.
 - General capture always requires beating its defending army, including after
   turn 800. There is no Deathtouch rule.
-- Capture scores **+1** for the winner and **−1** for each other player. Reaching
-  the turn cap (2,000 in bot variants, 1,200 in human variants) scores **0 for everyone**, including eliminated players,
-  regardless of army or land advantage. FFA does not award intermediate ranks.
+- Classic and building modes score **+1** for the winner and **−1** for the
+  loser; their turn caps remain draws. FFA instead follows **FFA Survival**:
+  the winner and players with a credited kill rank above kill-less players,
+  then each group sorts by reverse elimination order. Results expose
+  `placements`, direct `kills`, `captured_by`, and `elimination_order`.
+  Scores are +1 for first and `-(place - 1) / (players - 1)` for other places.
+  These encode the outcome for Softmax's ranker; they are not official stars.
+- FFA ends after more than 2,000 consecutive ticks without a valid move, or
+  the official 50,000-tick long-game threshold. The implementation completes
+  tick 50,002 because the source tests `turn > 50000` before advancing it.
+  Remaining players are eliminated in ascending army, then land, then seat
+  order; the last remaining player wins. Explicit shorter caps and the paced
+  human cap use the same adjudication rather than an all-zero draw.
+- A normal official tick is 500 ms; two ticks make one full displayed game
+  turn. Protocol `turn`, `turns`, and `max_turns` count these engine ticks.
+  Bot simulation remains accelerated. Human lobbies retain their 1,200-tick
+  budget and Softmax retains its independent hosted job deadline.
 
-The hosted runtime adds explicit failure rules: bot matches have a 500 ms action
-deadline; human lobbies allow one second for transport, while normally advancing
-at two turns per second. Deadlines start at publication of each observation. A missing action is
-a pass. After 20 consecutive missed turns a player forfeits; if both reach the
-threshold together, both score zero. In FFA, a timeout forfeit eliminates only
-that player: their tiles become neutral with unchanged armies and their general
-becomes a neutral castle. The surviving players continue. One survivor wins;
-no survivors draw. A valid pass resets the counter. If a
-player never connects before the 180-second start deadline, the episode emits a
-typed player failure instead of competitive scores. Reconnection is allowed
-during play with the original token, but never resets timeout counters.
+FFA has the official 1.5-second initial input window; subsequent bot actions
+have a 500 ms deadline; human lobbies allow one second for transport
+with a 500 ms minimum tick interval. Missing actions are passes. In FFA,
+transport misses do not trigger the old 20-miss elimination. At tick 121, a
+player needs 11 land, an owned city, or visible contact with an opponent to
+avoid the official initial inactivity kick. Warnings begin at tick 99.
+
+FFA players can send `{"type":"surrender","turn":CURRENT_TICK}`. Disconnecting
+also surrenders the seat. Its moves stop immediately, but its land and general
+remain owned, grow normally, and can be captured for 50 more ticks. At the
+expiry, uncaptured territory becomes neutral with unchanged armies and the
+general becomes a neutral city. The living opponent who destroyed the most
+of that player's army receives kill credit, if anyone did. The winner receives
+credit for the final surrender as in the official game. Classic/build modes
+retain their immediate 20-miss timeout forfeits and reconnect behavior.
+
+If a player never connects before the 180-second start deadline, the episode
+emits a typed player failure rather than competitive scores. The league still
+uses Softmax's Elo ranker. The [official attribution](https://generals.io/copyright)
+identifies OpenSkill for stars and matchmaking. Neither the supplied archive nor
+the inspected public generals-bots tree includes its updater or exact parameters;
+rating parity is not claimed.
 
 Competitive episodes omit `seed`, generating a fresh server-private 32-bit seed.
 Explicit seeds are for reproducible local tests/evaluations. The seed is recorded
@@ -208,7 +241,7 @@ an unauthenticated omniscient WebSocket would defeat fog of war. Player pages
 and `/player` require the slot's token. The public stream accepts no game-control
 commands, and `/replay.json` is unavailable until all success artifacts are saved.
 
-The completed replay includes every board frame and the submitted/applied
+The completed replay preserves every board frame using keyframes and tile changes, plus the submitted/applied
 actions, seed, timeout flags, and result. The tile renderer and styles from `generals-competition` serve player views
 and replays. Crown, castle, and mountain sprites come directly from this repo's
 `generals/assets/images`, with the same assets copied into the static bundle. The static replay bundle needs no Python server, JAX, WASM,
