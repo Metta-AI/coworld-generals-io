@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from .artifacts import read_json, write_json
 from .config import GameConfig
 from .engine import Match
+from .file_players import PolicyFault, load_file_players
 from .protocol import PASS, VERSION, parse_action
 from .replay import REPLAY_VERSION, ReplayFrames
 
@@ -57,11 +58,15 @@ class Episode:
         self.result = None
         self.replay = None
         self.failed = False
+        self.file_players = load_file_players(self.num_players)
+        self.file_slots = set(self.file_players.files) if self.file_players else set()
 
     def authorize(self, slot: str | None, token: str | None) -> int | None:
         if slot not in tuple(str(s) for s in range(self.num_players)) or token is None:
             return None
         index = int(slot)
+        if index in self.file_slots:
+            return None
         return index if hmac.compare_digest(token.encode(), self.config.tokens[index].encode()) else None
 
     def public(self):
@@ -149,6 +154,8 @@ class Episode:
             self.phase = "failed"
             self.publish()
         finally:
+            if self.file_players:
+                await self.file_players.close()
             if self.phase in ("finished", "failed"):
                 for queue in self.players.values():
                     enqueue(queue, {"type": "final" if not self.failed else "failure", "result": self.result})
@@ -158,13 +165,20 @@ class Episode:
                     self.shutdown()
 
     async def play(self):
+        if self.file_players:
+            startup = await self.file_players.start()
+            if isinstance(startup, PolicyFault):
+                await self.fail_policy(startup)
+                return
         try:
             async with asyncio.timeout(self.config.player_connect_timeout_seconds):
-                while len(self.players) < self.num_players:
+                while len(self.players) + len(self.file_slots) < self.num_players:
                     self.joined.clear()
                     await self.joined.wait()
         except TimeoutError:
-            missing = next(slot for slot in range(self.num_players) if slot not in self.players)
+            missing = next(
+                slot for slot in range(self.num_players) if slot not in self.players and slot not in self.file_slots
+            )
             await self.save(
                 "failure",
                 {"message": "Player did not connect before the start deadline", "failed_policy_index": missing},
@@ -183,6 +197,13 @@ class Episode:
             self.actions_ready.clear()
             self.phase = "playing"
             started = asyncio.get_running_loop().time()
+            if self.file_players:
+                for slot in sorted(self.file_slots.intersection(active)):
+                    reply = await self.file_players.act(slot, observations[slot])
+                    if isinstance(reply, PolicyFault):
+                        await self.fail_policy(reply)
+                        return
+                    self.accept(slot, {"type": "action", "turn": self.match.turn, "action": reply.action})
             for slot, queue in self.players.items():
                 enqueue(queue, observations[slot])
             self.publish()
@@ -252,6 +273,8 @@ class Episode:
         }
         # Results are the completion marker. Never mark success without a replay.
         await self.save("replay", replay)
+        if self.file_players:
+            await self.file_players.close()
         await self.save("results", result)
         self.result, self.replay = result, replay
         self.browser_replay = await asyncio.to_thread(lambda: {
@@ -263,6 +286,13 @@ class Episode:
         self.phase = "finished"
         self.publish()
         LOG.info("episode complete: %s, turn %d, winner %d", reason, self.match.turn, winner)
+
+    async def fail_policy(self, fault: PolicyFault):
+        await self.file_players.close()
+        await self.save("failure", fault.model_dump(by_alias=True))
+        self.failed = True
+        self.phase = "failed"
+        self.publish()
 
 
 def subscribe_replay(ws, message):

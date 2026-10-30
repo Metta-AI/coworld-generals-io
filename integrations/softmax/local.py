@@ -1,6 +1,7 @@
 """Run a complete local Coworld episode without Docker or a Softmax account."""
 
 import argparse
+import hashlib
 import json
 import os
 import secrets
@@ -13,6 +14,7 @@ from urllib.parse import urlencode
 import httpx
 
 from .config import PLAYER_NAMES
+from .file_players import FileSeat, Seats, SocketSeat
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -25,6 +27,13 @@ def main():
     parser.add_argument("--variant", choices=("competition", "ffa", "castles"), default="competition")
     parser.add_argument("--players", type=int, choices=range(3, 9), default=4, help="FFA seats (default: 4)")
     parser.add_argument("--human", action="store_true", help="control slot 0 in the browser")
+    parser.add_argument(
+        "--basic",
+        action="append",
+        default=[],
+        metavar="SLOT=PATH",
+        help="execute a BASIC file in this zero-based seat; repeat for multiple seats",
+    )
     parser.add_argument("--keep-open", action="store_true", help="keep the server open for replay inspection")
     parser.add_argument("--output", type=Path, default=ROOT / "integrations/softmax/local-output")
     args = parser.parse_args()
@@ -34,6 +43,14 @@ def main():
     run_dir = output / f"episode-{time.time_ns()}"
     run_dir.mkdir(mode=0o700)
     count = args.players if args.variant == "ffa" else 2
+    basic = {}
+    for entry in args.basic:
+        slot, separator, path = entry.partition("=")
+        if not separator or not slot.isdecimal() or not 0 <= int(slot) < count or int(slot) in basic:
+            parser.error("--basic requires a unique in-range SLOT=PATH")
+        if args.human and int(slot) == 0:
+            parser.error("human slot 0 cannot also execute a BASIC file")
+        basic[int(slot)] = Path(path).resolve()
     tokens = [secrets.token_urlsafe(24) for _ in range(count)]
     names = PLAYER_NAMES[:count]
     config = {
@@ -59,6 +76,33 @@ def main():
         "COGAME_SAVE_REPLAY_URI": (run_dir / "replay.json").as_uri(),
         "COGAME_PLAYER_FAILURE_URI": (run_dir / "failure.json").as_uri(),
     }
+    if basic:
+        seats: list[FileSeat | SocketSeat] = []
+        for slot in range(count):
+            if slot in basic:
+                content = basic[slot].read_bytes()
+                seats.append(
+                    FileSeat(
+                        kind="policy",
+                        slot=slot,
+                        file_uri=basic[slot].as_uri(),
+                        content_hash="sha256:" + hashlib.sha256(content).hexdigest(),
+                        size_bytes=len(content),
+                        log_uri=(run_dir / f"policy_agent_{slot}.log").as_uri(),
+                        artifact_uri=(run_dir / f"policy_artifact_{slot}.zip").as_uri(),
+                    )
+                )
+            else:
+                seats.append(SocketSeat(kind="human" if args.human and slot == 0 else "container", slot=slot))
+        roster = run_dir / "player_seats.json"
+        roster.write_text(
+            Seats(
+                schema="coworld-play-seats/2",
+                seats=seats,
+                player_status_uri=(run_dir / "game_player_status.json").as_uri(),
+            ).model_dump_json(by_alias=True, exclude_none=True)
+        )
+        env["COGAME_PLAYER_SEATS_URI"] = roster.as_uri()
     processes = []
     base = f"http://127.0.0.1:{args.port}"
     try:
@@ -77,6 +121,8 @@ def main():
             else:
                 raise RuntimeError("game server did not become ready within 60 seconds")
         for slot in range(count):
+            if slot in basic:
+                continue
             query = urlencode({"slot": slot, "token": tokens[slot]})
             if slot == 0 and args.human:
                 print(f"Play: {base}/client/player?{query}", flush=True)

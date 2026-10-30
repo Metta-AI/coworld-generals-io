@@ -10,6 +10,11 @@ The game sends a `hello` with `protocol_version: 1`, your `slot` (0 through play
 `height` and `width`, two to eight display names in `players`, and
 `ruleset: "classic"` or `"build_castles"`. Wait for an `observation` before sending actions.
 
+Board dimensions vary and may be rectangular. Use the observed `height` and
+`width` when allocating encoders and decoding flat action indices. Do not assume a fixed
+21×21 whole-board encoding. Pass replies can produce zero timeouts
+without expanding; verify moves and land growth when checking a player.
+
 Each observation has:
 
 | Field | Meaning |

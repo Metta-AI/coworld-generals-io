@@ -50,4 +50,3 @@ def viewer(tmp_path):
     finally:
         http.shutdown()
         http.server_close()
-

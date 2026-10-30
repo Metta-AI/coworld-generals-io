@@ -22,6 +22,6 @@ jobs:
           pip install pytest playwright
           python -m playwright install --with-deps chromium
       - run: python -m integrations.softmax.tools.manifest --check
-      - run: pytest -q
+      - run: python -m pytest -q
         env:
           GENERALS_BROWSER_TESTS: "1"

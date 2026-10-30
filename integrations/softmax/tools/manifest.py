@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "https://github.com/Metta-AI/coworld-generals-io/tree/main/integrations/softmax"
 
 
-def document(filename):
-    return {"type": "text", "value": (ROOT / filename).read_text()}
+def document(*filenames):
+    return {"type": "text", "value": "\n\n".join((ROOT / filename).read_text() for filename in filenames)}
 
 
 def ffa_variant(count, human=False):
@@ -57,9 +57,10 @@ def template():
     }
     players = [{"name": "Red"}, {"name": "Blue"}]
     return {
-        "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/4c26e51/src/coworld/coworld_manifest_schema.json",
+        "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
         "tags": ["strategy", "1v1", "ffa", "fog-of-war", "territory-control"],
         "game": {
+            "player_types": ["file", "container", "human"],
             "name": "generals-competition",
             "owner": "Softmax",
             "description": (
@@ -74,11 +75,22 @@ def template():
             },
             "config_schema": GameConfig.model_json_schema(),
             "results_schema": results,
-            "protocols": {"player": document("PLAYER_PROTOCOL.md"), "global": document("GLOBAL_PROTOCOL.md")},
+            "protocols": {
+                "player": document("PLAYER_PROTOCOL.md", "BASIC_PROTOCOL.md"),
+                "global": document("GLOBAL_PROTOCOL.md"),
+            },
             "docs": {"readme": document("README.md")},
             "replay_viewer": {"bundle": "replay-viewer", "replay_compression": "gzip"},
         },
         "player": [
+            {
+                "id": "basic",
+                "name": "BASIC Frontier",
+                "description": "Editable BASIC frontier-expansion baseline with bounded execution.",
+                "type": "player",
+                "file": "players/baseline.bas",
+                "source_url": SOURCE,
+            },
             {
                 "id": "expander",
                 "name": "Expander",
@@ -134,8 +146,18 @@ def template():
             *[ffa_variant(count, human) for count in (3, 5, 6, 7, 8) for human in (False, True)],
         ],
         "certification": {
-            "game_config": {"players": players, "seed": 7, "max_turns": 40, "tick_interval_seconds": 0.05},
-            "players": [{"player_id": "expander"}, {"player_id": "builder"}],
+            "game_config": {
+                "players": players + [{"name": "Green"}, {"name": "Purple"}],
+                "seed": 7,
+                "max_turns": 40,
+                "tick_interval_seconds": 0.05,
+            },
+            "players": [
+                {"player_id": "basic"},
+                {"player_id": "expander"},
+                {"player_id": "builder"},
+                {"player_id": "basic"},
+            ],
         },
     }
 
