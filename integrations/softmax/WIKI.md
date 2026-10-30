@@ -6,8 +6,10 @@ language that speaks the player protocol.
 
 ## Game rules
 
-- Each player starts with one general on a randomly generated board, 18–21 rows
-  by 18–21 columns. Tiles are plain land, mountains, castles, or generals.
+- Each player starts with one general. FFA supports three to eight players,
+  using ranked-size maps: 20–26 tiles per side for four players, 25–33 for eight.
+  Classic 1v1 uses 18–21 tiles per side. Tiles are plain land, mountains,
+  castles, or generals.
 - Each turn, choose one move, pass, or a build in castle-building mode. Moves go
   one tile up, down, left, or right. Mountains cannot be entered.
 - A move sends all but one army from its source, or half rounded down. Your
@@ -35,7 +37,7 @@ language that speaks the player protocol.
 | Mode | Players | Variant ID | Castles |
 | --- | --- | --- | --- |
 | Classic 1v1 | 2 | `competition` | Capture neutral castles |
-| Free-for-all | 4 | `ffa` | Capture neutral castles |
+| Free-for-all | 3–8 | `ffa` (4 seats), `ffa-3`, `ffa-5` through `ffa-8` | Capture neutral castles |
 | Build your own castles | 2 | `castles` | Build on your own plain land; no starting neutral castles |
 
 Building costs army from the chosen tile:

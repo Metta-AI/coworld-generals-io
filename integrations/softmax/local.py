@@ -12,6 +12,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from .config import PLAYER_NAMES
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -21,6 +23,7 @@ def main():
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--max-turns", type=int, help="default: 2000, or 1200 with --human, as hosted")
     parser.add_argument("--variant", choices=("competition", "ffa", "castles"), default="competition")
+    parser.add_argument("--players", type=int, choices=range(3, 9), default=4, help="FFA seats (default: 4)")
     parser.add_argument("--human", action="store_true", help="control slot 0 in the browser")
     parser.add_argument("--keep-open", action="store_true", help="keep the server open for replay inspection")
     parser.add_argument("--output", type=Path, default=ROOT / "integrations/softmax/local-output")
@@ -30,9 +33,9 @@ def main():
     # Each run gets its own directory so old success artifacts cannot mask failure.
     run_dir = output / f"episode-{time.time_ns()}"
     run_dir.mkdir(mode=0o700)
-    count = 4 if args.variant == "ffa" else 2
+    count = args.players if args.variant == "ffa" else 2
     tokens = [secrets.token_urlsafe(24) for _ in range(count)]
-    names = ["Red", "Blue", "Green", "Purple"][:count]
+    names = PLAYER_NAMES[:count]
     config = {
         "tokens": tokens,
         "players": [{"name": "You" if args.human and slot == 0 else name} for slot, name in enumerate(names)],

@@ -123,3 +123,48 @@ Validation includes the full-height replay layout merged from main at `84a2005`.
 These are local validation results. Publishing a canonical amd64 release still
 uses the existing release workflow. Late navigation to an expired live URL is
 owned by the platform proxy, which must resolve the episode's recorded replay.
+
+### Ranked FFA map alignment — 0.5.0 preparation
+
+FFA now accepts three through eight players. The new startup sampler follows
+base-game ranked map generation, including squared-uniform dimensions,
+player-count-dependent spacing and city budgets, mountain draws with replacement,
+fair city placement, and rejection of blocked or city-starved spawns.
+Four-player maps have 20–26 tiles per side; eight-player maps have 25–33.
+
+The reference was the developer-supplied `GeneralsIOProbablyAllYouNeedInitially.zip`
+(Constants version 31.4.4), with the separately supplied base Map. The supplied
+JavaScript files remain external to this repository and distributed artifacts.
+A local loader exercised the real `Game.tryInitializeGame`, `Terrain`, Map,
+shuffle, and city-placement methods. Unavailable chat/options imports were
+bypassed; options were supplied directly. This validates base FFA map sampling,
+not the unavailable live server or its authentication and event wrappers.
+
+With identical random-draw streams, all 600 generated boards matched tile for
+tile, including the draw count: 100 seeds for each of 3, 4, 5, 6, 7, and 8 seats.
+The comparison includes city-placement fallback and rejected-map retries.
+[Comparison report](https://softmax.nexus/artifacts/9d7631a8-adef-42a9-b0ae-f82edcecd81b).
+
+Reference SHA-256 identities:
+
+| Input | SHA-256 |
+| --- | --- |
+| Original archive | `58de1a86022a97fc79a9905da0c27996fb86d104b7e34fd1cbf1994ce781e8f5` |
+| Game.js | `3f93ed25346cec357414c8a3ab894938437c13bff747539f4c015e7945290c41` |
+| Terrain.js | `a73ba43eb3e14b88b3bf9e285625bf9099fde67aaab3675bd3cbefced7ca803e` |
+| Utils.js | `c8aba8420162a5df73035abe47b37d6f6c5eb0d2dba2560501adf64cc4d6711b` |
+| Original Constants.js | `ce4d795ce1fd5c860a05276daa8987f21059795a8c135237bdde794f6cbe5c30` |
+| Separate Map.js | `08a06a43751020f1c68aa84b0c3c39940c90871f9451a0508a340af554b11276` |
+| Separate Constants.js | `ee1df1683c38f941ff6548e3fb29313405dd151c28f871f4e029f6ef75e8fc14` |
+| Comparison report | `f9e9b1946ff39a5c9e9f57f5376feeff06f1ba4d4f8e02f58efff8c13933d451` |
+
+The real eight-bot workflow exposed compilation exceeding the launcher's
+60-second readiness window. Keeping move ordering and general-trade resolution
+as compiled loops, rather than unrolling player pairs, reduced a fresh eight-seat
+Match startup to 8.23 seconds on the validation host. The same workflow then
+completed and rendered all eight players, colors, fog perspectives, and seeking
+on desktop and mobile.
+
+The bot turn cap, winner-only scoring, action deadlines, and timeout-neutralization
+policy remain Softmax hosting choices. Map alignment does not establish parity
+for those policies or the public ladder's rating system.

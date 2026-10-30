@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from integrations.softmax.config import GameConfig
+from integrations.softmax.config import PLAYER_NAMES, GameConfig
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "https://github.com/Metta-AI/coworld-generals-io/tree/main/integrations/softmax"
@@ -14,16 +14,33 @@ def document(filename):
     return {"type": "text", "value": (ROOT / filename).read_text()}
 
 
+def ffa_variant(count, human=False):
+    variant_id = "ffa" if count == 4 else f"ffa-{count}"
+    config = {"players": [{"name": name} for name in PLAYER_NAMES[:count]],
+              "ruleset": "classic", "max_turns": 1200 if human else 2000}
+    if human:
+        config.update(tick_interval_seconds=0.5, turn_timeout_seconds=1)
+    return {
+        "id": f"{variant_id}-human" if human else variant_id,
+        "name": f"{'Human play FFA' if human else 'Free-for-all'} ({count} players)",
+        "description": (
+            f"{count} independent generals on ranked-size maps; last survivor wins. "
+            + ("Paced at two turns per second." if human else "Neutral castles, 2000-turn cap.")
+        ),
+        "game_config": config,
+    }
+
+
 def template():
-    scores = {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "number"}}
-    counts = {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "integer", "minimum": 0}}
+    scores = {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "number"}}
+    counts = {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "integer", "minimum": 0}}
     results = {
         "type": "object",
         "additionalProperties": False,
         "required": ["scores", "winner", "reason", "turns", "army", "land", "timeouts"],
         "properties": {
             "scores": scores,
-            "winner": {"type": "integer", "enum": [-1, 0, 1, 2, 3]},
+            "winner": {"type": "integer", "enum": list(range(-1, 8))},
             "reason": {"type": "string", "enum": ["general_capture", "turn_limit", "forfeit", "double_forfeit"]},
             "turns": {"type": "integer", "minimum": 0, "maximum": 2000},
             "army": counts,
@@ -39,7 +56,7 @@ def template():
             "name": "generals-competition",
             "owner": "Softmax",
             "description": (
-                "Fog-of-war territory strategy: classic 1v1, four-player free-for-all, "
+                "Fog-of-war territory strategy: classic 1v1, three-to-eight-player free-for-all, "
                 "and build-your-own-castles 1v1. Capture generals to win; no Deathtouch."
             ),
             "runnable": {
@@ -90,27 +107,16 @@ def template():
                     "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1,
                 },
             },
-            {
-                "id": "ffa",
-                "name": "Free-for-all (4 players)",
-                "description": "Four independent generals; last survivor wins. Neutral castles, 2000-turn cap.",
-                "game_config": {"players": players + [{"name": "Green"}, {"name": "Purple"}],
-                                "ruleset": "classic", "max_turns": 2000},
-            },
+            ffa_variant(4),
             {
                 "id": "castles",
                 "name": "Build your own castles (1v1)",
-                "description": "No neutral castles: spend armies to build on owned plain land. No Deathtouch. 2000-turn cap.",
+                "description": (
+                    "No neutral castles: spend armies to build on owned plain land. No Deathtouch. 2000-turn cap."
+                ),
                 "game_config": {"players": players, "ruleset": "build_castles", "max_turns": 2000},
             },
-            {
-                "id": "ffa-human",
-                "name": "Human play FFA",
-                "description": "Four-player free-for-all paced at two turns per second.",
-                "game_config": {"players": players + [{"name": "Green"}, {"name": "Purple"}],
-                                "ruleset": "classic", "max_turns": 1200,
-                                "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1},
-            },
+            ffa_variant(4, human=True),
             {
                 "id": "castles-human",
                 "name": "Human play castle building",
@@ -118,6 +124,7 @@ def template():
                 "game_config": {"players": players, "ruleset": "build_castles", "max_turns": 1200,
                                 "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1},
             },
+            *[ffa_variant(count, human) for count in (3, 5, 6, 7, 8) for human in (False, True)],
         ],
         "certification": {
             "game_config": {"players": players, "seed": 7, "max_turns": 40, "tick_interval_seconds": 0.05},

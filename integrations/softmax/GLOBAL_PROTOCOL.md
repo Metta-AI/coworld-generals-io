@@ -6,7 +6,7 @@ be safe for either competing player to read**. Incoming messages never mutate
 the game. WebSocket ping receives a matching pong.
 
 Updates contain `type: "global"`, `protocol_version: 1`, `phase`, `turn`,
-`max_turns`, two or four `players` display names, per-slot `army`, `land`, and `eliminated` arrays,
+`max_turns`, two to eight `players` display names, per-slot `army`, `land`, and `eliminated` arrays,
 `ruleset`, `result`, and `board`. During the match, `board` and `result` are null. Phases
 are `waiting`, `playing`, `resolving`, `saving`, `finished`, and `failed`;
 brief transitional phases need not each be delivered to a slow viewer.
@@ -19,7 +19,7 @@ The replay is JSON:
 
 - `format: "generals-coworld"`, `version: 1`, `ruleset: "classic"` or `"build_castles"`.
   Archived release 0.1.0 replays use `ruleset: "competition"` instead.
-- Actual `seed`, `height`, `width`, and two or four display names in `players`.
+- Actual `seed`, `height`, `width`, and two to eight display names in `players`.
 - `frames`: initial frame, then one frame after every applied turn. Each has
   `turn`, `type_grid`, `owner_grid`, `army_grid`, `army`, `land`, and `eliminated`.
 - Replay owners are **absolute**: 0 neutral, otherwise slot + 1. Replay types

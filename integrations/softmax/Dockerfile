@@ -17,7 +17,7 @@ COPY integrations/softmax/requirements.lock /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY generals /app/generals
 COPY integrations/__init__.py /app/integrations/__init__.py
-COPY integrations/softmax/__init__.py integrations/softmax/config.py integrations/softmax/protocol.py integrations/softmax/engine.py integrations/softmax/artifacts.py integrations/softmax/server.py /app/integrations/softmax/
+COPY integrations/softmax/__init__.py integrations/softmax/config.py integrations/softmax/protocol.py integrations/softmax/engine.py integrations/softmax/ffa_map.py integrations/softmax/artifacts.py integrations/softmax/server.py /app/integrations/softmax/
 COPY integrations/softmax/static /app/integrations/softmax/static
 RUN chmod -R a+rX /app
 EXPOSE 8080

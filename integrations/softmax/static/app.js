@@ -11,6 +11,7 @@
   let playing = true, replayTimer = null, readySent = false, replayLoad = 0;
   let reconnectTimer = null, reconnectAttempt = 0, terminal = false, replayDownload = null;
   let ruleset = 'classic', playerCount = 2, eliminated = false;
+  const playerColors = ['red', 'blue', 'green', 'purple', 'orange', 'pink', 'teal', 'maroon'];
   const moves = [[-1,0],[1,0],[0,-1],[0,1]], queue = [];
   let inFlight = null, selectedRoute = null, nextRoute = 0;
   function selectTile(tile, route = null) {
@@ -37,21 +38,24 @@
   function names(players) {
     const matchbar = document.querySelector('.matchbar');
     playerCount = players.length;
-    matchbar.classList.toggle('ffa', playerCount === 4);
-    for (let i = 2; i < 4; i++) {
+    matchbar.classList.toggle('ffa', playerCount > 2);
+    document.querySelector('.battlefield').style.setProperty('--player-rows', Math.ceil(playerCount / 2));
+    for (let i = 2; i < 8; i++) {
       if (i >= playerCount) { $(`name${i}`)?.closest('.player').remove(); continue; }
       if (!$(`name${i}`)) {
-        const card = document.createElement('div'); card.className = `player ${i === 2 ? 'green' : 'purple'}`;
+        const card = document.createElement('div'); card.className = `player ${playerColors[i]}`;
         card.innerHTML = `<div><b id="name${i}"></b><small><span id="army${i}">—</span> army <span class="divider">/</span> <span id="land${i}">—</span> land</small></div>`;
         matchbar.append(card);
       }
     }
     players.forEach((name, i) => {
       const label = $(`name${i}`);
+      label.closest('.player').style.setProperty('--player-row', Math.floor(i / 2) + 1);
+      label.closest('.player').style.setProperty('--player-column', i % 2 === 0 ? 1 : 3);
       if (label.textContent !== name) label.textContent = name;
       if (replay) $(`replay-players-${i % 2 === 0 ? 'left' : 'right'}`).append(label.closest('.player'));
     });
-    const title = ruleset === 'build_castles' ? 'BUILD YOUR CASTLES' : playerCount === 4 ? '4-PLAYER FFA' : 'CLASSIC 1v1';
+    const title = ruleset === 'build_castles' ? 'BUILD YOUR CASTLES' : playerCount > 2 ? `${playerCount}-PLAYER FFA` : 'CLASSIC 1v1';
     $('variant-title').textContent = title; document.title = `Generals · ${title}`;
   }
   function scoreboard(turn, army, land, eliminatedPlayers = []) {
@@ -63,7 +67,7 @@
     $('endgame').textContent = ruleset === 'competition'
       ? (turn >= 800 ? 'DEATHTOUCH ACTIVE · Reach the enemy general to win' : 'Deathtouch from turn 800')
       : ruleset === 'build_castles' ? 'Build castles on your land · Cost starts at 35 army'
-      : playerCount === 4 ? 'Capture generals · Last general standing wins' : 'Capture castles to grow your army';
+      : playerCount > 2 ? 'Capture generals · Last general standing wins' : 'Capture castles to grow your army';
   }
   function buildProblem(r, c) {
     const cost = board.build_cost_grid?.[r]?.[c] || 0;
@@ -266,8 +270,8 @@
     }
     if (load !== replayLoad) return;
     if (data.format !== 'generals-coworld' || data.version !== 1 || !Array.isArray(data.frames) || !data.frames.length || data.frames.length > 2001 ||
-        !Number.isInteger(data.height) || !Number.isInteger(data.width) || data.height < 1 || data.height > 21 || data.width < 1 || data.width > 21 ||
-        !Array.isArray(data.players) || ![2,4].includes(data.players.length) || !data.result) throw new Error('Unsupported or incomplete Generals replay.');
+        !Number.isInteger(data.height) || !Number.isInteger(data.width) || data.height < 1 || data.height > 33 || data.width < 1 || data.width > 33 ||
+        !Array.isArray(data.players) || data.players.length < 2 || data.players.length > 8 || !data.result) throw new Error('Unsupported or incomplete Generals replay.');
     for (const frame of data.frames) for (const key of ['type_grid','owner_grid','army_grid']) {
       if (!Array.isArray(frame[key]) || frame[key].length !== data.height || frame[key].some(row => !Array.isArray(row) || row.length !== data.width || row.some(n => !Number.isInteger(n)))) throw new Error('Replay contains an invalid board.');
     }

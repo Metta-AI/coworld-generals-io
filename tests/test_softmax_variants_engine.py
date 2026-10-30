@@ -43,7 +43,7 @@ def test_config_accepts_supported_rosters_and_rejects_ambiguous_seats():
     for invalid in (
         {**ffa, "tokens": ["a", "b", "c", "c"]},
         {**ffa, "tokens": ["a", "b"]},
-        {"tokens": ["a", "b", "c"], "players": ffa["players"][:3]},
+        {"tokens": [str(n) for n in range(9)], "players": [{"name": str(n)} for n in range(9)]},
         {**ffa, "ruleset": "build_castles"},
         {**classic, "ruleset": "deathtouch"},
     ):
@@ -58,7 +58,8 @@ def test_generated_modes_spawn_all_players_without_changing_classic(matches):
         assert match.active_slots == list(range(n))
         assert int(match.state.generals.sum()) == n
         assert match.env.deathtouch_turn is None
-        assert 18 <= match.height <= 21 and 18 <= match.width <= 21
+        lo, hi = (20, 26) if name == "ffa" else (18, 21)
+        assert lo <= match.height <= hi and lo <= match.width <= hi
         assert np.all(np.asarray(match.state.ownership).sum(axis=(1, 2)) == 1)
         assert bool(match.state.castles.any()) == (name != "build")
     original_env = GeneralsEnv(min_grid_size=18, max_grid_size=21, pad_to=21, truncation=1200,

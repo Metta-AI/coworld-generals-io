@@ -5,14 +5,16 @@ carries every mode; each bot mode runs as its own Softmax league. The display-na
 override preserves the manifest identity, version history, and existing links.
 New releases are maintained in `Metta-AI/coworld-generals-io`.
 
-## Modes (since release 0.3.2)
+## Modes
 
 | Variant | Seats | Rules | Turn cap |
 | --- | --- | --- | --- |
 | `competition` | 2 | Classic rules, neutral castles | 2,000 |
-| `ffa` | 4 | Classic combat, last surviving general wins | 2,000 |
+| `ffa` | 4 | Ranked map generation, last surviving general wins | 2,000 |
+| `ffa-3`, `ffa-5` through `ffa-8` | 3, 5–8 | Corresponding ranked-size FFA | 2,000 |
 | `castles` | 2 | Build castles on owned plain land; no starting neutral castles | 2,000 |
 | `human`, `ffa-human`, `castles-human` | 2, 4, 2 | Corresponding rules, 500 ms minimum tick and 1 s deadline | 1,200 |
+| `ffa-3-human`, `ffa-5-human` through `ffa-8-human` | 3, 5–8 | Corresponding paced FFA | 1,200 |
 
 Human variants keep 1,200 turns: at two turns per second, 2,000 turns would take
 at least 17 minutes and risk Softmax's 20-minute hosted episode deadline. Every
@@ -26,13 +28,20 @@ player protocol for capture, timeout, building-cost, and fog rules.
 | League | Variant | League ID | Division |
 | --- | --- | --- | --- |
 | [Classic 1v1](https://softmax.com/observatory/v2?detail=league:league_8c189954-be68-479c-a092-eeb79c436d12) | `competition` | `league_8c189954-be68-479c-a092-eeb79c436d12` | Competition `div_5ee4b276-f330-42e8-b8e4-a6097c779d99` |
-| [FFA 1v1v1v1](https://softmax.com/observatory/v2?detail=league:league_f189ad01-2700-4fc8-ba89-f9de477099e4) | `ffa` | `league_f189ad01-2700-4fc8-ba89-f9de477099e4` | FFA `div_ac86d8a0-7b43-41bb-b6e7-1867f7b47d08` |
+| [FFA (3–8 players)](https://softmax.com/observatory/v2?detail=league:league_f189ad01-2700-4fc8-ba89-f9de477099e4) | `ffa`, `ffa-3`, `ffa-5` through `ffa-8` | `league_f189ad01-2700-4fc8-ba89-f9de477099e4` | FFA `div_ac86d8a0-7b43-41bb-b6e7-1867f7b47d08` |
 | [Build 1v1](https://softmax.com/observatory/v2?detail=league:league_b371d42e-bed5-4f33-ac02-fca229860ddf) | `castles` | `league_b371d42e-bed5-4f33-ac02-fca229860ddf` | Castles `div_ede858f5-6c57-4d03-b16d-a843a35e8bc2` |
 
-All three are public, use the platform commissioner with Elo ranking and the
-Swiss-neighbor scheduler, and follow the canonical Coworld version: a certified
-upload moves every league to it without league changes. On September 27 the
-classic league ran rounds every 30 minutes and the other two every 10.
+All three are public, use the platform commissioner with Elo ranking, and
+follow the canonical Coworld version: a certified upload moves every league
+to it without league changes. Classic and Build use Swiss-neighbor scheduling.
+
+FFA uses `scaling_roster`, with seat rungs `[3, 4, 5, 6, 7, 8]`, eight episodes
+per round, `insufficient_players: do_not_run`, and `roster_overflow: partition`.
+`variant_rotation_by_seat_count` maps four seats to `ffa` and each other count
+to `ffa-N`. This seats the current roster without cloning entrants and partitions
+rosters above eight into separate tables. Publish the new variants before
+applying this scheduler configuration. Preserve the other stored league settings
+using a conditional replacement from `/settings/snapshot`.
 
 The FFA and Build leagues were created on September 17 (20:24 UTC) by the
 Softmax team, after Matej's account was refused with HTTP 403

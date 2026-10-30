@@ -1,6 +1,6 @@
 # Generals · Softmax Coworld
 
-One Coworld with three competitive modes: **classic 1v1**, **four-player FFA**,
+One Coworld with three competitive modes: **classic 1v1**, **three-to-eight-player FFA**,
 and **build-your-own-castles 1v1**. All reuse this repository's `GeneralsEnv`
 engine with fog of war and normal combat. Deathtouch is disabled. The
 authoritative engine is Python/JAX on CPU; separate players connect over
@@ -51,6 +51,11 @@ matching classic. Human variants stay at 1,200 so a paced game fits Softmax's
 Release 0.3.3 changes documentation only: per-mode turn caps, the move order
 and one league per bot mode.
 
+FFA variants select an exact seat count: `ffa` and `ffa-human` have four seats;
+`ffa-3`, `ffa-5`, `ffa-6`, `ffa-7`, and `ffa-8` select the other supported sizes.
+Append `-human` for their paced versions. The league scheduler chooses the size
+that fits its current entrants, up to eight, without cloning policies.
+
 ## Shared play experience
 
 The same browser assets render local play, hosted seats, public live scores,
@@ -83,7 +88,7 @@ From the repository root, with Python 3.12:
 pip install -e '.[softmax]'
 python -m integrations.softmax.local --human
 # Other modes (omit --human for bundled bots):
-python -m integrations.softmax.local --variant ffa --human
+python -m integrations.softmax.local --variant ffa --players 8 --human
 python -m integrations.softmax.local --variant castles --human
 ```
 
@@ -124,9 +129,13 @@ local port. The local launcher binds only to loopback.
 
 ## Rules and scoring
 
-- Two opposing generals (four in FFA) on an independently sampled 18–21 by
-  18–21 board. The spawn-distance target is 17 steps for 1v1 and 10 for FFA;
-  the map generator uses its connected fallback when a target cannot fit.
+- Two opposing generals in 1v1 on an independently sampled 18–21 by 18–21
+  board. FFA supports three to eight independent players and uses ranked map
+  generation: four-player maps have sides of 20–26 tiles; eight-player maps
+  have sides of 25–33. Each side uses a squared-uniform draw, favoring smaller
+  maps. City budgets, mountain sampling, general separation, fair city placement,
+  nearby-city checks, and connectivity rejection follow the supplied official
+  base-game generator. Rejected maps are resampled without relaxing constraints.
 - Fog of war: a player sees its owned tiles and their neighbors. Public army
   and land totals remain visible. Unexplored mountains/castles share one
   structure marker. Enemy generals are hidden until visible.

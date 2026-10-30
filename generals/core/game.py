@@ -23,7 +23,7 @@ site's own engine on ranked 1v1, free-for-all and 2v2 replays
 (paper/validation).
 """
 from functools import partial
-from typing import Tuple, NamedTuple, Protocol, Any
+from typing import Any, NamedTuple, Protocol
 
 import jax
 import jax.numpy as jnp
@@ -454,7 +454,9 @@ def _determine_move_order(state: GameState, actions: jnp.ndarray) -> jnp.ndarray
     dep = enters & ~head_on & ~jnp.eye(N, dtype=bool)                    # dep[j, i]: i waits for j
     order = jnp.zeros((N,), dtype=jnp.int32)
     queued = jnp.zeros((N,), dtype=bool)
-    for k in range(N):
+
+    def choose_move(k, carry):
+        order, queued = carry
         blocked = jnp.any(dep & ~queued[:, None], axis=0)               # some unqueued move enters my source
         big = N + 1
         key_free = jnp.where(~queued & ~blocked, rank, big)
@@ -462,6 +464,9 @@ def _determine_move_order(state: GameState, actions: jnp.ndarray) -> jnp.ndarray
         pick = jnp.where(jnp.min(key_free) < big, jnp.argmin(key_free), jnp.argmin(key_any))
         order = order.at[k].set(pick)
         queued = queued.at[pick].set(True)
+        return order, queued
+
+    order, _ = lax.fori_loop(0, N, choose_move, (order, queued))
     return order
 
 
@@ -571,21 +576,32 @@ def resolve_moves(
     N = actions.shape[0]
     consumed = jnp.zeros((N,), dtype=bool)
     executed = jnp.zeros((N,), dtype=bool)
-    for k in range(N):
+    # Keep the resolver as loops in the compiled program. Unrolling every
+    # player pair duplicates the trade/capture graph and delays eight-seat
+    # server startup beyond its readiness deadline.
+    def resolve_move(k, carry):
+        state, consumed, executed = carry
         player = order[k]
         if general_trade:
-            for m in range(k + 1, N):
+            def resolve_trade(m, carry):
+                state, consumed, executed = carry
                 other = order[m]
                 trade = _is_general_trade(state, actions, player, other) & ~consumed[player] & ~consumed[other]
                 state = lax.cond(trade, lambda s: _execute_general_trade(s, actions, player, other), lambda s: s, state)
                 consumed = consumed.at[player].set(consumed[player] | trade).at[other].set(consumed[other] | trade)
                 executed = executed.at[player].set(executed[player] | trade).at[other].set(executed[other] | trade)
+                return state, consumed, executed
+
+            state, consumed, executed = lax.fori_loop(k + 1, N, resolve_trade, (state, consumed, executed))
         action = actions[player]
         r, c = action[1], action[2]
         before = state.armies[r, c]
         state = lax.cond(consumed[player], lambda s: s, lambda s: execute_action(s, player, actions[player]), state)
         moved = ~consumed[player] & (action[0] == 0) & (state.armies[r, c] < before)
         executed = executed.at[player].set(executed[player] | moved)
+        return state, consumed, executed
+
+    state, _, executed = lax.fori_loop(0, N, resolve_move, (state, consumed, executed))
     return state, executed
 
 
@@ -782,6 +798,6 @@ def get_full_observations(state: GameState) -> Observation:
 
 
 @jax.jit
-def batch_step(states: GameState, actions: jnp.ndarray) -> Tuple[GameState, GameInfo]:
+def batch_step(states: GameState, actions: jnp.ndarray) -> tuple[GameState, GameInfo]:
     """Vectorized step for multiple environments."""
     return jax.vmap(step)(states, actions)

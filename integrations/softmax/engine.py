@@ -1,4 +1,4 @@
-"""Coworld boundary for classic 1v1, four-player FFA and castle building."""
+"""Coworld boundary for classic 1v1, three-to-eight-player FFA and castle building."""
 
 from functools import partial
 
@@ -11,6 +11,7 @@ from generals.core import game
 from generals.core.match import make_board, make_transition
 from generals.modifiers import build_castles
 
+from .ffa_map import generate_ffa_grid
 from .protocol import PASS, VERSION
 
 RULESET = "classic"
@@ -42,24 +43,26 @@ _build_cost_grid = jax.jit(build_castles.build_cost_grid)
 
 class Match:
     def __init__(self, seed: int, num_players: int = 2, ruleset: str = RULESET):
-        if num_players not in (2, 4):
-            raise ValueError("two or four players are required")
+        if not 2 <= num_players <= 8:
+            raise ValueError("two to eight players are required")
         if ruleset not in ("classic", "build_castles"):
             raise ValueError("unknown ruleset")
         if ruleset == "build_castles" and num_players != 2:
             raise ValueError("castle-building requires two players")
         self.num_players = num_players
         self.ruleset = ruleset
-        # Four spawns need a smaller separation target on the same board. The
-        # generator chooses distant reachable sites and safely falls back when
-        # terrain prevents satisfying every pair's target separation.
+        # The env owns transition rules. FFA samples its board separately using
+        # the ranked game's player-count-dependent map and placement rules.
         self.env = GeneralsEnv(
             min_grid_size=18, max_grid_size=21, pad_to=21, truncation=2000,
-            mountain_density_range=(0.24, 0.26), min_generals_distance=17 if num_players == 2 else 10,
+            mountain_density_range=(0.24, 0.26), min_generals_distance=17,
             num_players=num_players, build_castles=ruleset == "build_castles", deathtouch_turn=None,
             general_trade=ruleset == "classic",
         )
-        self.state = make_board(self.env, seed)
+        self.state = (
+            game.create_initial_state(jnp.asarray(generate_ffa_grid(seed, num_players)), teams=self.env.teams)
+            if num_players > 2 else make_board(self.env, seed)
+        )
         self.transition = jax.jit(make_transition(self.env))
         self.last_move_executed = [None] * num_players
         self.last_build_executed = [None] * num_players

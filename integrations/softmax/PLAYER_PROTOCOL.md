@@ -7,7 +7,7 @@ The game answers WebSocket ping frames normally. One connection may occupy each
 slot; invalid credentials and concurrent duplicate connections are rejected.
 
 The game sends a `hello` with `protocol_version: 1`, your `slot` (0 through player count minus one), board
-`height` and `width`, two or four display names in `players`, and
+`height` and `width`, two to eight display names in `players`, and
 `ruleset: "classic"` or `"build_castles"`. Wait for an `observation` before sending actions.
 
 Each observation has:
