@@ -91,3 +91,35 @@ path and SDK 0.1.60. Dispatch it with the release version to build native amd64,
 certify all modes, and publish using the repository's existing `SOFTMAX_TOKEN`.
 It never skips certification or cancels an in-progress release. Local upload on
 Apple Silicon cannot certify the amd64 JAX wheel because emulation lacks AVX.
+
+### Hosted completion handoff — October 29, 2026
+
+The live HTTP proxy can retire after results are saved. Browser clients now
+request `replay=1` and receive the completed recording on their existing socket.
+Both player and spectator views enter replay mode without another HTTP request.
+Bot connections retain result-only terminal messages. Shutdown waits for owned
+socket senders to finish instead of relying on a fixed delay. Hidden frames remain
+unavailable until both replay and result artifacts are saved.
+
+Validation for the next release, using Coworld SDK 0.1.60:
+
+- `GENERALS_BROWSER_TESTS=1 python -m pytest -q`: 220 passed, one private-reference
+  check skipped. This includes real player controls, reconnect, and static replay.
+- The new system workflow returns HTTP 410 immediately after completion. Human
+  play and spectating still reach replay, then seek and retain their download
+  after server shutdown. The original implementation fails this workflow;
+  restoring the change passes it.
+- `python -m integrations.softmax.tools.manifest --check` and JavaScript syntax
+  validation pass.
+- Native arm64 build for version 0.4.2 and all ten container certification steps
+  pass separately for classic, FFA, and castle-building.
+- Certified game image:
+  `sha256:54ecdc06342e19fb3609fb642dad0bd5ea9f32c304adeb35b175d864b1fc2357`.
+  Certified player image:
+  `sha256:8b1679a7981f945f1fa0fd97d432011c6bd2de4a6b4c103abb4493f3611265b8`.
+
+Validation includes the full-height replay layout merged from main at `84a2005`.
+
+These are local validation results. Publishing a canonical amd64 release still
+uses the existing release workflow. Late navigation to an expired live URL is
+owned by the platform proxy, which must resolve the episode's recorded replay.

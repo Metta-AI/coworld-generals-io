@@ -91,3 +91,10 @@ its subprocess must respond within the deadline and exit on stdin EOF.
 The stdio bridge preserves its relative-owner format in FFA (all enemies are 2).
 Bots that need individual opponent identities or build prices should use the
 JSON protocol. No other player's hidden tiles are revealed by the added fields.
+
+Browser connections request `?replay=1` on their WebSocket URL. Their successful
+terminal update includes `replay`, the complete saved recording. It is sent only
+after replay and result artifacts are saved. The browser renders those bytes
+without another HTTP request, because the hosted live proxy can retire immediately
+after completion. Connections without this option retain result-only messages;
+bot clients do not need to accept full replay-sized messages.
