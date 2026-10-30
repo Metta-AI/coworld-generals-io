@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from .artifacts import read_json, write_json
 from .config import GameConfig
 from .engine import Match
+from .file_players import PolicyFault, load_file_players
 from .protocol import PASS, VERSION, parse_action
 
 STATIC = Path(__file__).parent / "static"
@@ -52,11 +53,19 @@ class Episode:
         self.result = None
         self.replay = None
         self.failed = False
+        self.file_players = load_file_players(self.num_players)
+        self.file_slots = (
+            {seat.slot for seat in self.file_players.seats.seats if seat.kind == "policy"}
+            if self.file_players
+            else set()
+        )
 
     def authorize(self, slot: str | None, token: str | None) -> int | None:
         if slot not in tuple(str(s) for s in range(self.num_players)) or token is None:
             return None
         index = int(slot)
+        if index in self.file_slots:
+            return None
         return index if hmac.compare_digest(token.encode(), self.config.tokens[index].encode()) else None
 
     def public(self):
@@ -123,6 +132,8 @@ class Episode:
             self.phase = "failed"
             self.publish()
         finally:
+            if self.file_players:
+                await self.file_players.close()
             if self.phase in ("finished", "failed"):
                 for queue in self.players.values():
                     enqueue(queue, {"type": "final" if not self.failed else "failure", "result": self.result})
@@ -132,13 +143,20 @@ class Episode:
                     self.shutdown()
 
     async def play(self):
+        if self.file_players:
+            startup = await self.file_players.start()
+            if isinstance(startup, PolicyFault):
+                await self.fail_policy(startup)
+                return
         try:
             async with asyncio.timeout(self.config.player_connect_timeout_seconds):
-                while len(self.players) < self.num_players:
+                while len(self.players) + len(self.file_slots) < self.num_players:
                     self.joined.clear()
                     await self.joined.wait()
         except TimeoutError:
-            missing = next(slot for slot in range(self.num_players) if slot not in self.players)
+            missing = next(
+                slot for slot in range(self.num_players) if slot not in self.players and slot not in self.file_slots
+            )
             await self.save(
                 "failure",
                 {"message": "Player did not connect before the start deadline", "failed_policy_index": missing},
@@ -156,6 +174,13 @@ class Episode:
             self.actions_ready.clear()
             self.phase = "playing"
             started = asyncio.get_running_loop().time()
+            if self.file_players:
+                for slot in sorted(self.file_slots.intersection(active)):
+                    reply = await self.file_players.act(slot, observations[slot])
+                    if isinstance(reply, PolicyFault):
+                        await self.fail_policy(reply)
+                        return
+                    self.accept(slot, {"type": "action", "turn": self.match.turn, "action": reply.action})
             for slot, queue in self.players.items():
                 enqueue(queue, observations[slot])
             self.publish()
@@ -171,8 +196,13 @@ class Episode:
                 self.timeouts[slot] += int(missing[slot])
                 self.consecutive_timeouts[slot] = self.consecutive_timeouts[slot] + 1 if missing[slot] else 0
             forfeits = [s for s in active if self.consecutive_timeouts[s] >= self.config.max_consecutive_timeouts]
-            attempt = {"turn": self.match.turn, "actions": actions, "timed_out": missing,
-                       "forfeited": forfeits, "applied": True}
+            attempt = {
+                "turn": self.match.turn,
+                "actions": actions,
+                "timed_out": missing,
+                "forfeited": forfeits,
+                "applied": True,
+            }
             self.turns.append(attempt)
             if forfeits:
                 winner = await asyncio.to_thread(self.match.forfeit, forfeits)
@@ -193,7 +223,9 @@ class Episode:
 
         self.phase = "saving"
         result = {
-            "scores": [0] * self.num_players if winner == -1 else [1 if s == winner else -1 for s in range(self.num_players)],
+            "scores": [0] * self.num_players
+            if winner == -1
+            else [1 if s == winner else -1 for s in range(self.num_players)],
             "winner": winner,
             "reason": reason,
             "turns": self.match.turn,
@@ -215,11 +247,27 @@ class Episode:
         }
         # Results are the completion marker. Never mark success without a replay.
         await self.save("replay", replay)
+        if self.file_players:
+            await self.file_players.close()
         await self.save("results", result)
         self.result, self.replay = result, replay
         self.phase = "finished"
         self.publish()
         LOG.info("episode complete: %s, turn %d, winner %d", reason, self.match.turn, winner)
+
+    async def fail_policy(self, fault: PolicyFault):
+        await self.file_players.close()
+        await self.save(
+            "failure",
+            {
+                "message": fault.message,
+                "failed_policy_index": fault.slot,
+                "kind": fault.kind,
+            },
+        )
+        self.failed = True
+        self.phase = "failed"
+        self.publish()
 
 
 async def send_messages(ws, queue):
@@ -282,9 +330,7 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
     # Use the engine's original sprites; the replay build copies the same files.
     # Hosted play forwards /client/*, but does not forward arbitrary /static/*.
     for prefix in ("/static", "/client/static"):
-        app.mount(
-            prefix + "/assets", StaticFiles(directory=Path(__file__).parents[2] / "generals/assets/images")
-        )
+        app.mount(prefix + "/assets", StaticFiles(directory=Path(__file__).parents[2] / "generals/assets/images"))
         app.mount(prefix + "/fonts", StaticFiles(directory=Path(__file__).parents[2] / "generals/assets/fonts"))
         app.mount(prefix, StaticFiles(directory=STATIC))
 

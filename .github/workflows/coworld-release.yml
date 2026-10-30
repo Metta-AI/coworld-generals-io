@@ -16,7 +16,8 @@ permissions:
   contents: read
 
 env:
-  COWORLD_PKG: coworld[auth]==0.1.60
+  # Publish the SDK's mixed-runtime support before running this release workflow.
+  COWORLD_PKG: coworld[auth]==0.1.68
 
 jobs:
   release:
@@ -51,7 +52,7 @@ jobs:
           from pathlib import Path
           root = Path("integrations/softmax/dist")
           manifest = json.loads((root / "coworld_manifest.json").read_text())
-          for variant, count in [("ffa", 4), ("castles", 2)]:
+          for variant, count in [("competition", 2), ("castles", 2)]:
               fixture = copy.deepcopy(manifest)
               fixture["certification"]["game_config"] = {
                   "seed": 7, "max_turns": 40, "tick_interval_seconds": 0.05,
@@ -59,11 +60,14 @@ jobs:
                   "players": [{"name": name} for name in ["Red", "Blue", "Green", "Purple"][:count]],
               }
               fixture["certification"]["players"] = [
-                  {"player_id": "builder" if slot == 1 else "expander"} for slot in range(count)
+                  {"player_id": "basic" if slot == 0 else ("builder" if variant == "castles" else "expander")}
+                  for slot in range(count)
               ]
+              selected = {seat["player_id"] for seat in fixture["certification"]["players"]}
+              fixture["player"] = [player for player in fixture["player"] if player["id"] in selected]
               (root / f"{variant}-certification.json").write_text(json.dumps(fixture))
           PY
-          for manifest in coworld_manifest ffa-certification castles-certification; do
+          for manifest in coworld_manifest competition-certification castles-certification; do
             uvx --from "$COWORLD_PKG" coworld certify "integrations/softmax/dist/$manifest.json" --no-open-report --timeout-seconds 180
           done
       - name: Publish and await hosted certification

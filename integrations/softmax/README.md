@@ -1,5 +1,11 @@
 # Generals · Softmax Coworld
 
+This package accepts raw BASIC policies, existing container players, and
+people in the same league lobby. See [the BASIC interface](BASIC_PROTOCOL.md)
+for source format, observations, commands, budgets, and failure behavior.
+This release requires the platform's `mixed` runtime and its matching Coworld
+SDK. Existing container policy versions remain eligible; they need no conversion.
+
 One Coworld with three competitive modes: **classic 1v1**, **four-player FFA**,
 and **build-your-own-castles 1v1**. All reuse this repository's `GeneralsEnv`
 engine with fog of war and normal combat. Deathtouch is disabled. The

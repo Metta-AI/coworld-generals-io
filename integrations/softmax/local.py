@@ -1,6 +1,7 @@
 """Run a complete local Coworld episode without Docker or a Softmax account."""
 
 import argparse
+import hashlib
 import json
 import os
 import secrets
@@ -22,6 +23,13 @@ def main():
     parser.add_argument("--max-turns", type=int, help="default: 2000, or 1200 with --human, as hosted")
     parser.add_argument("--variant", choices=("competition", "ffa", "castles"), default="competition")
     parser.add_argument("--human", action="store_true", help="control slot 0 in the browser")
+    parser.add_argument(
+        "--basic",
+        action="append",
+        default=[],
+        metavar="SLOT=PATH",
+        help="execute a BASIC file in this zero-based seat; repeat for multiple seats",
+    )
     parser.add_argument("--keep-open", action="store_true", help="keep the server open for replay inspection")
     parser.add_argument("--output", type=Path, default=ROOT / "integrations/softmax/local-output")
     args = parser.parse_args()
@@ -31,6 +39,14 @@ def main():
     run_dir = output / f"episode-{time.time_ns()}"
     run_dir.mkdir(mode=0o700)
     count = 4 if args.variant == "ffa" else 2
+    basic = {}
+    for entry in args.basic:
+        slot, separator, path = entry.partition("=")
+        if not separator or not slot.isdecimal() or not 0 <= int(slot) < count or int(slot) in basic:
+            parser.error("--basic requires a unique in-range SLOT=PATH")
+        if args.human and int(slot) == 0:
+            parser.error("human slot 0 cannot also execute a BASIC file")
+        basic[int(slot)] = Path(path).resolve()
     tokens = [secrets.token_urlsafe(24) for _ in range(count)]
     names = ["Red", "Blue", "Green", "Purple"][:count]
     config = {
@@ -56,6 +72,35 @@ def main():
         "COGAME_SAVE_REPLAY_URI": (run_dir / "replay.json").as_uri(),
         "COGAME_PLAYER_FAILURE_URI": (run_dir / "failure.json").as_uri(),
     }
+    if basic:
+        seats = []
+        for slot in range(count):
+            if slot in basic:
+                content = basic[slot].read_bytes()
+                seats.append(
+                    {
+                        "kind": "policy",
+                        "slot": slot,
+                        "file_uri": basic[slot].as_uri(),
+                        "content_hash": "sha256:" + hashlib.sha256(content).hexdigest(),
+                        "size_bytes": len(content),
+                        "log_uri": (run_dir / f"policy_agent_{slot}.log").as_uri(),
+                        "artifact_uri": (run_dir / f"policy_artifact_{slot}.zip").as_uri(),
+                    }
+                )
+            else:
+                seats.append({"kind": "human" if args.human and slot == 0 else "container", "slot": slot})
+        roster = run_dir / "player_seats.json"
+        roster.write_text(
+            json.dumps(
+                {
+                    "schema": "coworld-play-seats/2",
+                    "seats": seats,
+                    "player_status_uri": (run_dir / "game_player_status.json").as_uri(),
+                }
+            )
+        )
+        env["COGAME_PLAYER_SEATS_URI"] = roster.as_uri()
     processes = []
     base = f"http://127.0.0.1:{args.port}"
     try:
@@ -74,14 +119,17 @@ def main():
             else:
                 raise RuntimeError("game server did not become ready within 60 seconds")
         for slot in range(count):
+            if slot in basic:
+                continue
             query = urlencode({"slot": slot, "token": tokens[slot]})
             if slot == 0 and args.human:
                 print(f"Play: {base}/client/player?{query}", flush=True)
             else:
                 player_env = {**os.environ, "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{args.port}/player?{query}"}
                 module = "builder_player" if args.variant == "castles" else "player"
-                processes.append(subprocess.Popen(
-                    [sys.executable, "-m", f"integrations.softmax.{module}"], env=player_env, cwd=ROOT))
+                processes.append(
+                    subprocess.Popen([sys.executable, "-m", f"integrations.softmax.{module}"], env=player_env, cwd=ROOT)
+                )
         print(f"Watch: {base}/client/global", flush=True)
         print(f"Artifacts: {run_dir}", flush=True)
         deadline = time.monotonic() + 900

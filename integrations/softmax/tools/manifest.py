@@ -33,9 +33,10 @@ def template():
     }
     players = [{"name": "Red"}, {"name": "Blue"}]
     return {
-        "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/4c26e51/src/coworld/coworld_manifest_schema.json",
+        "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
         "tags": ["strategy", "1v1", "ffa", "fog-of-war", "territory-control"],
         "game": {
+            "player_runtime": "mixed",
             "name": "generals-competition",
             "owner": "Softmax",
             "description": (
@@ -50,11 +51,27 @@ def template():
             },
             "config_schema": GameConfig.model_json_schema(),
             "results_schema": results,
-            "protocols": {"player": document("PLAYER_PROTOCOL.md"), "global": document("GLOBAL_PROTOCOL.md")},
+            "protocols": {
+                "player": {
+                    "type": "text",
+                    "value": (ROOT / "PLAYER_PROTOCOL.md").read_text()
+                    + "\n\n"
+                    + (ROOT / "BASIC_PROTOCOL.md").read_text(),
+                },
+                "global": document("GLOBAL_PROTOCOL.md"),
+            },
             "docs": {"readme": document("README.md")},
             "replay_viewer": {"bundle": "replay-viewer", "replay_compression": "gzip"},
         },
         "player": [
+            {
+                "id": "basic",
+                "name": "BASIC Frontier",
+                "description": "Editable BASIC frontier-expansion baseline with bounded execution.",
+                "type": "player",
+                "file": "players/baseline.bas",
+                "source_url": SOURCE,
+            },
             {
                 "id": "expander",
                 "name": "Expander",
@@ -86,42 +103,68 @@ def template():
                 "name": "Human play 1v1",
                 "description": "The same classic rules paced at two turns per second.",
                 "game_config": {
-                    "players": players, "max_turns": 1200,
-                    "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1,
+                    "players": players,
+                    "max_turns": 1200,
+                    "tick_interval_seconds": 0.5,
+                    "turn_timeout_seconds": 1,
                 },
             },
             {
                 "id": "ffa",
                 "name": "Free-for-all (4 players)",
                 "description": "Four independent generals; last survivor wins. Neutral castles, 2000-turn cap.",
-                "game_config": {"players": players + [{"name": "Green"}, {"name": "Purple"}],
-                                "ruleset": "classic", "max_turns": 2000},
+                "game_config": {
+                    "players": players + [{"name": "Green"}, {"name": "Purple"}],
+                    "ruleset": "classic",
+                    "max_turns": 2000,
+                },
             },
             {
                 "id": "castles",
                 "name": "Build your own castles (1v1)",
-                "description": "No neutral castles: spend armies to build on owned plain land. No Deathtouch. 2000-turn cap.",
+                "description": (
+                    "No neutral castles: spend armies to build on owned plain land. No Deathtouch. 2000-turn cap."
+                ),
                 "game_config": {"players": players, "ruleset": "build_castles", "max_turns": 2000},
             },
             {
                 "id": "ffa-human",
                 "name": "Human play FFA",
                 "description": "Four-player free-for-all paced at two turns per second.",
-                "game_config": {"players": players + [{"name": "Green"}, {"name": "Purple"}],
-                                "ruleset": "classic", "max_turns": 1200,
-                                "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1},
+                "game_config": {
+                    "players": players + [{"name": "Green"}, {"name": "Purple"}],
+                    "ruleset": "classic",
+                    "max_turns": 1200,
+                    "tick_interval_seconds": 0.5,
+                    "turn_timeout_seconds": 1,
+                },
             },
             {
                 "id": "castles-human",
                 "name": "Human play castle building",
                 "description": "Build-your-own-castles 1v1 paced at two turns per second.",
-                "game_config": {"players": players, "ruleset": "build_castles", "max_turns": 1200,
-                                "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1},
+                "game_config": {
+                    "players": players,
+                    "ruleset": "build_castles",
+                    "max_turns": 1200,
+                    "tick_interval_seconds": 0.5,
+                    "turn_timeout_seconds": 1,
+                },
             },
         ],
         "certification": {
-            "game_config": {"players": players, "seed": 7, "max_turns": 40, "tick_interval_seconds": 0.05},
-            "players": [{"player_id": "expander"}, {"player_id": "builder"}],
+            "game_config": {
+                "players": players + [{"name": "Green"}, {"name": "Purple"}],
+                "seed": 7,
+                "max_turns": 40,
+                "tick_interval_seconds": 0.05,
+            },
+            "players": [
+                {"player_id": "basic"},
+                {"player_id": "expander"},
+                {"player_id": "builder"},
+                {"player_id": "basic"},
+            ],
         },
     }
 
