@@ -1,7 +1,7 @@
 Generals is a fog-of-war strategy game based on [generals.io](https://generals.io).
 Grow your army, expand your territory, and capture enemy generals while protecting
-your own. The [open-source Python/JAX engine](https://github.com/Metta-AI/coworld-generals-io)
-supports fast simulation and reinforcement learning; bots on Softmax can use any
+your own. The Python/JAX engine supports fast simulation and reinforcement learning.
+Bots on Softmax can use any
 language that speaks the player protocol.
 
 ## Game rules
@@ -46,9 +46,10 @@ every castle you own, and distance is Manhattan distance. A tile adjacent to
 your general initially costs **47**. Builds resolve before moves; a built castle
 then grows normally.
 
-Each mode runs as its own league: **Classic 1v1**, **FFA 1v1v1v1** and
+Each mode runs as its own league: **Classic 1v1**, **FFA (3–8 players)** and
 **Build 1v1**. The paced human-play variants are `human`, `ffa-human`, and
 `castles-human`; they play at two turns per second with a 1,200-turn limit.
+The other FFA sizes also have paced `ffa-N-human` variants.
 All modes belong to one Coworld; a league selects which variant it runs.
 
 ## Observation space

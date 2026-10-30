@@ -18,7 +18,7 @@ Release 0.3.0 adds the `ffa` and `castles` variants, plus paced human versions
 classic 1v1 rules. The bot variants (`competition`, `ffa`, `castles`) cap at
 2,000 turns; the paced human variants remain at 1,200. Each bot mode runs as its
 own Softmax league under the same `generals-competition` Coworld: Classic 1v1,
-FFA 1v1v1v1 and Build 1v1. The bundled Builder player
+FFA (3–8 players) and Build 1v1. The bundled Builder player
 funds an opening castle before expanding; Expander works in every mode but does
 not build. These are integration baselines, not strong competitive players.
 
