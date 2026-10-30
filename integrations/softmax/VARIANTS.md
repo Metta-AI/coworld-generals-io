@@ -79,6 +79,47 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.6.1 — October 30, 2026 (UTC)
+
+- Released `69d95a0faadf9b98b9126e1855a8ac175d2f18c8` with SDK 0.1.60.
+  [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41130338045)
+  passed all eight native fixtures and all ten hosted certification checks.
+- Canonical Coworld: `cow_14c35330-f928-44a7-a3cd-a8e48577a195`. Readbacks confirm all three
+  leagues use it. FFA remains public/default, uses OpenSkill, runs eight episodes
+  per round, and has resumed scheduling. Game and scoring rules match 0.6.0.
+- Browsers subscribe to recording delivery with
+  `{"type":"subscribe","replay":true}` on the established WebSocket. This removes
+  the optional query-field dependency exposed by the hosted global-viewer hop.
+  Bot connections retain bounded result-only terminal messages.
+- Request `xreq_36f6e1f6-e100-4821-9c8a-3d9c1cf044c8` ran the four existing
+  league policies with ordinary FFA settings. It ended by general capture at
+  tick 710 with zero timeouts, placements `[3, 1, 2, 4]`, and kill counts
+  `[0, 2, 1, 0]`. The spectator was connected before play and transitioned
+  LIVE → REPLAY, retaining all 711 frames in its downloadable recording.
+  [Public episode](https://softmax.com/generals/episodes/ad59ddbf-08c9-4243-865f-f8d3d692233a).
+- Actual hosted review covered 1440×1000 and 390×844, seek 710 → 512, fog,
+  result/kill information and the official counter. No browser errors were
+  recorded in the live-handoff session.
+  [Desktop](https://softmax.nexus/artifacts/979aecac-a394-415c-a940-7f6f38be6319),
+  [mobile](https://softmax.nexus/artifacts/cfbab280-24cf-48de-a079-f9924942c18e),
+  [live-to-replay recording](https://softmax.nexus/artifacts/3bd18325-2c7a-456b-9ab0-572e1a0f33e1).
+- The unchanged engine's 0.6.0 public eight-player recording also loaded on
+  desktop and mobile. Keyboard seeking reached frame 50,002 and returned to 0.
+  [Final frame](https://softmax.nexus/artifacts/c2ad2609-86f1-495e-8bbf-e15e5b33cc7e),
+  [mobile](https://softmax.nexus/artifacts/0427da13-1fb0-484f-b02e-90e8c43bde4a).
+- The complete local handoff system workflow now strips optional query fields
+  before the game receives them and retires HTTP access before checking player
+  and spectator replay/download behavior. All 57 affected checks passed,
+  including the four additional variant-browser checks. The two message-count
+  helpers were updated to distinguish subscription metadata from game actions.
+
+Published artifact identities:
+
+- Manifest: `sha256:0a32a0c9ca8c86948039328468827bc25fea44423b71aef51f2c157264dac1ce`.
+- Game image: `sha256:0812e86838ffa5bb9eac2c3aa626315d41fdaef6a8511f3f5b2a1871c8c16b79`.
+- Player image: `sha256:1bba9b311c9eb7011f310544f1930e7de6a73189a21a1871af379d668f827568`.
+- Replay bundle: `sha256:ba5a1447ce4d265d9d35f47bd85a4af742e9758bd9ac1806a68574018c258470`.
+
 ### 0.6.0 — October 30, 2026 (UTC)
 
 - Released source `66050e3c2239ff14189186ed254af6c1aefc9f8e` using Coworld SDK

@@ -309,3 +309,14 @@ WebSocket message. Both player and global connections handle that subscription;
 bots retain their bounded terminal messages. The complete live-handoff system
 workflow now strips optional query parameters and requires both browsers to keep
 the recording after HTTP proxy retirement. No game or scoring rules changed.
+
+Release 0.6.1 from `69d95a0faadf9b98b9126e1855a8ac175d2f18c8` passed
+all eight native fixtures and all ten hosted checks. It is canonical as
+`cow_14c35330-f928-44a7-a3cd-a8e48577a195`. A spectator connected before play
+on the ordinary four-seat variant transitioned LIVE → REPLAY after tick 710,
+with all 711 frames, placements and zero timeouts in its downloadable recording.
+The same session rendered desktop/mobile, fog and backward seeking without
+browser errors. The saved public eight-seat recording also seeks to 50,002
+and back to 0. VARIANTS.md links the exact episodes, hashes and browser proof.
+All three leagues resolve to the patch; FFA remains default/OpenSkill and runs
+eight episodes per round. The transport fix changes no game or rating rules.
