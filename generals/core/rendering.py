@@ -6,11 +6,12 @@ interface compatible with the legacy Game class, allowing the existing pygame
 renderer to work with JAX states.
 """
 
-import numpy as np
-import jax.numpy as jnp
-from typing import Any, Dict
+from typing import Any
 
-from generals.core.game import GameState, GameInfo
+import jax.numpy as jnp
+import numpy as np
+
+from generals.core.game import GameInfo, GameState
 
 
 class JaxChannelsAdapter:
@@ -88,7 +89,7 @@ class JaxGameAdapter:
         # Store info for get_infos()
         self._info = info
 
-    def get_infos(self) -> Dict[str, Dict[str, Any]]:
+    def get_infos(self) -> dict[str, dict[str, Any]]:
         """
         Return player stats in the format expected by the renderer.
 
@@ -118,6 +119,9 @@ class JaxGameAdapter:
                 general_positions=jnp.array([self.general_positions[agent] for agent in self.agents]),
                 teams=jnp.arange(n, dtype=jnp.int32),
                 eliminated=jnp.zeros(n, dtype=bool),
+                death_order=jnp.full((n,), -1, dtype=jnp.int32),
+                captured_by=jnp.full((n,), -1, dtype=jnp.int32),
+                annihilated=jnp.zeros((n, n), dtype=jnp.int32),
                 time=jnp.int32(self.time),
                 winner=jnp.int32(-1),
                 pool_idx=jnp.int32(0),

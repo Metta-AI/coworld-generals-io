@@ -12,7 +12,7 @@ rules); a replay applies them to the state at the start of the tick, before game
   engine       the record alone                                  -> agreement up to the first event
   engine_afk   the record with the events applied through the engine functions -> full-game agreement
 The site's isOver runs inside killPlayer, then the turn's moves and income still run; the engine settles the same
-end at the end of that tick (winner set, time advanced, no income), so the end turn is compared as state.time.
+end at the end of that tick (winner set, time advanced, income paid), so the end turn is compared as state.time.
 Usage: python board_diff_ffa.py <siteboards dir> 'gior/*.gior' [--out f] [--np 8]
 """
 import os
@@ -126,28 +126,22 @@ def run(path, site_dir, n_pad=NP):
                site_winner=site["winner"], consumed=site["consumed"], n_moves=site["n_moves"], n_afk_events=meta["n_afk_events"],
                first_afk_turn=meta["first_afk_turn"], map=[W, H])
     for name, model in (("engine", False), ("engine_afk", True)):
-        own, arm, struct, legal, winner, elim, time = boards(jnp.asarray(prep["grid"]), jnp.asarray(acts), jnp.asarray(afk), jnp.asarray(teams), n_pad, model)
+        own, arm, _struct, legal, winner, elim, time = boards(jnp.asarray(prep["grid"]), jnp.asarray(acts), jnp.asarray(afk), jnp.asarray(teams), n_pad, model)
         own = np.asarray(own)[:T, :, :H, :W].reshape(T, n_pad, -1); arm = np.asarray(arm)[:T, :H, :W].reshape(T, -1)
-        struct = np.asarray(struct)[:T, :H, :W].reshape(T, -1)
         oo = np.where(own.any(1), own.argmax(1), -1)
         bad = (oo != so_) | (arm != sa[:T])
-        in_game = bad[:-1]                                                            # the site still pays that turn's income after the final capture
+        in_game = bad  # Include the final board; terminal income is part of the base game.
         first = int(np.argmax(in_game.any(1))) if in_game.any() else -1
         legal, winner, elim, time = np.asarray(legal)[:T - 1, :N], np.asarray(winner)[:T - 1], np.asarray(elim)[:T - 1, :N], np.asarray(time)[:T - 1]
         tm = np.array(meta["teams"])
         ends = np.nonzero(winner >= 0)[0]
         end_tick = int(ends[0]) if len(ends) else -1                                  # the tick whose step decides the game
         our_winner = sorted(int(p) for p in np.nonzero(tm == winner[end_tick])[0]) if end_tick >= 0 else []
-        # the site's final board is ours plus the income of the final turn (generals and cities +1 on an even turn, every owned tile +1 on a
-        # multiple of 50), which the site still pays after isOver and the engine does not
-        Tend = int(site["turns"]); owned = oo[-1] >= 0
-        income = (int(Tend % 2 == 0) * struct[-1].astype(int) + int(Tend % 50 == 0)) * owned
-        terminal_income_only = bool(T == Tend + 1 and np.array_equal(oo[-1], so_[-1]) and np.array_equal(arm[-1] + income, sa[T - 1]))
         first_afk = meta["first_afk_turn"]
         pre_afk_ok = bool(not in_game[:first_afk + 1].any()) if first_afk >= 0 else bool(not in_game.any())   # boards 0..first_afk: the event lands after board first_afk was dumped
         res[name] = dict(mismatch_ticks=int(in_game.any(1).sum()), first_mismatch=first,
                          first_tiles=[[int(i), int(so_[first, i]), int(sa[first, i]), int(oo[first, i]), int(arm[first, i])] for i in np.nonzero(bad[first])[0][:6]] if first >= 0 else [],
-                         terminal_mismatch=bool(bad[-1].any()), terminal_is_ours_plus_income=terminal_income_only, identical_before_first_afk=pre_afk_ok,
+                         terminal_mismatch=bool(bad[-1].any()), identical_before_first_afk=pre_afk_ok,
                          rejected_moves=int((~legal).sum()), end_tick=end_tick, end_time=int(time[end_tick]) if end_tick >= 0 else -1, our_winner=our_winner,
                          same_end=bool(end_tick >= 0 and int(time[end_tick]) == site["turns"] and sorted(site["winner"]) == our_winner))
     return res
@@ -161,8 +155,8 @@ if __name__ == "__main__":
     print(f"games {len(ok)} (excluded {len(res)-len(ok)}: {[r['excluded'] for r in res if 'excluded' in r]}); ticks {sum(r['turns'] for r in ok)}; moves {sum(r['n_moves'] for r in ok)}; games with AFK events {sum(r['n_afk_events']>0 for r in ok)}")
     for name in ("engine", "engine_afk"):
         rr = [r[name] for r in ok]
-        print(f"[{name}] identical at every in-game tick {sum(x['mismatch_ticks']==0 for x in rr)}; identical up to the first AFK event {sum(x['identical_before_first_afk'] for x in rr)}; "
-              f"same end (state.time == site turns, same winner) {sum(x['same_end'] for x in rr)}; terminal board differs {sum(x['terminal_mismatch'] for x in rr)} (= ours + the final turn's income in {sum(x['terminal_mismatch'] and x['terminal_is_ours_plus_income'] for x in rr)}); recorded moves rejected {sum(x['rejected_moves'] for x in rr)}")
+        print(f"[{name}] identical at every recorded frame {sum(x['mismatch_ticks']==0 for x in rr)}; identical up to the first AFK event {sum(x['identical_before_first_afk'] for x in rr)}; "
+              f"same end (state.time == site turns, same winner) {sum(x['same_end'] for x in rr)}; terminal board differs {sum(x['terminal_mismatch'] for x in rr)}; recorded moves rejected {sum(x['rejected_moves'] for x in rr)}")
     for r in ok:
         x = r["engine_afk"]
         if x["mismatch_ticks"] or not x["same_end"]:

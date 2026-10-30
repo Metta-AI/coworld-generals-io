@@ -10,6 +10,10 @@
   --red: #dc4646;
   --green: #27804f;
   --purple: #9257bf;
+  --orange: #fa8c01;
+  --pink: #f032e6;
+  --teal: #008080;
+  --maroon: #9b0101;
   /* board tiles — exact engine values (generals/gui/rendering.py):
      plains rgb(230,230,230), mountains rgb(187,187,187), neutral castles rgb(128,128,128) */
   --neutral-tile: #e6e6e6;
@@ -91,10 +95,14 @@
 .tile.red { --owner: var(--red); --fill: var(--owner); color: #fff; }
 .tile.green { --owner: var(--green); --fill: var(--owner); color: #fff; }
 .tile.purple { --owner: var(--purple); --fill: var(--owner); color: #fff; }
+.tile.orange { --owner: var(--orange); --fill: var(--owner); color: #fff; }
+.tile.pink { --owner: var(--pink); --fill: var(--owner); color: #fff; }
+.tile.teal { --owner: var(--teal); --fill: var(--owner); color: #fff; }
+.tile.maroon { --owner: var(--maroon); --fill: var(--owner); color: #fff; }
 /* owned structures stand out as a darker shade of the owner's color — exact
    engine factors (rendering.py): generals 0.65, captured castles 0.8 */
-.tile:is(.blue,.red,.green,.purple).has-general { --fill: color-mix(in srgb, var(--owner) 65%, black); }
-.tile:is(.blue,.red,.green,.purple).has-castle { --fill: color-mix(in srgb, var(--owner) 80%, black); }
+.tile:is(.blue,.red,.green,.purple,.orange,.pink,.teal,.maroon).has-general { --fill: color-mix(in srgb, var(--owner) 65%, black); }
+.tile:is(.blue,.red,.green,.purple,.orange,.pink,.teal,.maroon).has-castle { --fill: color-mix(in srgb, var(--owner) 80%, black); }
 
 .tile { transition: none; overflow: visible; }
 .tile.selected {

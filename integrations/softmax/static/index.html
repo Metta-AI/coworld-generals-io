@@ -14,7 +14,7 @@
     <header><a class="brand" href="https://softmax.com/generals" target="_blank" rel="noreferrer">GENERALS<span id="variant-title">CLASSIC 1v1</span></a><span id="mode" class="badge">CONNECTING</span></header>
     <section id="launch" hidden>
       <h1>Play Generals</h1>
-      <p>Choose classic 1v1, four-player free-for-all, or build your own castles. Invite people or fill seats with bots.</p>
+      <p>Choose classic 1v1, free-for-all with three to eight players, or build your own castles. Invite people or fill seats with bots.</p>
       <a class="launch-link" href="https://softmax.com/observatory/v2/coworld-play/create?coworld=generals-competition" target="_blank" rel="noopener noreferrer">Create a Generals lobby</a>
       <p>Have a saved match? <label for="replay-file">Open a replay</label></p>
       <input id="replay-file" type="file" accept=".json,.gz,application/json,application/gzip">
@@ -52,6 +52,7 @@
       </div>
       <button id="split" aria-pressed="false">Half army <kbd>H</kbd></button>
       <button id="pass">Pass</button>
+      <button id="surrender" hidden>Surrender</button>
       <button id="deselect">Deselect <kbd>Space</kbd></button>
       <button id="undo">Undo last <kbd>E</kbd></button>
       <button id="clear">Clear queue <kbd>Q</kbd></button>
@@ -62,7 +63,7 @@
     <section id="replay-controls" class="controls" hidden>
       <label>View <select id="perspective" aria-label="Replay perspective"><option value="all">Full map</option></select></label>
       <button id="pause">Pause</button><button id="restart" aria-label="Restart replay">↺</button>
-      <input id="seek" type="range" min="0" max="1" value="0" aria-label="Replay turn">
+      <input id="seek" type="range" min="0" max="1" value="0" aria-label="Replay tick">
       <select id="speed" aria-label="Playback speed"><option value="2">½×</option><option value="4" selected>1×</option><option value="8">2×</option><option value="20">5×</option><option value="60">15×</option></select>
     </section>
     <footer><span>Capture the general. Hold your ground.</span><span id="endgame">Capture castles to grow your army</span></footer>
@@ -74,7 +75,11 @@
     document.querySelectorAll('link[data-local]').forEach(link => link.href = prefix + link.dataset.local);
     const rendererScript = document.createElement('script'); rendererScript.src = prefix + 'board.js';
     rendererScript.onload = () => {
-      const script = document.createElement('script'); script.src = prefix + 'app.js'; document.body.appendChild(script);
+      const replayScript = document.createElement('script'); replayScript.src = prefix + 'replay.js';
+      replayScript.onload = () => {
+        const script = document.createElement('script'); script.src = prefix + 'app.js'; document.body.appendChild(script);
+      };
+      document.body.appendChild(replayScript);
     };
     document.body.appendChild(rendererScript);
   </script>

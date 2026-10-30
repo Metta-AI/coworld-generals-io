@@ -1,60 +1,15 @@
 """Browser contract checks for FFA identity and castle construction controls."""
 
-import functools
 import json
 import os
 import re
-import shutil
-import subprocess
-import threading
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 
 import pytest
 
 if os.environ.get("GENERALS_BROWSER_TESTS") != "1":
     pytest.skip("opt-in browser check; install playwright and Chromium", allow_module_level=True)
 pytest.importorskip("playwright")
-from playwright.sync_api import expect, sync_playwright
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-@pytest.fixture
-def viewer(tmp_path):
-    bundle = tmp_path / "viewer"
-    subprocess.run([str(ROOT / "integrations/softmax/tools/build_replay_viewer.sh"), str(bundle)], check=True)
-
-    class Handler(SimpleHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path.startswith("/client/player?"):
-                self.path = "/index.html"
-            elif self.path.startswith("/client/static/"):
-                self.path = self.path.removeprefix("/client/static")
-            super().do_GET()
-
-    http = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=bundle))
-    threading.Thread(target=http.serve_forever, daemon=True).start()
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                executable_path=os.environ.get("CHROMIUM_PATH") or shutil.which("chromium"),
-                args=["--no-sandbox"],
-            )
-            page = browser.new_page(viewport={"width": 1100, "height": 1000})
-            page.clock.install(time=0)
-            page.clock.pause_at(1)
-            errors = []
-            page.on("pageerror", lambda error: errors.append(str(error)))
-            yield page, f"http://127.0.0.1:{http.server_port}", bundle
-            assert not errors
-            browser.close()
-    finally:
-        http.shutdown()
-        http.server_close()
+from playwright.sync_api import expect
 
 
 def connect_player(page, base, players, ruleset="classic", slot=0):
@@ -67,6 +22,8 @@ def connect_player(page, base, players, ruleset="classic", slot=0):
     page.route_web_socket("**/player?*", connected)
     page.goto(f"{base}/client/player?slot={slot}&token=test")
     expect(page.locator("#mode")).to_have_text("PLAYER")
+    assert actions == [{"type": "subscribe", "replay": True}]
+    actions.clear()
     sockets[0].send(json.dumps({"type": "hello", "slot": slot, "players": players, "ruleset": ruleset}))
     return sockets[0], actions
 
@@ -100,7 +57,7 @@ def test_ffa_visible_owners_scores_and_elimination(viewer):
     obs["type_grid"][0][0] = 0
     obs["visible_owner_grid"][0][0] = 4
     ws.send(json.dumps(obs))
-    expect(page.locator("#turn")).to_have_text("1")
+    expect(page.locator("#turn")).to_have_text("0.")
     expect(page.locator("#variant-title")).to_have_text("4-PLAYER FFA")
     expect(page.locator(".matchbar .player")).to_have_count(4)
     for i, color in enumerate(["red", "blue", "green", "purple"]):
@@ -144,7 +101,7 @@ def test_castle_queue_cost_and_failure_receipt(viewer):
     def observe(turn):
         obs["turn"] = turn
         ws.send(json.dumps(obs))
-        expect(page.locator("#turn")).to_have_text(str(turn))
+        expect(page.locator("#turn")).to_have_text(f"{turn // 2}{'.' if turn % 2 else ''}")
 
     observe(1)
     expect(page.locator("#build")).to_be_visible()

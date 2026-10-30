@@ -73,8 +73,9 @@ validation. Identical seeds across different map generators are not identical bo
 
 Use whole-game cases covering captures, mutual general trades, half-army rounding,
 move dependencies, growth, and surrender before changing JAX rules. Preserve the
-reported terminal-income difference as a distinct finding; do not silently discard
-it or interpret historical replay results as certification of a new source revision.
+historical terminal-income finding as release provenance. From 0.6.0, require
+zero mismatches including the terminal board; do not interpret historical replay
+results as certification of a new source revision.
 
 Run the opt-in system regression with the real external core:
 

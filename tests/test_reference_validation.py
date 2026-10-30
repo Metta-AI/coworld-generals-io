@@ -55,6 +55,7 @@ def test_reference_export_compares_games_and_rejects_incomplete_recording(tmp_pa
         assert "excluded" not in result
         assert result["engine_afk"]["mismatch_ticks"] == 0
         assert result["engine_afk"]["same_end"]
+        assert not result["engine_afk"]["terminal_mismatch"]
         snapshot = json.loads((boards / f"{result['id']}.json").read_text())
         assert len(snapshot["owners"]) == snapshot["turns"] + 1
         assert len(snapshot["reference_sources_sha256"]) == 4
