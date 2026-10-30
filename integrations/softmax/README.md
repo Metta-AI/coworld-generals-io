@@ -71,7 +71,9 @@ clears queued moves; offline/online events resume the same seat, with six
 bounded retries for other connection failures. Reconnecting cannot undo a
 server timeout or elimination. The server remains authoritative for actions.
 
-Completed matches show their outcome, replay download, and a new-match link.
+Completed matches deliver the saved recording over the existing browser socket,
+so replay playback and download survive retirement of the hosted HTTP proxy.
+They show their outcome, replay download, and a new-match link.
 Replay views include the full map and each player's fog-of-war perspective;
 public scores remain visible in every perspective. Live public spectators
 continue to see scores only. Old Nim recordings retain their original viewer.

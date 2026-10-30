@@ -1,7 +1,9 @@
 # Generals modes and leagues
 
-One `generals-competition` Coworld carries every mode; each bot mode runs as its
-own Softmax league. New releases are maintained in `Metta-AI/coworld-generals-io`.
+The game is displayed as **generals.io**. One `generals-competition` Coworld
+carries every mode; each bot mode runs as its own Softmax league. The display-name
+override preserves the manifest identity, version history, and existing links.
+New releases are maintained in `Metta-AI/coworld-generals-io`.
 
 ## Modes (since release 0.3.2)
 
@@ -55,14 +57,39 @@ GENERALS_BROWSER_TESTS=1 pytest tests -q
 ```
 
 These baseline matches validate integration, not playing strength or draw-rate
-balance. `test_live_public_routes_do_not_reveal_hidden_state` fails in roughly one
-run in five: cancellation interrupts the WebSocket cleanup at shutdown. Richard's
-Codex proposed shielding that cleanup on PR #141; the fix is not merged.
+balance. Release 0.4.0 shields WebSocket cleanup from cancellation. Release 0.4.2
+drains terminal messages before shutting down the game server.
 
 ## Releases
 
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
+
+### 0.4.2 — October 30, 2026 (UTC)
+
+- Rebuilt native AMD64 from `2d6d9ccdd8f67932dcf2d5b847a710e08cdb3453`
+  using Coworld SDK 0.1.60. This includes the completion handoff and full-height
+  replay layout. The source suite passed 220 tests, with one private-reference
+  check skipped.
+- [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/40980596045)
+  passed ten container certification checks separately for classic, FFA, and
+  castle-building, then uploaded and passed hosted certification.
+- Coworld `cow_20f616ae-1c0e-4bb5-9dc3-b2ac495a9d94` is canonical. All three
+  leagues resolve both their current and canonical game to this version.
+- The displayed name is now `generals.io`, set through the game's persistent
+  display-name override. It remains set after canonical promotion.
+- Full-length hosted verification requests, using the existing Expander and
+  Builder policies with the ordinary 2,000-turn variants:
+  classic `xreq_99f9eb5e-f810-4d18-b121-ebc87a174c0d`,
+  FFA `xreq_87ef68d2-648d-4091-bb40-676b82fc7edf`,
+  castles `xreq_b3b5f437-f458-464b-842f-79dc9b2b9db9`.
+
+Published artifact identities:
+
+- Manifest: `sha256:e15438ac084168328bf87f53474ac57f9e84ebba0462412261b81a771c36d100`.
+- Game image: `img_3285aced-b80c-4c10-952e-0e6b33cf8e34`.
+- Player image: `img_2f64f485-4bca-4935-a666-0c9c06143684`.
+- Replay bundle: `sha256:f7a67556ab61c57a0ea8a3c228768e28d608b9d49d8a19dfd886bf3a8a843ef9`.
 
 ### 0.3.3 — September 27, 2026
 
