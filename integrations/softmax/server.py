@@ -54,11 +54,7 @@ class Episode:
         self.replay = None
         self.failed = False
         self.file_players = load_file_players(self.num_players)
-        self.file_slots = (
-            {seat.slot for seat in self.file_players.seats.seats if seat.kind == "policy"}
-            if self.file_players
-            else set()
-        )
+        self.file_slots = set(self.file_players.files) if self.file_players else set()
 
     def authorize(self, slot: str | None, token: str | None) -> int | None:
         if slot not in tuple(str(s) for s in range(self.num_players)) or token is None:
@@ -196,13 +192,8 @@ class Episode:
                 self.timeouts[slot] += int(missing[slot])
                 self.consecutive_timeouts[slot] = self.consecutive_timeouts[slot] + 1 if missing[slot] else 0
             forfeits = [s for s in active if self.consecutive_timeouts[s] >= self.config.max_consecutive_timeouts]
-            attempt = {
-                "turn": self.match.turn,
-                "actions": actions,
-                "timed_out": missing,
-                "forfeited": forfeits,
-                "applied": True,
-            }
+            attempt = {"turn": self.match.turn, "actions": actions, "timed_out": missing,
+                       "forfeited": forfeits, "applied": True}
             self.turns.append(attempt)
             if forfeits:
                 winner = await asyncio.to_thread(self.match.forfeit, forfeits)
@@ -257,14 +248,7 @@ class Episode:
 
     async def fail_policy(self, fault: PolicyFault):
         await self.file_players.close()
-        await self.save(
-            "failure",
-            {
-                "message": fault.message,
-                "failed_policy_index": fault.slot,
-                "kind": fault.kind,
-            },
-        )
+        await self.save("failure", fault.model_dump(by_alias=True))
         self.failed = True
         self.phase = "failed"
         self.publish()
@@ -330,7 +314,9 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
     # Use the engine's original sprites; the replay build copies the same files.
     # Hosted play forwards /client/*, but does not forward arbitrary /static/*.
     for prefix in ("/static", "/client/static"):
-        app.mount(prefix + "/assets", StaticFiles(directory=Path(__file__).parents[2] / "generals/assets/images"))
+        app.mount(
+            prefix + "/assets", StaticFiles(directory=Path(__file__).parents[2] / "generals/assets/images")
+        )
         app.mount(prefix + "/fonts", StaticFiles(directory=Path(__file__).parents[2] / "generals/assets/fonts"))
         app.mount(prefix, StaticFiles(directory=STATIC))
 

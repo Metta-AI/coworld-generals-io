@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "https://github.com/Metta-AI/coworld-generals-io/tree/main/integrations/softmax"
 
 
-def document(filename):
-    return {"type": "text", "value": (ROOT / filename).read_text()}
+def document(*filenames):
+    return {"type": "text", "value": "\n\n".join((ROOT / filename).read_text() for filename in filenames)}
 
 
 def template():
@@ -52,12 +52,7 @@ def template():
             "config_schema": GameConfig.model_json_schema(),
             "results_schema": results,
             "protocols": {
-                "player": {
-                    "type": "text",
-                    "value": (ROOT / "PLAYER_PROTOCOL.md").read_text()
-                    + "\n\n"
-                    + (ROOT / "BASIC_PROTOCOL.md").read_text(),
-                },
+                "player": document("PLAYER_PROTOCOL.md", "BASIC_PROTOCOL.md"),
                 "global": document("GLOBAL_PROTOCOL.md"),
             },
             "docs": {"readme": document("README.md")},
@@ -103,21 +98,16 @@ def template():
                 "name": "Human play 1v1",
                 "description": "The same classic rules paced at two turns per second.",
                 "game_config": {
-                    "players": players,
-                    "max_turns": 1200,
-                    "tick_interval_seconds": 0.5,
-                    "turn_timeout_seconds": 1,
+                    "players": players, "max_turns": 1200,
+                    "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1,
                 },
             },
             {
                 "id": "ffa",
                 "name": "Free-for-all (4 players)",
                 "description": "Four independent generals; last survivor wins. Neutral castles, 2000-turn cap.",
-                "game_config": {
-                    "players": players + [{"name": "Green"}, {"name": "Purple"}],
-                    "ruleset": "classic",
-                    "max_turns": 2000,
-                },
+                "game_config": {"players": players + [{"name": "Green"}, {"name": "Purple"}],
+                                "ruleset": "classic", "max_turns": 2000},
             },
             {
                 "id": "castles",
@@ -131,25 +121,16 @@ def template():
                 "id": "ffa-human",
                 "name": "Human play FFA",
                 "description": "Four-player free-for-all paced at two turns per second.",
-                "game_config": {
-                    "players": players + [{"name": "Green"}, {"name": "Purple"}],
-                    "ruleset": "classic",
-                    "max_turns": 1200,
-                    "tick_interval_seconds": 0.5,
-                    "turn_timeout_seconds": 1,
-                },
+                "game_config": {"players": players + [{"name": "Green"}, {"name": "Purple"}],
+                                "ruleset": "classic", "max_turns": 1200,
+                                "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1},
             },
             {
                 "id": "castles-human",
                 "name": "Human play castle building",
                 "description": "Build-your-own-castles 1v1 paced at two turns per second.",
-                "game_config": {
-                    "players": players,
-                    "ruleset": "build_castles",
-                    "max_turns": 1200,
-                    "tick_interval_seconds": 0.5,
-                    "turn_timeout_seconds": 1,
-                },
+                "game_config": {"players": players, "ruleset": "build_castles", "max_turns": 1200,
+                                "tick_interval_seconds": 0.5, "turn_timeout_seconds": 1},
             },
         ],
         "certification": {

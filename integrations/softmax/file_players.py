@@ -53,13 +53,14 @@ class WorkerAction(BaseModel):
 
 class PolicyFault(BaseModel):
     kind: Literal["player_error"] = "player_error"
-    slot: int
+    slot: int = Field(serialization_alias="failed_policy_index")
     message: str
 
 
 class FilePlayers:
     def __init__(self, seats: Seats):
-        self.seats = seats
+        self.files = {seat.slot: seat for seat in seats.seats if isinstance(seat, FileSeat)}
+        self.status_uri = seats.player_status_uri
         self.processes: dict[int, asyncio.subprocess.Process] = {}
         self.log_tasks: list[asyncio.Task] = []
         self.failed_slots: set[int] = set()
@@ -73,13 +74,10 @@ class FilePlayers:
                 remaining = max(0, remaining - len(chunk))
 
     async def start(self) -> WorkerReady | PolicyFault:
-        for seat in self.seats.seats:
-            if isinstance(seat, FileSeat):
-                file_path(seat.log_uri).parent.mkdir(parents=True, exist_ok=True)
-                file_path(seat.log_uri).touch()
-        for seat in self.seats.seats:
-            if not isinstance(seat, FileSeat):
-                continue
+        for seat in self.files.values():
+            file_path(seat.log_uri).parent.mkdir(parents=True, exist_ok=True)
+            file_path(seat.log_uri).touch()
+        for seat in self.files.values():
             proc = await asyncio.create_subprocess_exec(
                 "prlimit",
                 "--as=268435456",
@@ -126,7 +124,7 @@ class FilePlayers:
             await proc.wait()
         await asyncio.gather(*self.log_tasks)
         write_json(
-            self.seats.player_status_uri,
+            self.status_uri,
             {
                 "schema_version": "1",
                 "players": [

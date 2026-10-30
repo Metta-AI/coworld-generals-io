@@ -13,6 +13,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from integrations.softmax.file_players import FileSeat, Seats, SocketSeat
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -73,32 +75,30 @@ def main():
         "COGAME_PLAYER_FAILURE_URI": (run_dir / "failure.json").as_uri(),
     }
     if basic:
-        seats = []
+        seats: list[FileSeat | SocketSeat] = []
         for slot in range(count):
             if slot in basic:
                 content = basic[slot].read_bytes()
                 seats.append(
-                    {
-                        "kind": "policy",
-                        "slot": slot,
-                        "file_uri": basic[slot].as_uri(),
-                        "content_hash": "sha256:" + hashlib.sha256(content).hexdigest(),
-                        "size_bytes": len(content),
-                        "log_uri": (run_dir / f"policy_agent_{slot}.log").as_uri(),
-                        "artifact_uri": (run_dir / f"policy_artifact_{slot}.zip").as_uri(),
-                    }
+                    FileSeat(
+                        kind="policy",
+                        slot=slot,
+                        file_uri=basic[slot].as_uri(),
+                        content_hash="sha256:" + hashlib.sha256(content).hexdigest(),
+                        size_bytes=len(content),
+                        log_uri=(run_dir / f"policy_agent_{slot}.log").as_uri(),
+                        artifact_uri=(run_dir / f"policy_artifact_{slot}.zip").as_uri(),
+                    )
                 )
             else:
-                seats.append({"kind": "human" if args.human and slot == 0 else "container", "slot": slot})
+                seats.append(SocketSeat(kind="human" if args.human and slot == 0 else "container", slot=slot))
         roster = run_dir / "player_seats.json"
         roster.write_text(
-            json.dumps(
-                {
-                    "schema": "coworld-play-seats/2",
-                    "seats": seats,
-                    "player_status_uri": (run_dir / "game_player_status.json").as_uri(),
-                }
-            )
+            Seats(
+                schema="coworld-play-seats/2",
+                seats=seats,
+                player_status_uri=(run_dir / "game_player_status.json").as_uri(),
+            ).model_dump_json(by_alias=True, exclude_none=True)
         )
         env["COGAME_PLAYER_SEATS_URI"] = roster.as_uri()
     processes = []
@@ -127,9 +127,8 @@ def main():
             else:
                 player_env = {**os.environ, "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{args.port}/player?{query}"}
                 module = "builder_player" if args.variant == "castles" else "player"
-                processes.append(
-                    subprocess.Popen([sys.executable, "-m", f"integrations.softmax.{module}"], env=player_env, cwd=ROOT)
-                )
+                processes.append(subprocess.Popen(
+                    [sys.executable, "-m", f"integrations.softmax.{module}"], env=player_env, cwd=ROOT))
         print(f"Watch: {base}/client/global", flush=True)
         print(f"Artifacts: {run_dir}", flush=True)
         deadline = time.monotonic() + 900
