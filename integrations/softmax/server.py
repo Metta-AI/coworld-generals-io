@@ -110,15 +110,14 @@ class Episode:
         }
 
     def accept(self, slot, message):
+        if (self.match.is_ffa and message == {"type": "surrender"}
+                and self.phase in ("playing", "resolving") and slot in self.match.active_slots):
+            self.request_surrender(slot)
+            return
         if self.phase != "playing":
             raise ValueError("game is not accepting actions")
         if slot not in self.match.active_slots:
             raise ValueError("eliminated players cannot act")
-        if (self.match.is_ffa and isinstance(message, dict) and set(message) == {"type", "turn"}
-                and message["type"] == "surrender" and type(message["turn"]) is int
-                and message["turn"] == self.match.turn):
-            self.request_surrender(slot)
-            return
         action = parse_action(message, self.match.turn, self.match.height, self.match.width, self.config.ruleset)
         if slot in self.pending:
             raise ValueError("only the first valid action per turn is accepted")

@@ -194,7 +194,7 @@
   $('pass').onclick = () => enqueue([1,0,0,0,0]);
   $('surrender').onclick = () => {
     if (!canQueue()) return;
-    ws.send(JSON.stringify({type:'surrender', turn:currentTurn}));
+    ws.send(JSON.stringify({type:'surrender'}));
     queue.length = 0; clearTimeout(passTimer); sent = true;
     $('surrender').disabled = true;
     status('Surrender submitted. Your territory remains capturable for 50 ticks.');

@@ -145,7 +145,7 @@ def test_surrendered_general_stays_capturable_and_killer_outranks_later_non_kill
                     continue
                 if (slot == victim and tick == 151) or (slot == attacker and capture_tick is not None):
                     if slot not in surrendered:
-                        ws.send_json({"type": "surrender", "turn": tick})
+                        ws.send_json({"type": "surrender"})
                         surrendered.add(slot)
                     continue
                 action = expand(observation) if tick < 150 else PASS

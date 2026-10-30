@@ -195,7 +195,7 @@ transport misses do not trigger the old 20-miss elimination. At tick 121, a
 player needs 11 land, an owned city, or visible contact with an opponent to
 avoid the official initial inactivity kick. Warnings begin at tick 99.
 
-FFA players can send `{"type":"surrender","turn":CURRENT_TICK}`. Disconnecting
+FFA players can send `{"type":"surrender"}`. Disconnecting
 also surrenders the seat. Its moves stop immediately, but its land and general
 remain owned, grow normally, and can be captured for 50 more ticks. At the
 expiry, uncaptured territory becomes neutral with unchanged armies and the

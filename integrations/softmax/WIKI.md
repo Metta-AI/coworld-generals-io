@@ -108,7 +108,7 @@ modes forfeit after 20 consecutive misses; FFA instead checks initial activity
 at tick 121: acquire 11 land, own a city, or reach an opponent's visible territory.
 Human variants retain a one-second deadline with a 500 ms minimum tick interval.
 
-In FFA, use the Surrender button or send `{"type":"surrender","turn":CURRENT_TICK}`.
+In FFA, use the Surrender button or send `{"type":"surrender"}`.
 Disconnecting also surrenders. Your territory remains owned, grows, and can be
 captured for 50 more ticks. Then it becomes neutral with its armies intact, and
 your general becomes a city. A living opponent who destroyed the most of your

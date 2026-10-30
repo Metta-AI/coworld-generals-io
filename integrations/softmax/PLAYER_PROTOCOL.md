@@ -77,7 +77,8 @@ and timeout counters. FFA does not eliminate players for transport misses.
 Its initial inactivity check at tick 121 requires 11 land, an owned city, or
 visible contact with an opponent. Eliminated seats no longer owe actions.
 
-In FFA, send `{"type":"surrender","turn":CURRENT_TICK}` to surrender.
+In FFA, send `{"type":"surrender"}` to surrender. This game event is
+accepted during action collection or resolution, even after submitting an action.
 Disconnecting also surrenders. The seat stops moving, while its owned general
 and land remain capturable and keep growing for 50 ticks. Then uncaptured land
 becomes neutral and the general becomes a city. `neutralize_in` is the number
