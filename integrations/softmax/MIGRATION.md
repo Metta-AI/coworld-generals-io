@@ -168,3 +168,33 @@ on desktop and mobile.
 The bot turn cap, winner-only scoring, action deadlines, and timeout-neutralization
 policy remain Softmax hosting choices. Map alignment does not establish parity
 for those policies or the public ladder's rating system.
+
+### 0.5.0 hosted completion — October 30, 2026 (UTC)
+
+Released source `00f6cf90f47ff388c245b36ea782a96585d985b2` using the existing
+`coworld-release.yml` workflow with `version=0.5.0`. All eight native AMD64
+certification fixtures passed; hosted certification passed its ten checks.
+The version, image identities, verification request, and public replay are
+recorded in [VARIANTS.md](VARIANTS.md#050--october-30-2026-utc).
+
+Validation used Python 3.12, the locked runtime dependencies, and Chromium:
+
+- `GENERALS_BROWSER_TESTS=1 pytest -q` in source CI: 221 passed, one private
+  reference check skipped. Both the implementation and release-source runs passed.
+- The same complete suite passed all 222 checks locally, running modules in
+  separate processes with `GENERALS_BROWSER_TESTS=1`,
+  `GENERALS_REFERENCE_ENGINE` pointing outside the checkout, and CPU JAX.
+- Manifest consistency, scoped Ruff, both browser JavaScript syntax checks,
+  and `git diff --check` passed.
+- The ordinary hosted `ffa-8` variant completed 2,000 turns on a 26×25 board
+  with eight real policy containers and zero timeouts. Its saved recording
+  contains 2,001 frames and all eight seats. This validates runtime operation,
+  not baseline playing strength or match balance.
+- The public default league, persistent seed name, canonical version, scheduler,
+  and all three leagues' resolved game versions were read back after rollout.
+  The scheduler replacement preserved every other stored setting and used the
+  snapshot revision in `If-Match` for validation and persistence.
+
+The public episode route opens hosted replay without signing in. The theater's
+league-filtered `?e=` route does not select an out-of-league verification request;
+use the episode's public page or its Replay link for these runs.

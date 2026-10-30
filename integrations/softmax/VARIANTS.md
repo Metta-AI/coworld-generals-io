@@ -74,6 +74,34 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.5.0 — October 30, 2026 (UTC)
+
+- Released from `00f6cf90f47ff388c245b36ea782a96585d985b2` with Coworld SDK
+  0.1.60. [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41116286701)
+  passed all ten container checks separately for classic, each FFA size from
+  three through eight, and castle-building. Hosted certification passed all ten.
+- Canonical Coworld: `cow_48f4d81a-2fa5-4db2-a72e-ed50c0648b3f`.
+  All three leagues follow it. FFA is the game's default league and is displayed
+  as **FFA (3–8 players)**. Its stored scheduler is the `scaling_roster`
+  configuration above; the current four entrants play four-seat episodes.
+- Source CI passed 221 tests, with the private-reference check skipped.
+  All 222 checks passed locally, including that check, using separate module
+  invocations. The official map comparison matched all 600 cases.
+- Full-length eight-seat verification request
+  `xreq_697778af-acd8-4eac-9634-9e5cd38bb519` completed 2,000 turns on a
+  26×25 board with zero timeouts. The baseline bots drew at the turn cap.
+  [Public episode](https://softmax.com/generals/episodes/204000b2-594c-422d-82ca-e6504abfbe8c).
+- Public replay verification covered eight scorecards, colors, perspectives,
+  seeking, fullscreen, and 1440×1000 / 390×844 viewports. Public wiki rules were
+  updated while preserving its existing public upstream source links.
+
+Published artifact identities:
+
+- Manifest: `sha256:deef8c8222c0a41a124358bd49283f0fa764d83f2fc6070cb14852ad69654f95`.
+- Game image: `sha256:cdf332ca17c59462f11708e4ae98ec7575959abe63b5cf88e31bd2e2da88fdd6`.
+- Player image: `sha256:6e1c0aec94017fb4ba7e8d23743e227750c3cb4b4a179f56796e2a06473b6604`.
+- Replay bundle: `sha256:b2f38687adf05c23ab48c9bd02ff257925c226a2b2abd65a239e84e248e00d80`.
+
 ### 0.4.2 — October 30, 2026 (UTC)
 
 - Rebuilt native AMD64 from `2d6d9ccdd8f67932dcf2d5b847a710e08cdb3453`
