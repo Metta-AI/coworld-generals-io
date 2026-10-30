@@ -112,9 +112,7 @@ def template():
             {
                 "id": "castles",
                 "name": "Build your own castles (1v1)",
-                "description": (
-                    "No neutral castles: spend armies to build on owned plain land. No Deathtouch. 2000-turn cap."
-                ),
+                "description": "No neutral castles: spend armies to build on owned plain land. No Deathtouch. 2000-turn cap.",
                 "game_config": {"players": players, "ruleset": "build_castles", "max_turns": 2000},
             },
             {

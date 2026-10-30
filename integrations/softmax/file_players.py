@@ -31,7 +31,7 @@ class SocketSeat(BaseModel):
 
 
 class Seats(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
     schema_: Literal["coworld-play-seats/2"] = Field(alias="schema")
     seats: list[Annotated[FileSeat | SocketSeat, Field(discriminator="kind")]]

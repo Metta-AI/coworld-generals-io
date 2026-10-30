@@ -215,9 +215,7 @@ class Episode:
 
         self.phase = "saving"
         result = {
-            "scores": [0] * self.num_players
-            if winner == -1
-            else [1 if s == winner else -1 for s in range(self.num_players)],
+            "scores": [0] * self.num_players if winner == -1 else [1 if s == winner else -1 for s in range(self.num_players)],
             "winner": winner,
             "reason": reason,
             "turns": self.match.turn,
