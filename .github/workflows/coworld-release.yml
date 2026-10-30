@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  # Publish the SDK's mixed-runtime support before running this release workflow.
+  # Publish the SDK's player_types support before running this release workflow.
   COWORLD_PKG: coworld[auth]==0.1.68
 
 jobs:
