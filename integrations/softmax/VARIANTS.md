@@ -112,6 +112,9 @@ kept in `local-output/release-<version>/`.
   and spectator replay/download behavior. All 57 affected checks passed,
   including the four additional variant-browser checks. The two message-count
   helpers were updated to distinguish subscription metadata from game actions.
+- [Final source CI](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41131274567)
+  passed 223 tests with one private reference skipped at `c01f5ba`. The only
+  change from released runtime source `69d95a0` is a browser test helper update.
 
 Published artifact identities:
 

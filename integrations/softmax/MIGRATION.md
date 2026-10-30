@@ -320,3 +320,7 @@ browser errors. The saved public eight-seat recording also seeks to 50,002
 and back to 0. VARIANTS.md links the exact episodes, hashes and browser proof.
 All three leagues resolve to the patch; FFA remains default/OpenSkill and runs
 eight episodes per round. The transport fix changes no game or rating rules.
+
+Final CI at test-only follow-up `c01f5ba` passed 223 checks with the private
+reference skipped. The runtime source is identical to released `69d95a0`;
+subsequent commits record documentation evidence only.
