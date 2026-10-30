@@ -14,8 +14,6 @@ if os.environ.get("GENERALS_BROWSER_TESTS") != "1":
 
 from playwright.sync_api import expect
 
-from tests.test_softmax_variants_browser import viewer  # noqa: F401
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
