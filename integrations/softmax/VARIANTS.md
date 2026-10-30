@@ -79,6 +79,69 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.6.0 — October 30, 2026 (UTC)
+
+- Released source `66050e3c2239ff14189186ed254af6c1aefc9f8e` using Coworld SDK
+  0.1.60. [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41127614548)
+  passed all eight native AMD64 fixtures and all ten hosted certification checks.
+- Canonical Coworld: `cow_adf51684-c097-4f0c-ba02-c1d8e138b61b`. All three
+  leagues resolve to it. FFA remains the game's public default, with three-to-eight
+  seats and eight episodes per round.
+- FFA now uses official Survival ordering, kill credit, the 50-tick surrender
+  capture window, initial inactivity rules, and idle/long-game adjudication.
+  Ordinary bot FFA permits tick 50,002; human variants retain their hosted budget.
+  The viewer displays two engine ticks per full official turn.
+- The existing FFA league migrated from Elo to OpenSkill Plackett-Luce, with
+  initial mu 50 and sigma 50/3. Its four entrants, round history, episode results,
+  score tallies and round counts were preserved. Elo's pairwise win/draw/loss
+  counters restarted because OpenSkill counts whole episodes. Scheduling was
+  paused only during the validated commissioner-state/settings migration.
+  Round 4610 (`round_f0188358-99ae-41ce-b3c9-bfe38a6b2905`) then completed
+  eight games under the preceding game version: every skill estimate updated,
+  uncertainty shrank, and historical round counts advanced normally.
+- [Source CI](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41127075348)
+  passed 223 checks with one private reference skipped. All 224 checks passed
+  locally, including the identical terminal-board reference. Scoped Ruff,
+  JavaScript syntax, manifest consistency and diff checks passed.
+- Against the supplied live Game methods, all 600 generated Survival cases and
+  all 600 surrender/neutralization cases matched across three through eight
+  players. These are method comparisons, not full live rated-game validation.
+- Eight real local bots completed 50,002 ticks with zero timeouts. The recording
+  is 31,224,836 bytes raw and 1,529,805 bytes gzip. The retained system workflows
+  cover play beyond 2,000 ticks, idle adjudication, capture during surrender,
+  exact neutralization timing, Survival ordering and browser replay seeking.
+- Manual browser proof covers 1440×1000 and 390×844 long replay views, seeking
+  from tick 49,000 back to 512, fog, scorecards and the official counter.
+  A real human FFA lobby at 1440×1200 verifies Surrender after automatic passes.
+  [Desktop](https://softmax.nexus/artifacts/f7cd7be7-868d-480c-a151-dffed2b34e7a),
+  [mobile](https://softmax.nexus/artifacts/dc479421-1397-442d-8657-de3b608d0109),
+  [seeking recording](https://softmax.nexus/artifacts/202ea31c-ff6a-48da-acea-a5915ce9f75b),
+  [surrender recording](https://softmax.nexus/artifacts/9366e77d-5ac1-47ac-9d36-9c041473f6b6).
+- Public wiki rules now describe Survival, exits, inactivity, timing and OpenSkill.
+  Exact official star parameters, accelerated bot execution and hosted deadlines
+  remain differences; the release does not claim exact star-rating parity.
+
+Hosted verification:
+
+- Ordinary eight-seat request `xreq_6daee53b-7f81-41bf-ae34-28400c853b8b`
+  completed all 50,002 ticks with zero timeouts and a 37,028,185-byte recording.
+  [Public episode](https://softmax.com/generals/episodes/a9aa3f7d-089c-461b-bc1a-68631ea1ef8c).
+- Round 4611 (`round_c605f9af-da26-4e68-a232-bdd8811680e1`) completed all eight
+  ordinary four-player games on 0.6.0 and updated the same league's OpenSkill
+  standings. Its scores distinguish every Survival placement. One checked game
+  completed at tick 853 with zero timeouts and placements `[4, 1, 2, 3]`.
+  [League episode](https://softmax.com/generals/episodes/c3bb4623-5ac5-4619-b14c-13ee4f4857ed).
+- The hosted live spectator reached tick 50,002, but its query-based recording
+  opt-in was lost through Kubernetes proxying. Saved public replays load correctly.
+  Release 0.6.1 replaces the query opt-in with a WebSocket subscription.
+
+Published artifact identities:
+
+- Manifest: `sha256:332b08f2ad85a58302d9b8bfffb7ae0aad124e23a49a111716f6bec15ca78e23`.
+- Game image: `sha256:5c868067edf7be25d83d4e449315b1f16e61cc865ba7cbfb7c870c094236fa7a`.
+- Player image: `sha256:f4a9a936436febd8886a5687e859d3ee38245ccc40e68314d1f5c400174d7c43`.
+- Replay bundle: `sha256:517da0eac26ad3603739a584a8e14b740a843527716092ddfabd1867e8f142ec`.
+
 ### 0.5.0 — October 30, 2026 (UTC)
 
 - Released from `00f6cf90f47ff388c245b36ea782a96585d985b2` with Coworld SDK

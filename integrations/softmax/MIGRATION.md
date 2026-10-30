@@ -199,7 +199,7 @@ The public episode route opens hosted replay without signing in. The theater's
 league-filtered `?e=` route does not select an out-of-league verification request;
 use the episode's public page or its Replay link for these runs.
 
-### Further ranked FFA alignment — 0.6.0 preparation
+### Further ranked FFA alignment — 0.6.0
 
 The supplied live Game defines the primary `ffa` ladder as FFA Survival.
 The [official version history](https://generals.io/versions) documents its
@@ -283,3 +283,29 @@ on port 18991, at 1440×1200. Clicking Surrender after automatic passes eliminat
 the seat while leaving its general owned. Surrender is independent of the action
 deadline and is accepted during collection or resolution.
 [Browser proof](https://softmax.nexus/artifacts/450cfc72-af66-4461-a9c8-74f0ad87d1d3).
+
+Released source `66050e3c2239ff14189186ed254af6c1aefc9f8e` passed source CI
+(223 passed, one private reference skipped), all eight native AMD64 container
+fixtures and all ten hosted certification checks. Coworld
+`cow_adf51684-c097-4f0c-ba02-c1d8e138b61b` is canonical. Readbacks confirm all
+three leagues resolve to it and the default FFA still uses OpenSkill, the seat
+rungs and eight episodes per round. Public wiki revision
+`wrv_759ca94a-7055-4ed6-bbfe-b2891855ee6a` contains the current rules.
+Artifact hashes and hosted verification are recorded in VARIANTS.md.
+
+The supplied live `Game.js` used for the additional method comparisons has
+SHA-256 `3f93ed25346cec357414c8a3ab894938437c13bff747539f4c015e7945290c41`.
+[Survival comparison](https://softmax.nexus/artifacts/afee369d-ff06-4bd2-aa77-271c4236a1d9)
+and [neutralization comparison](https://softmax.nexus/artifacts/9dd16b42-132d-46cb-aa2e-3031f053c858)
+retain the case counts, source hash, external adapter hash and validation limits.
+The private JavaScript remains outside the repository, game image and viewer.
+
+The ordinary hosted eight-seat 0.6.0 run completed 50,002 ticks with zero
+timeouts and persisted a 37,028,185-byte recording. Its live spectator reached
+the final result but missed the recording opt-in: Kubernetes proxying can strip
+optional query fields, while the player bridge restores only its known fields.
+The 0.6.1 browser therefore subscribes to replay delivery with an explicit
+WebSocket message. Both player and global connections handle that subscription;
+bots retain their bounded terminal messages. The complete live-handoff system
+workflow now strips optional query parameters and requires both browsers to keep
+the recording after HTTP proxy retirement. No game or scoring rules changed.

@@ -32,6 +32,7 @@ def test_live_players_and_spectators_keep_replay_after_http_proxy_retires(tmp_pa
 import sys
 from pathlib import Path
 import uvicorn
+from urllib.parse import parse_qsl, urlencode
 from fastapi.responses import JSONResponse
 from integrations.softmax.config import GameConfig
 from integrations.softmax.server import create_app
@@ -44,6 +45,18 @@ async def retired_proxy(request, call_next):
     if (root / "results.json").exists():
         return JSONResponse({"detail": "Game is not accepting connections"}, status_code=410)
     return await call_next(request)
+class SeatQueryOnly:
+    def __init__(self, app):
+        self.app = app
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "websocket":
+            # The hosted Kubernetes hop can drop optional URL query fields.
+            scope = {**scope, "query_string": urlencode([
+                (key, value) for key, value in parse_qsl(scope["query_string"].decode())
+                if key in {"slot", "token"}
+            ]).encode()}
+        await self.app(scope, receive, send)
+app.add_middleware(SeatQueryOnly)
 server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=int(sys.argv[2]), log_level="error"))
 server.run()
 '''

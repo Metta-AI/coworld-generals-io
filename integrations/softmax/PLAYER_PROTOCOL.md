@@ -111,7 +111,9 @@ The stdio bridge preserves its relative-owner format in FFA (all enemies are 2).
 Bots that need individual opponent identities or build prices should use the
 JSON protocol. No other player's hidden tiles are revealed by the added fields.
 
-Browser connections request `?replay=1` on their WebSocket URL. Their successful
+Browser connections send `{"type":"subscribe","replay":true}` immediately after
+opening the WebSocket. This opt-in crosses proxies without depending on URL query
+forwarding. Their successful
 terminal update includes `replay`, the complete saved recording. It is sent only
 after replay and result artifacts are saved. The browser renders those bytes
 without another HTTP request, because the hosted live proxy can retire immediately

@@ -364,9 +364,11 @@
     }
     // The live HTTP proxy can disappear as soon as results are saved.
     // Receive the recording on this established socket instead of fetching it.
-    url.searchParams.set('replay', '1');
     ws = new WebSocket(url);
-    ws.onopen = () => { $('mode').textContent = isPlayer ? 'PLAYER' : 'LIVE'; status('Waiting for all players.'); };
+    ws.onopen = () => {
+      ws.send(JSON.stringify({type:'subscribe', replay:true}));
+      $('mode').textContent = isPlayer ? 'PLAYER' : 'LIVE'; status('Waiting for all players.');
+    };
     ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data);

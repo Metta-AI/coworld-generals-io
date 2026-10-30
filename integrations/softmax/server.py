@@ -265,12 +265,19 @@ class Episode:
         LOG.info("episode complete: %s, turn %d, winner %d", reason, self.match.turn, winner)
 
 
+def subscribe_replay(ws, message):
+    if message == {"type": "subscribe", "replay": True}:
+        ws.state.include_replay = True
+        return True
+    return False
+
+
 async def send_messages(ws, queue, episode):
     while True:
         message = await queue.get()
         # Browser clients need the completed recording before the hosted proxy
         # retires. Bot clients keep their bounded result-only terminal message.
-        if ws.query_params.get("replay") == "1" and (
+        if ws.state.include_replay and (
             message["type"] == "final" or message["type"] == "global" and message["phase"] == "finished"
         ):
             message = {**message, "replay": episode.browser_replay}
@@ -286,6 +293,7 @@ async def send_messages(ws, queue, episode):
 
 
 async def socket_session(ws, queue, receive, episode):
+    ws.state.include_replay = False
     sender = asyncio.create_task(send_messages(ws, queue, episode))
     episode.senders.add(sender)
     receiver = asyncio.create_task(receive())
@@ -424,7 +432,9 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                     await ws.close(code=1009)
                     return
                 try:
-                    episode.accept(slot, json.loads(raw))
+                    message = json.loads(raw)
+                    if not subscribe_replay(ws, message):
+                        episode.accept(slot, message)
                 except (ValueError, TypeError) as exc:
                     enqueue(
                         queue,
@@ -455,7 +465,7 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
         async def receive():
             # Spectators cannot pause the engine, alter pacing, or choose seeds.
             while True:
-                await ws.receive_text()
+                subscribe_replay(ws, json.loads(await ws.receive_text()))
 
         try:
             await socket_session(ws, queue, receive, episode)
