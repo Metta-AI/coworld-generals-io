@@ -133,7 +133,7 @@ def test_browser_premove_controls(tmp_path, hosted):
             query = urlencode({"address": websocket_url}) if hosted else "slot=0&token=test"
             page.goto(f"http://127.0.0.1:{http.server_port}{prefix}/client/player?{query}")
             expect(page.locator("#mode")).to_have_text("PLAYER")
-            assert sockets[0].url == websocket_url
+            assert sockets[0].url == websocket_url + "&replay=1"
             sockets[0].send(json.dumps({"type": "hello", "slot": 0, "players": ["Human", "Bot"]}))
             obs = {
                 "type": "observation", "slot": 0, "players": ["Human", "Bot"],

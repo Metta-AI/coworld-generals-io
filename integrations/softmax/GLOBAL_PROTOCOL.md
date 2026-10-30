@@ -49,3 +49,13 @@ replay, its perspective selector derives each player's 3×3 territory visibility
 from the recorded board frame. Hidden castles and mountains appear as obstacles;
 hidden generals, ownership, and armies remain concealed. This is a playback
 option only; the public live stream never sends hidden board data.
+
+Browser connections request `?replay=1` on their WebSocket URL. Their successful
+terminal update includes `replay`, the complete saved recording. It is sent only
+after replay and result artifacts are saved. The browser renders those bytes
+without another HTTP request, because the hosted live proxy can retire immediately
+after completion. Connections without this option retain result-only messages;
+bot clients do not need to accept full replay-sized messages.
+
+Finished and failed global updates close the spectator socket cleanly. Hosted
+shutdown waits for its owned terminal sends to finish before stopping the server.

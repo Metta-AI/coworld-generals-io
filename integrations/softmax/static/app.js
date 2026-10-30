@@ -46,7 +46,11 @@
         matchbar.append(card);
       }
     }
-    players.forEach((name, i) => { if ($(`name${i}`).textContent !== name) $(`name${i}`).textContent = name; });
+    players.forEach((name, i) => {
+      const label = $(`name${i}`);
+      if (label.textContent !== name) label.textContent = name;
+      if (replay) $(`replay-players-${i % 2 === 0 ? 'left' : 'right'}`).append(label.closest('.player'));
+    });
     const title = ruleset === 'build_castles' ? 'BUILD YOUR CASTLES' : playerCount === 4 ? '4-PLAYER FFA' : 'CLASSIC 1v1';
     $('variant-title').textContent = title; document.title = `Generals · ${title}`;
   }
@@ -227,7 +231,13 @@
   $('seek').oninput = () => { frameIndex = Number($('seek').value); showReplayFrame(); };
   $('speed').onchange = resetReplayTimer;
   $('perspective').onchange = showReplayFrame;
-  async function loadReplay(url) {
+  async function loadReplay(source) {
+    document.body.classList.add('replay');
+    $('replay-controls').prepend(document.querySelector('.clock'));
+    $('replay-left').append($('replay-controls'));
+    $('replay-right').append($('match-result'));
+    $('replay-timeline').append($('seek'));
+    $('replay-timeline').hidden = true;
     $('launch').hidden = true;
     document.querySelector('.matchbar').hidden = false;
     document.querySelector('.arena').hidden = false;
@@ -244,13 +254,16 @@
     $('cover').hidden = false; $('cover-title').textContent = 'Loading the replay';
     $('cover-text').textContent = 'Reconstructing the battlefield.';
     post({type:'loading'}); post({type:'phase', phase:'replay_fetch_start'});
-    const response = await fetch(url, {credentials:'omit'});
-    if (!response.ok) throw new Error(`Replay could not be loaded (${response.status}).`);
-    let bytes = new Uint8Array(await response.arrayBuffer());
-    const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
-    post({type:'phase', phase:'replay_fetch_end', bytes:bytes.length, compressed});
-    if (compressed) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-    const data = JSON.parse(new TextDecoder().decode(bytes));
+    let data = source;
+    if (typeof source === 'string') {
+      const response = await fetch(source, {credentials:'omit'});
+      if (!response.ok) throw new Error(`Replay could not be loaded (${response.status}).`);
+      let bytes = new Uint8Array(await response.arrayBuffer());
+      const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
+      post({type:'phase', phase:'replay_fetch_end', bytes:bytes.length, compressed});
+      if (compressed) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+      data = JSON.parse(new TextDecoder().decode(bytes));
+    }
     if (load !== replayLoad) return;
     if (data.format !== 'generals-coworld' || data.version !== 1 || !Array.isArray(data.frames) || !data.frames.length || data.frames.length > 2001 ||
         !Number.isInteger(data.height) || !Number.isInteger(data.width) || data.height < 1 || data.height > 21 || data.width < 1 || data.width > 21 ||
@@ -269,6 +282,7 @@
     replayDownload = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
     $('download-replay').href = replayDownload;
     $('play-controls').hidden = true; $('replay-controls').hidden = false; $('seek').max = data.frames.length-1;
+    $('replay-timeline').hidden = false;
     post({type:'phase', phase:'replay_parsed'});
     readySent = false; frameIndex = 0; showReplayFrame(); resetReplayTimer();
   }
@@ -326,6 +340,9 @@
       url = new URL(route, location.href); url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       if (isPlayer) { url.searchParams.set('slot', params.get('slot') || ''); url.searchParams.set('token', params.get('token') || ''); }
     }
+    // The live HTTP proxy can disappear as soon as results are saved.
+    // Receive the recording on this established socket instead of fetching it.
+    url.searchParams.set('replay', '1');
     ws = new WebSocket(url);
     ws.onopen = () => { $('mode').textContent = isPlayer ? 'PLAYER' : 'LIVE'; status('Waiting for all players.'); };
     ws.onmessage = event => {
@@ -340,15 +357,16 @@
         else if (message.type === 'global') {
           ruleset = message.ruleset || ruleset;
           names(message.players); scoreboard(message.turn, message.army, message.land, message.eliminated);
-          if (message.phase === 'finished') { loadReplay(livePrefix+'/client/replay.json').catch(err => fail(err.message)); }
+          if (message.phase === 'finished') { loadReplay(message.replay).catch(err => fail(err.message)); }
           else {
+            if (message.phase === 'failed') terminal = true;
             $('cover-title').textContent = message.phase === 'waiting' ? 'Waiting for the generals' : message.phase === 'failed' ? 'Match could not finish' : 'The battle is underway';
             $('cover-text').textContent = 'The live map stays hidden to protect fog of war. Watch the score here, then explore the full replay.';
             status(message.phase === 'waiting' ? 'Waiting for all players.' : message.phase === 'failed' ? 'The episode failed. Check the game logs.' : 'Live score · Board revealed after the match.'); ready();
           }
         } else if (message.type === 'final') {
           sent = true; clearTimeout(passTimer); status(outcome(message.result));
-          loadReplay(livePrefix+'/client/replay.json').catch(err => fail(err.message));
+          loadReplay(message.replay).catch(err => fail(err.message));
         } else if (message.type === 'error') {
           if (inFlight) stopRoute(inFlight.route, message.message);
           else status(message.message, true);
