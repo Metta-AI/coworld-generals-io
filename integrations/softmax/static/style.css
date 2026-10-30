@@ -16,13 +16,14 @@ header { display: flex; justify-content: space-between; align-items: center; pad
 .player.blue { border-left-color: var(--blue); background: color-mix(in srgb, var(--blue) 9%, transparent); }
 .player.green { border-left-color: var(--green); background: color-mix(in srgb, var(--green) 9%, transparent); }
 .player.purple { border-left-color: var(--purple); background: color-mix(in srgb, var(--purple) 9%, transparent); }
+.player.orange { border-left-color: var(--orange); background: color-mix(in srgb, var(--orange) 9%, transparent); }
+.player.pink { border-left-color: var(--pink); background: color-mix(in srgb, var(--pink) 9%, transparent); }
+.player.teal { border-left-color: var(--teal); background: color-mix(in srgb, var(--teal) 9%, transparent); }
+.player.maroon { border-left-color: var(--maroon); background: color-mix(in srgb, var(--maroon) 9%, transparent); }
 .player.eliminated { opacity: .55; }
 .player.eliminated b::after { content: ' · Out'; }
-.matchbar.ffa .clock { grid-column: 2; grid-row: 1 / span 2; }
-.matchbar.ffa .player:nth-of-type(1) { grid-column: 1; grid-row: 1; }
-.matchbar.ffa .player:nth-of-type(3) { grid-column: 3; grid-row: 1; }
-.matchbar.ffa .player:nth-of-type(4) { grid-column: 1; grid-row: 2; }
-.matchbar.ffa .player:nth-of-type(5) { grid-column: 3; grid-row: 2; }
+.matchbar.ffa .clock { grid-column: 2; grid-row: 1 / span var(--player-rows); }
+.matchbar.ffa .player { grid-column: var(--player-column); grid-row: var(--player-row); }
 .dot { display: none; }
 .divider { padding: 0 6px; opacity: .5; }
 .clock { text-align: center; }
@@ -101,19 +102,17 @@ footer { display: flex; justify-content: space-between; gap: 20px; color: var(--
   .replay main { height: auto; min-height: 100dvh; padding: 16px 12px; gap: 12px; }
   .replay .battlefield { flex: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto; gap: 8px; }
   .replay .replay-sidebar, .replay .replay-players { display: contents; }
-  .replay .matchbar .player { grid-column: 1; grid-row: 1; align-self: stretch; padding: 10px; }
-  .replay .matchbar .player:is(.blue, .purple) { grid-column: 2; }
-  .replay .matchbar .player:is(.green, .purple) { grid-row: 2; }
+  .replay .matchbar .player { grid-column: calc((var(--player-column) + 1) / 2); grid-row: var(--player-row); align-self: stretch; padding: 10px; }
   .replay .player b { font-size: 13px; }
   .replay .player .divider { display: inline; visibility: visible; }
-  .replay .arena { grid-column: 1 / -1; grid-row: 3; height: min(calc(100vw - 24px), 60svh); }
-  .replay #replay-timeline { grid-row: 4; }
-  .replay #replay-controls { grid-column: 1 / -1; grid-row: 5; display: flex; flex-wrap: wrap; gap: 8px; }
+  .replay .arena { grid-column: 1 / -1; grid-row: calc(var(--player-rows) + 1); height: min(calc(100vw - 24px), 60svh); }
+  .replay #replay-timeline { grid-row: calc(var(--player-rows) + 2); }
+  .replay #replay-controls { grid-column: 1 / -1; grid-row: calc(var(--player-rows) + 3); display: flex; flex-wrap: wrap; gap: 8px; }
   .replay #replay-controls label { flex-direction: row; align-items: center; }
   .replay #replay-controls select { width: auto; }
   .replay #replay-controls .clock { display: block; min-width: 36px; text-align: center; }
   .replay .clock b { font-size: 20px; }
-  .replay #match-result { grid-column: 1 / -1; grid-row: 6; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding-top: 12px; }
+  .replay #match-result { grid-column: 1 / -1; grid-row: calc(var(--player-rows) + 4); flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding-top: 12px; }
   .replay #match-result h2 { font-size: 12px; }
   .replay #match-result p { margin-right: auto; }
 }

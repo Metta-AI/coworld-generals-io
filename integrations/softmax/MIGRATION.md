@@ -123,3 +123,204 @@ Validation includes the full-height replay layout merged from main at `84a2005`.
 These are local validation results. Publishing a canonical amd64 release still
 uses the existing release workflow. Late navigation to an expired live URL is
 owned by the platform proxy, which must resolve the episode's recorded replay.
+
+### Ranked FFA map alignment — 0.5.0 preparation
+
+FFA now accepts three through eight players. The new startup sampler follows
+base-game ranked map generation, including squared-uniform dimensions,
+player-count-dependent spacing and city budgets, mountain draws with replacement,
+fair city placement, and rejection of blocked or city-starved spawns.
+Four-player maps have 20–26 tiles per side; eight-player maps have 25–33.
+
+The reference was the developer-supplied `GeneralsIOProbablyAllYouNeedInitially.zip`
+(Constants version 31.4.4), with the separately supplied base Map. The supplied
+JavaScript files remain external to this repository and distributed artifacts.
+A local loader exercised the real `Game.tryInitializeGame`, `Terrain`, Map,
+shuffle, and city-placement methods. Unavailable chat/options imports were
+bypassed; options were supplied directly. This validates base FFA map sampling,
+not the unavailable live server or its authentication and event wrappers.
+
+With identical random-draw streams, all 600 generated boards matched tile for
+tile, including the draw count: 100 seeds for each of 3, 4, 5, 6, 7, and 8 seats.
+The comparison includes city-placement fallback and rejected-map retries.
+[Comparison report](https://softmax.nexus/artifacts/9d7631a8-adef-42a9-b0ae-f82edcecd81b).
+
+Reference SHA-256 identities:
+
+| Input | SHA-256 |
+| --- | --- |
+| Original archive | `58de1a86022a97fc79a9905da0c27996fb86d104b7e34fd1cbf1994ce781e8f5` |
+| Game.js | `3f93ed25346cec357414c8a3ab894938437c13bff747539f4c015e7945290c41` |
+| Terrain.js | `a73ba43eb3e14b88b3bf9e285625bf9099fde67aaab3675bd3cbefced7ca803e` |
+| Utils.js | `c8aba8420162a5df73035abe47b37d6f6c5eb0d2dba2560501adf64cc4d6711b` |
+| Original Constants.js | `ce4d795ce1fd5c860a05276daa8987f21059795a8c135237bdde794f6cbe5c30` |
+| Separate Map.js | `08a06a43751020f1c68aa84b0c3c39940c90871f9451a0508a340af554b11276` |
+| Separate Constants.js | `ee1df1683c38f941ff6548e3fb29313405dd151c28f871f4e029f6ef75e8fc14` |
+| Comparison report | `f9e9b1946ff39a5c9e9f57f5376feeff06f1ba4d4f8e02f58efff8c13933d451` |
+
+The real eight-bot workflow exposed compilation exceeding the launcher's
+60-second readiness window. Keeping move ordering and general-trade resolution
+as compiled loops, rather than unrolling player pairs, reduced a fresh eight-seat
+Match startup to 8.23 seconds on the validation host. The same workflow then
+completed and rendered all eight players, colors, fog perspectives, and seeking
+on desktop and mobile.
+
+The bot turn cap, winner-only scoring, action deadlines, and timeout-neutralization
+policy remain Softmax hosting choices. Map alignment does not establish parity
+for those policies or the public ladder's rating system.
+
+### 0.5.0 hosted completion — October 30, 2026 (UTC)
+
+Released source `00f6cf90f47ff388c245b36ea782a96585d985b2` using the existing
+`coworld-release.yml` workflow with `version=0.5.0`. All eight native AMD64
+certification fixtures passed; hosted certification passed its ten checks.
+The version, image identities, verification request, and public replay are
+recorded in [VARIANTS.md](VARIANTS.md#050--october-30-2026-utc).
+
+Validation used Python 3.12, the locked runtime dependencies, and Chromium:
+
+- `GENERALS_BROWSER_TESTS=1 pytest -q` in source CI: 221 passed, one private
+  reference check skipped. Both the implementation and release-source runs passed.
+- The same complete suite passed all 222 checks locally, running modules in
+  separate processes with `GENERALS_BROWSER_TESTS=1`,
+  `GENERALS_REFERENCE_ENGINE` pointing outside the checkout, and CPU JAX.
+- Manifest consistency, scoped Ruff, both browser JavaScript syntax checks,
+  and `git diff --check` passed.
+- The ordinary hosted `ffa-8` variant completed 2,000 turns on a 26×25 board
+  with eight real policy containers and zero timeouts. Its saved recording
+  contains 2,001 frames and all eight seats. This validates runtime operation,
+  not baseline playing strength or match balance.
+- The public default league, persistent seed name, canonical version, scheduler,
+  and all three leagues' resolved game versions were read back after rollout.
+  The scheduler replacement preserved every other stored setting and used the
+  snapshot revision in `If-Match` for validation and persistence.
+
+The public episode route opens hosted replay without signing in. The theater's
+league-filtered `?e=` route does not select an out-of-league verification request;
+use the episode's public page or its Replay link for these runs.
+
+### Further ranked FFA alignment — 0.6.0
+
+The supplied live Game defines the primary `ffa` ladder as FFA Survival.
+The [official version history](https://generals.io/versions) documents its
+kill/win partition. This release records elimination sequence, credited killers,
+and enemy army destroyed inside the authoritative transition. FFA outcomes now
+follow that partition and reverse elimination order. Scores preserve the ordering
+for Softmax; its OpenSkill implementation remains separate from the omitted official updater.
+
+The adapter follows the live source's 50-tick surrender capture window,
+neutralization credit, inactivity check at tick 121, and army/land/seat
+adjudication after more than 2,000 idle ticks or the 50,000-tick long-game
+threshold. Bot FFA permits the resulting terminal tick 50,002. Transport misses
+are passes; explicit surrender and disconnect are game events. FFA's initial
+input window is 1.5 seconds, as in the official pre-game delay. Accelerated bot
+execution, human budgets, network deadlines, and the platform job deadline remain
+hosting constraints. Two engine ticks correspond to one full official game turn.
+
+The shared base engine now pays the final tick's growth, including on a capture
+or surrender ending. The external comparison includes that final board rather
+than exempting its income difference. Historical episode frames and pinned source
+revisions remain unchanged.
+
+Replay format 2 uses a full keyframe every 256 frames and sparse tile replacements
+between them. Python and browser readers reconstruct a single sought frame from
+its nearest keyframe. Published v1 full-frame recordings retain their explicit
+reader. Browser terminal handoff uses one gzip/base64 recording after artifact
+persistence, so long recordings do not require a new request after proxy retirement.
+Observations are batched and converted to host arrays once per tick; the player
+wire format and fog masks remain unchanged.
+
+The retained real-session workflows exercise play past the old 2,000-tick cap,
+idle adjudication and replay seeking, and a surrendered general captured within
+the window. That killer then surrenders and must outrank a later kill-less survivor.
+The existing reference workflow now requires an identical terminal board too.
+
+The replay/live clock also follows the official client counter: `floor(tick / 2)`
+with a dot on odd ticks. Network actions and the replay seek slider still address
+engine ticks. The initial 1.5-second input window prevents eight stdio subprocesses
+from being mistaken for disconnects while initializing, matching the supplied
+live game's pre-game delay. Live kill information is a boolean `has_kill`, as in
+the official score stream; exact counts are recorded only for completed replays/results.
+
+The official copyright page identifies OpenSkill for stars and matchmaking.
+The public `strakam/generals-bots` tree at
+`954927f508aa47899019d66317cc313af3e9cc19` contains no rating updater.
+The user requested continuation of the existing league under OpenSkill. Its
+settings API requires an explicit typed-state migration rather than interpreting
+Elo numbers as OpenSkill. Scheduling was paused with zero pending, claimed or
+running rounds. The commissioner-state compare-and-swap moved standings aside,
+settings were conditionally replaced, and all four typed OpenSkill standings
+were restored before resuming. No round, episode or membership was deleted.
+Round attribution, round counts, score tallies and policy bookkeeping were kept.
+The old pairwise Elo win/draw/loss counters were restarted because OpenSkill
+counts whole episodes. Ratings start at mu 50 and sigma 50/3; future results
+establish their estimates. Plackett-Luce uses the library-scaled beta and tau
+defaults; exact official star parameters remain unverified.
+The pre-migration state is backed up in
+[Nexus](https://softmax.nexus/artifacts/b1792b0d-0d9e-46be-a0b7-2d06d2ea0c60).
+
+Pre-release checks: 600 generated Survival-order cases and 600 surrender/neutralization
+cases matched the supplied live Game methods across three through eight seats.
+These compare isolated official methods on valid states, not live rated games.
+The ordinary local eight-bot variant completed 50,002 ticks with zero timeouts
+and a 30 MB recording. Two deliberate regressions (one-tick neutralization and
+the old 2,000-tick cap) each failed the corresponding retained system workflow.
+
+Manual browser proof used the saved eight-seat recording on
+`http://127.0.0.1:18995/#replay=long.json`, at 1440×1000 and 390×844.
+Seeking from tick 49,000 back to 512, changing to Maroon fog, the official
+clock, scorecards and result all rendered without browser errors.
+
+All 224 checks passed locally, including the private terminal-board reference,
+all browser modules and both new real-session FFA system cases. Modules ran in
+separate processes with CPU JAX and four-core affinity. The benchmark-only
+`test_performance.py` collects zero tests. One concurrent live-handoff attempt
+failed when its baseline player hit an initial timeout; the isolated complete
+workflow subsequently passed with zero timeouts.
+
+The real human FFA check used `--human --players 4 --seed 7 --max-turns 80`
+on port 18991, at 1440×1200. Clicking Surrender after automatic passes eliminated
+the seat while leaving its general owned. Surrender is independent of the action
+deadline and is accepted during collection or resolution.
+[Browser proof](https://softmax.nexus/artifacts/450cfc72-af66-4461-a9c8-74f0ad87d1d3).
+
+Released source `66050e3c2239ff14189186ed254af6c1aefc9f8e` passed source CI
+(223 passed, one private reference skipped), all eight native AMD64 container
+fixtures and all ten hosted certification checks. Coworld
+`cow_adf51684-c097-4f0c-ba02-c1d8e138b61b` is canonical. Readbacks confirm all
+three leagues resolve to it and the default FFA still uses OpenSkill, the seat
+rungs and eight episodes per round. Public wiki revision
+`wrv_759ca94a-7055-4ed6-bbfe-b2891855ee6a` contains the current rules.
+Artifact hashes and hosted verification are recorded in VARIANTS.md.
+
+The supplied live `Game.js` used for the additional method comparisons has
+SHA-256 `3f93ed25346cec357414c8a3ab894938437c13bff747539f4c015e7945290c41`.
+[Survival comparison](https://softmax.nexus/artifacts/afee369d-ff06-4bd2-aa77-271c4236a1d9)
+and [neutralization comparison](https://softmax.nexus/artifacts/9dd16b42-132d-46cb-aa2e-3031f053c858)
+retain the case counts, source hash, external adapter hash and validation limits.
+The private JavaScript remains outside the repository, game image and viewer.
+
+The ordinary hosted eight-seat 0.6.0 run completed 50,002 ticks with zero
+timeouts and persisted a 37,028,185-byte recording. Its live spectator reached
+the final result but missed the recording opt-in: Kubernetes proxying can strip
+optional query fields, while the player bridge restores only its known fields.
+The 0.6.1 browser therefore subscribes to replay delivery with an explicit
+WebSocket message. Both player and global connections handle that subscription;
+bots retain their bounded terminal messages. The complete live-handoff system
+workflow now strips optional query parameters and requires both browsers to keep
+the recording after HTTP proxy retirement. No game or scoring rules changed.
+
+Release 0.6.1 from `69d95a0faadf9b98b9126e1855a8ac175d2f18c8` passed
+all eight native fixtures and all ten hosted checks. It is canonical as
+`cow_14c35330-f928-44a7-a3cd-a8e48577a195`. A spectator connected before play
+on the ordinary four-seat variant transitioned LIVE → REPLAY after tick 710,
+with all 711 frames, placements and zero timeouts in its downloadable recording.
+The same session rendered desktop/mobile, fog and backward seeking without
+browser errors. The saved public eight-seat recording also seeks to 50,002
+and back to 0. VARIANTS.md links the exact episodes, hashes and browser proof.
+All three leagues resolve to the patch; FFA remains default/OpenSkill and runs
+eight episodes per round. The transport fix changes no game or rating rules.
+
+Final CI at test-only follow-up `c01f5ba` passed 223 checks with the private
+reference skipped. The runtime source is identical to released `69d95a0`;
+subsequent commits record documentation evidence only.

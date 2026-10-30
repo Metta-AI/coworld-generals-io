@@ -13,7 +13,8 @@ from urllib.parse import urlencode
 
 import httpx
 
-from integrations.softmax.file_players import FileSeat, Seats, SocketSeat
+from .config import PLAYER_NAMES
+from .file_players import FileSeat, Seats, SocketSeat
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,8 +23,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--port", type=int, default=8080)
-    parser.add_argument("--max-turns", type=int, help="default: 2000, or 1200 with --human, as hosted")
+    parser.add_argument("--max-turns", type=int, help="default: 50002 for FFA, 2000 for 1v1, 1200 with --human")
     parser.add_argument("--variant", choices=("competition", "ffa", "castles"), default="competition")
+    parser.add_argument("--players", type=int, choices=range(3, 9), default=4, help="FFA seats (default: 4)")
     parser.add_argument("--human", action="store_true", help="control slot 0 in the browser")
     parser.add_argument(
         "--basic",
@@ -40,7 +42,7 @@ def main():
     # Each run gets its own directory so old success artifacts cannot mask failure.
     run_dir = output / f"episode-{time.time_ns()}"
     run_dir.mkdir(mode=0o700)
-    count = 4 if args.variant == "ffa" else 2
+    count = args.players if args.variant == "ffa" else 2
     basic = {}
     for entry in args.basic:
         slot, separator, path = entry.partition("=")
@@ -50,13 +52,13 @@ def main():
             parser.error("human slot 0 cannot also execute a BASIC file")
         basic[int(slot)] = Path(path).resolve()
     tokens = [secrets.token_urlsafe(24) for _ in range(count)]
-    names = ["Red", "Blue", "Green", "Purple"][:count]
+    names = PLAYER_NAMES[:count]
     config = {
         "tokens": tokens,
         "players": [{"name": "You" if args.human and slot == 0 else name} for slot, name in enumerate(names)],
         "ruleset": "build_castles" if args.variant == "castles" else "classic",
         "seed": args.seed,
-        "max_turns": args.max_turns or (1200 if args.human else 2000),
+        "max_turns": args.max_turns or (1200 if args.human else 50002 if args.variant == "ffa" else 2000),
         "tick_interval_seconds": 0.5 if args.human else 0.0,
         "turn_timeout_seconds": 1 if args.human else 0.5,
     }
@@ -131,7 +133,7 @@ def main():
                     [sys.executable, "-m", f"integrations.softmax.{module}"], env=player_env, cwd=ROOT))
         print(f"Watch: {base}/client/global", flush=True)
         print(f"Artifacts: {run_dir}", flush=True)
-        deadline = time.monotonic() + 900
+        deadline = time.monotonic() + max(900, config["max_turns"] * config["turn_timeout_seconds"] + 180)
         while not (run_dir / "results.json").exists():
             if server.poll() is not None or (run_dir / "failure.json").exists():
                 raise RuntimeError("episode failed; inspect the server output and failure artifact")

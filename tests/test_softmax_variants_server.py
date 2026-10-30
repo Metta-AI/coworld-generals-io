@@ -12,6 +12,7 @@ from generals.core.game import create_initial_state
 from integrations.softmax.config import GameConfig
 from integrations.softmax.engine import Match
 from integrations.softmax.protocol import PASS
+from integrations.softmax.replay import ReplayFrames, replay_frame
 from integrations.softmax.server import Episode, create_app
 
 
@@ -45,13 +46,13 @@ def test_four_players_authenticate_and_finish_websocket_episode(tmp_path):
             for ws, obs in zip(sockets, observations):
                 ws.send_json({"type": "action", "turn": obs["turn"], "action": PASS})
         result = receive(sockets[0], "final")["result"]
-        assert result["scores"] == [0] * 4 and result["timeouts"] == [0] * 4
+        assert sorted(result["placements"]) == [1, 2, 3, 4] and result["timeouts"] == [0] * 4
         replay = client.get("/replay.json").json()
         assert len(replay["players"]) == 4 and len(replay["frames"]) == 5
         assert set(value for row in replay["frames"][0]["owner_grid"] for value in row) == {0, 1, 2, 3, 4}
 
 
-def test_ffa_forfeit_eliminates_only_missing_player_and_keeps_running(tmp_path):
+def test_ffa_missing_actions_pass_without_transport_forfeits(tmp_path):
     async def run():
         cfg = config(max_consecutive_timeouts=1, turn_timeout_seconds=0.05)
         episode = Episode(cfg, Match(7, num_players=4), destinations(tmp_path))
@@ -69,15 +70,17 @@ def test_ffa_forfeit_eliminates_only_missing_player_and_keeps_running(tmp_path):
             await asyncio.gather(episode.run(), *(player(s) for s in range(4)))
         assert episode.result["turns"] == 4
         assert episode.result["reason"] == "turn_limit"
-        assert episode.result["timeouts"] == [0, 0, 0, 1]
-        assert episode.frames[-1]["eliminated"] == [False, False, False, True]
-        assert episode.turns[0]["forfeited"] == [3] and episode.turns[0]["applied"]
-        assert all(not turn["timed_out"][3] for turn in episode.turns[1:])
+        assert episode.result["timeouts"] == [0, 0, 0, 4]
+        assert episode.frames[-2]["eliminated"] == [False, False, False, False]
+        assert all(not turn["forfeited"] and turn["applied"] for turn in episode.turns)
+        assert all(turn["timed_out"][3] for turn in episode.turns)
         # Replay resimulation includes forfeits before moves.
         match = Match(7, num_players=4)
         for attempt, frame in zip(episode.turns, episode.frames[1:]):
             match.forfeit(attempt["forfeited"])
             match.advance(attempt["actions"])
+            if match.turn == cfg.max_turns:
+                match.adjudicate(match.frame())
             assert match.frame() == frame
 
     asyncio.run(run())
@@ -93,7 +96,7 @@ def test_build_action_changes_replay_and_next_observation(tmp_path):
             ownership=state.ownership.at[0, 0, 1].set(True),
             ownership_neutral=state.ownership_neutral.at[0, 1].set(False))
         episode.match.height = episode.match.width = 8
-        episode.frames = [episode.match.frame()]
+        episode.frames = ReplayFrames(episode.match.frame())
         with client.websocket_connect("/player?slot=0&token=test-0") as red, \
                 client.websocket_connect("/player?slot=1&token=test-1") as blue:
             for turn in range(4):
@@ -109,7 +112,7 @@ def test_build_action_changes_replay_and_next_observation(tmp_path):
             assert receive(red, "final")["result"]["timeouts"] == [0, 0]
         replay = json.loads((tmp_path / "replay.json").read_text())
         assert replay["ruleset"] == "build_castles"
-        assert replay["frames"][1]["type_grid"][0][1] == 3
+        assert replay_frame(replay["frames"], 1)["type_grid"][0][1] == 3
 
 
 def test_classic_players_trade_generals_and_finish_with_replay(tmp_path):
@@ -192,7 +195,7 @@ def test_classic_players_trade_generals_and_finish_with_replay(tmp_path):
         assert result["scores"] == [0, 0] and result["timeouts"] == [0, 0]
         replay = client.get("/replay.json").json()
         assert replay["result"] == result
-        frame = replay["frames"][traded_turn + 1]
+        frame = replay_frame(replay["frames"], traded_turn + 1)
         assert frame["eliminated"] == [False, False]
         for slot in range(2):
             r, c = generals[1 - slot]

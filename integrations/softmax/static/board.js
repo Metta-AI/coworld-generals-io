@@ -21,6 +21,10 @@
           else if (t.owner === 1) cls += ' red';
           else if (t.owner === 2) cls += ' green';
           else if (t.owner === 3) cls += ' purple';
+          else if (t.owner === 4) cls += ' orange';
+          else if (t.owner === 5) cls += ' pink';
+          else if (t.owner === 6) cls += ' teal';
+          else if (t.owner === 7) cls += ' maroon';
           else if (t.castle && t.owner === -1) cls += ' neutral-castle';
           else cls += ' neutral';
           if (t.general) cls += ' has-general';

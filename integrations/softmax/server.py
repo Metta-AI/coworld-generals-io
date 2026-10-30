@@ -1,6 +1,8 @@
 """Authoritative, bounded Generals Coworld HTTP/WebSocket server."""
 
 import asyncio
+import base64
+import gzip
 import hmac
 import json
 import logging
@@ -21,6 +23,7 @@ from .config import GameConfig
 from .engine import Match
 from .file_players import PolicyFault, load_file_players
 from .protocol import PASS, VERSION, parse_action
+from .replay import REPLAY_VERSION, ReplayFrames
 
 STATIC = Path(__file__).parent / "static"
 LOG = logging.getLogger("generals.softmax")
@@ -49,7 +52,8 @@ class Episode:
         self.pending: dict[int, list[int]] = {}
         self.timeouts = [0] * self.num_players
         self.consecutive_timeouts = [0] * self.num_players
-        self.frames = [match.frame()]
+        self.frames = ReplayFrames(match.frame())
+        self.surrenders: set[int] = set()
         self.turns = []
         self.result = None
         self.replay = None
@@ -79,6 +83,8 @@ class Episode:
             "ruleset": self.config.ruleset,
             "army": frame["army"],
             "land": frame["land"],
+            "has_kill": [count > 0 for count in frame["kills"]],
+            "neutralize_in": frame["neutralize_in"],
             "eliminated": frame["eliminated"],
             "result": self.result,
             "board": frame if self.phase == "finished" else None,
@@ -89,16 +95,30 @@ class Episode:
         for queue in self.viewers:
             enqueue(queue, public)
 
+    @property
+    def turn_timeout(self) -> float:
+        # The official pre-game input window also lets stdio players initialize.
+        return 1.5 if self.match.is_ffa and self.match.turn == 0 else self.config.turn_timeout_seconds
+
     def observation(self, slot):
+        return self.decorate_observation(self.match.observation(slot))
+
+    def decorate_observation(self, observation: dict):
         return {
-            **self.match.observation(slot),
+            **observation,
             "players": self.names,
             "max_turns": self.config.max_turns,
-            "turn_timeout_seconds": self.config.turn_timeout_seconds,
-            "public_scores": {key: self.frames[-1][key] for key in ("army", "land", "eliminated")},
+            "turn_timeout_seconds": self.turn_timeout,
+            "public_scores": {key: self.frames[-1][key]
+                              for key in ("army", "land", "eliminated", "neutralize_in")}
+                             | {"has_kill": [count > 0 for count in self.frames[-1]["kills"]]},
         }
 
     def accept(self, slot, message):
+        if (self.match.is_ffa and message == {"type": "surrender"}
+                and self.phase in ("playing", "resolving") and slot in self.match.active_slots):
+            self.request_surrender(slot)
+            return
         if self.phase != "playing":
             raise ValueError("game is not accepting actions")
         if slot not in self.match.active_slots:
@@ -108,6 +128,11 @@ class Episode:
             raise ValueError("only the first valid action per turn is accepted")
         self.pending[slot] = action
         if all(s in self.pending for s in self.match.active_slots):
+            self.actions_ready.set()
+
+    def request_surrender(self, slot: int):
+        self.surrenders.add(slot)
+        if all(s in self.pending or s in self.surrenders for s in self.match.active_slots):
             self.actions_ready.set()
 
     async def save(self, name, payload):
@@ -166,7 +191,8 @@ class Episode:
         winner, reason = -1, "turn_limit"
         while self.match.turn < self.config.max_turns:
             active = self.match.active_slots
-            observations = await asyncio.to_thread(lambda: [self.observation(s) for s in range(self.num_players)])
+            observations = [self.decorate_observation(obs) for obs in
+                            await asyncio.to_thread(self.match.observations)]
             self.pending.clear()
             self.actions_ready.clear()
             self.phase = "playing"
@@ -182,32 +208,39 @@ class Episode:
                 enqueue(queue, observations[slot])
             self.publish()
             try:
-                async with asyncio.timeout(self.config.turn_timeout_seconds):
+                async with asyncio.timeout(self.turn_timeout):
                     await self.actions_ready.wait()
             except TimeoutError:
                 pass
             self.phase = "resolving"
             actions = [self.pending.get(slot, PASS.copy()) for slot in range(self.num_players)]
-            missing = [slot in active and slot not in self.pending for slot in range(self.num_players)]
+            missing = [slot in active and slot not in self.pending and slot not in self.surrenders
+                       for slot in range(self.num_players)]
             for slot in active:
                 self.timeouts[slot] += int(missing[slot])
                 self.consecutive_timeouts[slot] = self.consecutive_timeouts[slot] + 1 if missing[slot] else 0
-            forfeits = [s for s in active if self.consecutive_timeouts[s] >= self.config.max_consecutive_timeouts]
+            forfeits = sorted(self.surrenders & set(active)) if self.match.is_ffa else [
+                s for s in active if self.consecutive_timeouts[s] >= self.config.max_consecutive_timeouts
+            ]
+            self.surrenders.difference_update(forfeits)
             attempt = {"turn": self.match.turn, "actions": actions, "timed_out": missing,
                        "forfeited": forfeits, "applied": True}
             self.turns.append(attempt)
             if forfeits:
                 winner = await asyncio.to_thread(self.match.forfeit, forfeits)
-                if len(self.match.active_slots) <= 1:
+                if len(self.match.active_slots) <= 1 and not self.match.is_ffa:
                     attempt["applied"] = False
                     reason = "forfeit" if winner >= 0 else "double_forfeit"
                     # Forfeits can change ownership without advancing the tick.
                     self.frames.append(await asyncio.to_thread(self.match.frame))
                     break
             winner = await asyncio.to_thread(self.match.advance, actions)
+            if self.match.is_ffa and winner < 0 and self.match.turn >= self.config.max_turns:
+                self.match.end_reason = "turn_limit"
+                winner = self.match.adjudicate(self.match.frame())
             self.frames.append(await asyncio.to_thread(self.match.frame))
             if winner >= 0:
-                reason = "general_capture"
+                reason = ("forfeit" if forfeits else self.match.end_reason) if self.match.is_ffa else "general_capture"
                 break
             remaining = self.config.tick_interval_seconds - (asyncio.get_running_loop().time() - started)
             if remaining > 0:
@@ -215,7 +248,8 @@ class Episode:
 
         self.phase = "saving"
         result = {
-            "scores": [0] * self.num_players if winner == -1 else [1 if s == winner else -1 for s in range(self.num_players)],
+            "scores": ([0] * self.num_players if winner == -1 else
+                       [1 if s == winner else -1 for s in range(self.num_players)]),
             "winner": winner,
             "reason": reason,
             "turns": self.match.turn,
@@ -223,15 +257,17 @@ class Episode:
             "land": self.frames[-1]["land"],
             "timeouts": self.timeouts,
         }
+        if self.match.is_ffa:
+            result.update(self.match.standings(winner))
         replay = {
             "format": "generals-coworld",
-            "version": VERSION,
+            "version": REPLAY_VERSION,
             "ruleset": self.config.ruleset,
             "seed": self.config.seed,
             "height": self.match.height,
             "width": self.match.width,
             "players": self.names,
-            "frames": self.frames,
+            "frames": self.frames.records,
             "turns": self.turns,
             "result": result,
         }
@@ -241,6 +277,12 @@ class Episode:
             await self.file_players.close()
         await self.save("results", result)
         self.result, self.replay = result, replay
+        self.browser_replay = await asyncio.to_thread(lambda: {
+            "encoding": "gzip+base64",
+            "data": base64.b64encode(gzip.compress(
+                json.dumps(replay, separators=(",", ":")).encode(), compresslevel=1
+            )).decode(),
+        })
         self.phase = "finished"
         self.publish()
         LOG.info("episode complete: %s, turn %d, winner %d", reason, self.match.turn, winner)
@@ -253,15 +295,22 @@ class Episode:
         self.publish()
 
 
+def subscribe_replay(ws, message):
+    if message == {"type": "subscribe", "replay": True}:
+        ws.state.include_replay = True
+        return True
+    return False
+
+
 async def send_messages(ws, queue, episode):
     while True:
         message = await queue.get()
         # Browser clients need the completed recording before the hosted proxy
         # retires. Bot clients keep their bounded result-only terminal message.
-        if ws.query_params.get("replay") == "1" and (
+        if ws.state.include_replay and (
             message["type"] == "final" or message["type"] == "global" and message["phase"] == "finished"
         ):
-            message = {**message, "replay": episode.replay}
+            message = {**message, "replay": episode.browser_replay}
         terminal = message["type"] in ("final", "failure") or (
             message["type"] == "global" and message["phase"] in ("finished", "failed")
         )
@@ -274,6 +323,7 @@ async def send_messages(ws, queue, episode):
 
 
 async def socket_session(ws, queue, receive, episode):
+    ws.state.include_replay = False
     sender = asyncio.create_task(send_messages(ws, queue, episode))
     episode.senders.add(sender)
     receiver = asyncio.create_task(receive())
@@ -412,7 +462,9 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                     await ws.close(code=1009)
                     return
                 try:
-                    episode.accept(slot, json.loads(raw))
+                    message = json.loads(raw)
+                    if not subscribe_replay(ws, message):
+                        episode.accept(slot, message)
                 except (ValueError, TypeError) as exc:
                     enqueue(
                         queue,
@@ -427,6 +479,9 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
         finally:
             if episode.players.get(slot) is queue:
                 del episode.players[slot]
+                if (episode.match.is_ffa and episode.phase in ("playing", "resolving")
+                        and slot in episode.match.active_slots):
+                    episode.request_surrender(slot)
             episode.reserved_slots.discard(slot)
 
     @app.websocket("/global")
@@ -440,7 +495,7 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
         async def receive():
             # Spectators cannot pause the engine, alter pacing, or choose seeds.
             while True:
-                await ws.receive_text()
+                subscribe_replay(ws, json.loads(await ws.receive_text()))
 
         try:
             await socket_session(ws, queue, receive, episode)

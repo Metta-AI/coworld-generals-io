@@ -6,7 +6,7 @@ for source format, observations, commands, budgets, and failure behavior.
 This release requires the platform's `player_types` capability declaration and matching Coworld
 SDK. Existing container policy versions remain eligible; they need no conversion.
 
-One Coworld with three competitive modes: **classic 1v1**, **four-player FFA**,
+One Coworld with three competitive modes: **classic 1v1**, **three-to-eight-player FFA**,
 and **build-your-own-castles 1v1**. All reuse this repository's `GeneralsEnv`
 engine with fog of war and normal combat. Deathtouch is disabled. The
 authoritative engine is Python/JAX on CPU; separate players connect over
@@ -24,7 +24,7 @@ Release 0.3.0 adds the `ffa` and `castles` variants, plus paced human versions
 classic 1v1 rules. The bot variants (`competition`, `ffa`, `castles`) cap at
 2,000 turns; the paced human variants remain at 1,200. Each bot mode runs as its
 own Softmax league under the same `generals-competition` Coworld: Classic 1v1,
-FFA 1v1v1v1 and Build 1v1. The bundled Builder player
+FFA (3–8 players) and Build 1v1. The bundled Builder player
 funds an opening castle before expanding; Expander works in every mode but does
 not build. These are integration baselines, not strong competitive players.
 
@@ -56,6 +56,19 @@ matching classic. Human variants stay at 1,200 so a paced game fits Softmax's
 20-minute hosted episode limit.
 Release 0.3.3 changes documentation only: per-mode turn caps, the move order
 and one league per bot mode.
+
+FFA variants select an exact seat count: `ffa` and `ffa-human` have four seats;
+`ffa-3`, `ffa-5`, `ffa-6`, `ffa-7`, and `ffa-8` select the other supported sizes.
+Append `-human` for their paced versions. The league scheduler chooses the size
+that fits its current entrants, up to eight, without cloning policies.
+
+Release 0.6.0 aligns FFA outcomes and player exits with the supplied official
+base game. FFA Survival orders players with a kill, or the winner, ahead of
+kill-less players; each group follows reverse elimination order. Surrender leaves
+territory capturable for 50 ticks. Inactivity checks and the official idle/long-game
+adjudication replace the 2,000-tick draw. Compact recordings retain every tick
+without storing every board in full. See the current rules below; earlier release
+paragraphs describe their historical settings.
 
 ## Shared play experience
 
@@ -89,7 +102,7 @@ From the repository root, with Python 3.12:
 pip install -e '.[softmax]'
 python -m integrations.softmax.local --human
 # Other modes (omit --human for bundled bots):
-python -m integrations.softmax.local --variant ffa --human
+python -m integrations.softmax.local --variant ffa --players 8 --human
 python -m integrations.softmax.local --variant castles --human
 ```
 
@@ -123,16 +136,20 @@ python -m integrations.softmax.local --seed 7 --keep-open
 ```
 
 `--max-turns 40` makes a short smoke test. Without it, local games use the hosted
-caps: 2,000 turns for bots and 1,200 with `--human`. Each local run writes into its own ignored `local-output/episode-*`
+caps: 50,002 engine ticks for FFA bots, 2,000 for other bots, and 1,200 with `--human`. Each local run writes into its own ignored `local-output/episode-*`
 directory. `config.json` contains local player tokens; do not publish it. The
 shareable outputs are `results.json` and `replay.json`. `--port` selects another
 local port. The local launcher binds only to loopback.
 
 ## Rules and scoring
 
-- Two opposing generals (four in FFA) on an independently sampled 18–21 by
-  18–21 board. The spawn-distance target is 17 steps for 1v1 and 10 for FFA;
-  the map generator uses its connected fallback when a target cannot fit.
+- Two opposing generals in 1v1 on an independently sampled 18–21 by 18–21
+  board. FFA supports three to eight independent players and uses ranked map
+  generation: four-player maps have sides of 20–26 tiles; eight-player maps
+  have sides of 25–33. Each side uses a squared-uniform draw, favoring smaller
+  maps. City budgets, mountain sampling, general separation, fair city placement,
+  nearby-city checks, and connectivity rejection follow the supplied official
+  base-game generator. Rejected maps are resampled without relaxing constraints.
 - Fog of war: a player sees its owned tiles and their neighbors. Public army
   and land totals remain visible. Unexplored mountains/castles share one
   structure marker. Enemy generals are hidden until visible.
@@ -159,21 +176,48 @@ local port. The local launcher binds only to loopback.
   actions; they can remain connected until the final result.
 - General capture always requires beating its defending army, including after
   turn 800. There is no Deathtouch rule.
-- Capture scores **+1** for the winner and **−1** for each other player. Reaching
-  the turn cap (2,000 in bot variants, 1,200 in human variants) scores **0 for everyone**, including eliminated players,
-  regardless of army or land advantage. FFA does not award intermediate ranks.
+- Classic and building modes score **+1** for the winner and **−1** for the
+  loser; their turn caps remain draws. FFA instead follows **FFA Survival**:
+  the winner and players with a credited kill rank above kill-less players,
+  then each group sorts by reverse elimination order. Results expose
+  `placements`, direct `kills`, `captured_by`, and `elimination_order`.
+  Scores are +1 for first and `-(place - 1) / (players - 1)` for other places.
+  These encode the outcome for Softmax's ranker; they are not official stars.
+- FFA ends after more than 2,000 consecutive ticks without a valid move, or
+  the official 50,000-tick long-game threshold. The implementation completes
+  tick 50,002 because the source tests `turn > 50000` before advancing it.
+  Remaining players are eliminated in ascending army, then land, then seat
+  order; the last remaining player wins. Explicit shorter caps and the paced
+  human cap use the same adjudication rather than an all-zero draw.
+- A normal official tick is 500 ms; two ticks make one full displayed game
+  turn. Protocol `turn`, `turns`, and `max_turns` count these engine ticks.
+  Bot simulation remains accelerated. Human lobbies retain their 1,200-tick
+  budget and Softmax retains its independent hosted job deadline.
 
-The hosted runtime adds explicit failure rules: bot matches have a 500 ms action
-deadline; human lobbies allow one second for transport, while normally advancing
-at two turns per second. Deadlines start at publication of each observation. A missing action is
-a pass. After 20 consecutive missed turns a player forfeits; if both reach the
-threshold together, both score zero. In FFA, a timeout forfeit eliminates only
-that player: their tiles become neutral with unchanged armies and their general
-becomes a neutral castle. The surviving players continue. One survivor wins;
-no survivors draw. A valid pass resets the counter. If a
-player never connects before the 180-second start deadline, the episode emits a
-typed player failure instead of competitive scores. Reconnection is allowed
-during play with the original token, but never resets timeout counters.
+FFA has the official 1.5-second initial input window; subsequent bot actions
+have a 500 ms deadline; human lobbies allow one second for transport
+with a 500 ms minimum tick interval. Missing actions are passes. In FFA,
+transport misses do not trigger the old 20-miss elimination. At tick 121, a
+player needs 11 land, an owned city, or visible contact with an opponent to
+avoid the official initial inactivity kick. Warnings begin at tick 99.
+
+FFA players can send `{"type":"surrender"}`. Disconnecting
+also surrenders the seat. Its moves stop immediately, but its land and general
+remain owned, grow normally, and can be captured for 50 more ticks. At the
+expiry, uncaptured territory becomes neutral with unchanged armies and the
+general becomes a neutral city. The living opponent who destroyed the most
+of that player's army receives kill credit, if anyone did. The winner receives
+credit for the final surrender as in the official game. Classic/build modes
+retain their immediate 20-miss timeout forfeits and reconnect behavior.
+
+If a player never connects before the 180-second start deadline, the episode
+emits a typed player failure rather than competitive scores. The FFA league
+uses OpenSkill Plackett-Luce, starting at mu 50 and sigma 50/3. Published ratings
+use the conservative estimate mu minus three sigma. Historical rounds remain;
+new games establish the migrated rating estimates. Classic and Build retain Elo.
+The [official attribution](https://generals.io/copyright) identifies OpenSkill
+for stars and matchmaking. Its exact updater and parameters remain unavailable,
+so matching the rating family does not establish exact star parity.
 
 Competitive episodes omit `seed`, generating a fresh server-private 32-bit seed.
 Explicit seeds are for reproducible local tests/evaluations. The seed is recorded
@@ -205,7 +249,7 @@ an unauthenticated omniscient WebSocket would defeat fog of war. Player pages
 and `/player` require the slot's token. The public stream accepts no game-control
 commands, and `/replay.json` is unavailable until all success artifacts are saved.
 
-The completed replay includes every board frame and the submitted/applied
+The completed replay preserves every board frame using keyframes and tile changes, plus the submitted/applied
 actions, seed, timeout flags, and result. The tile renderer and styles from `generals-competition` serve player views
 and replays. Crown, castle, and mountain sprites come directly from this repo's
 `generals/assets/images`, with the same assets copied into the static bundle. The static replay bundle needs no Python server, JAX, WASM,

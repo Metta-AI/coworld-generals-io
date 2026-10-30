@@ -16,6 +16,7 @@ from integrations.softmax.artifacts import read_json, write_json
 from integrations.softmax.config import GameConfig
 from integrations.softmax.engine import Match, executed_moves
 from integrations.softmax.protocol import PASS, parse_action, stdio_frame
+from integrations.softmax.replay import ReplayFrames, replay_frame
 from integrations.softmax.server import create_app
 
 
@@ -85,7 +86,7 @@ def test_action_turn_is_exact(turn):
     "fields",
     [
         {"tokens": ["same", "same"]},
-        {"max_turns": 2001},
+        {"max_turns": 50003},
         {"seed": -1},
         {"perfect_info": True},
         {"seed": True},
@@ -176,7 +177,7 @@ def test_episode_records_reproducible_replay_and_scores(tmp_path):
         assert not (tmp_path / "failure.json").exists()
     match = Match(replay["seed"])
     assert replay["frames"][0] == match.frame()
-    for turn, frame in zip(replay["turns"], replay["frames"][1:]):
+    for turn, frame in zip(replay["turns"], [replay_frame(replay["frames"], i) for i in range(1, len(replay["frames"]))]):
         assert turn["applied"]
         match.advance(turn["actions"])
         assert frame == match.frame()
@@ -221,6 +222,8 @@ def test_live_public_routes_do_not_reveal_hidden_state(tmp_path):
                 "ruleset",
                 "army",
                 "land",
+                "has_kill",
+                "neutralize_in",
                 "eliminated",
                 "result",
                 "board",
@@ -311,7 +314,7 @@ def test_general_capture_requires_winning_combat_after_turn_800(tmp_path, attack
             ownership_neutral=state.ownership_neutral.at[0, 6].set(False),
         )
         episode.match.height = episode.match.width = 8
-        episode.frames = [episode.match.frame()]
+        episode.frames = ReplayFrames(episode.match.frame())
         with connect(client, 0) as red, connect(client, 1) as blue:
             act(red, receive(red, "observation"), [0, 0, 6, 3, 0])
             act(blue, receive(blue, "observation"))
@@ -319,7 +322,7 @@ def test_general_capture_requires_winning_combat_after_turn_800(tmp_path, attack
             assert result["scores"] == scores and result["reason"] == reason
             assert result["turns"] == 802
             replay = client.get("/replay.json").json()
-            assert replay["frames"][-1] == episode.match.frame()
+            assert replay_frame(replay["frames"], -1) == episode.match.frame()
 
 
 def test_atomic_file_artifacts_and_encoded_paths(tmp_path):
