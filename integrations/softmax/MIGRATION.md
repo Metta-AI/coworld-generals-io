@@ -114,9 +114,11 @@ Validation for the next release, using Coworld SDK 0.1.60:
 - Native arm64 build for version 0.4.2 and all ten container certification steps
   pass separately for classic, FFA, and castle-building.
 - Certified game image:
-  `sha256:70c6eadc7c90b18f2abbfdcc83eb323a76fa8d07395fa7061bb18f18252f6580`.
+  `sha256:54ecdc06342e19fb3609fb642dad0bd5ea9f32c304adeb35b175d864b1fc2357`.
   Certified player image:
-  `sha256:3743a9beabdd13d72c979594ad90a8d3dabbe248d4c8645754bcae63993c8c92`.
+  `sha256:8b1679a7981f945f1fa0fd97d432011c6bd2de4a6b4c103abb4493f3611265b8`.
+
+Validation includes the full-height replay layout merged from main at `84a2005`.
 
 These are local validation results. Publishing a canonical amd64 release still
 uses the existing release workflow. Late navigation to an expired live URL is
