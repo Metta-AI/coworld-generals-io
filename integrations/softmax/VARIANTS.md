@@ -24,7 +24,7 @@ partition, then each partition sorts by reverse elimination order. Caps
 adjudicate remaining players by army, land, and seat rather than drawing.
 The official long-game threshold completes engine tick 50,002. Two engine
 ticks correspond to one full official game turn. Softmax's accelerated bot
-clock, finite job deadline, and Elo rating remain hosting differences.
+clock, finite job deadline, and unverified exact star parameters remain differences.
 See README and the player protocol for surrender, inactivity, and scoring.
 
 ## Leagues
@@ -35,9 +35,10 @@ See README and the player protocol for surrender, inactivity, and scoring.
 | [FFA (3–8 players)](https://softmax.com/observatory/v2?detail=league:league_f189ad01-2700-4fc8-ba89-f9de477099e4) | `ffa`, `ffa-3`, `ffa-5` through `ffa-8` | `league_f189ad01-2700-4fc8-ba89-f9de477099e4` | FFA `div_ac86d8a0-7b43-41bb-b6e7-1867f7b47d08` |
 | [Build 1v1](https://softmax.com/observatory/v2?detail=league:league_b371d42e-bed5-4f33-ac02-fca229860ddf) | `castles` | `league_b371d42e-bed5-4f33-ac02-fca229860ddf` | Castles `div_ede858f5-6c57-4d03-b16d-a843a35e8bc2` |
 
-All three are public, use the platform commissioner with Elo ranking, and
-follow the canonical Coworld version: a certified upload moves every league
-to it without league changes. Classic and Build use Swiss-neighbor scheduling.
+All three are public and use the platform commissioner. FFA uses OpenSkill
+Plackett-Luce (mu 50, sigma 50/3); Classic and Build retain Elo. All follow the
+canonical Coworld version: a certified upload moves every league to it without
+league changes. Classic and Build use Swiss-neighbor scheduling.
 
 FFA uses `scaling_roster`, with seat rungs `[3, 4, 5, 6, 7, 8]`, eight episodes
 per round, `insufficient_players: do_not_run`, and `roster_overflow: partition`.

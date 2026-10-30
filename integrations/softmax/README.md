@@ -205,11 +205,13 @@ credit for the final surrender as in the official game. Classic/build modes
 retain their immediate 20-miss timeout forfeits and reconnect behavior.
 
 If a player never connects before the 180-second start deadline, the episode
-emits a typed player failure rather than competitive scores. The league still
-uses Softmax's Elo ranker. The [official attribution](https://generals.io/copyright)
-identifies OpenSkill for stars and matchmaking. Neither the supplied archive nor
-the inspected public generals-bots tree includes its updater or exact parameters;
-rating parity is not claimed.
+emits a typed player failure rather than competitive scores. The FFA league
+uses OpenSkill Plackett-Luce, starting at mu 50 and sigma 50/3. Published ratings
+use the conservative estimate mu minus three sigma. Historical rounds remain;
+new games establish the migrated rating estimates. Classic and Build retain Elo.
+The [official attribution](https://generals.io/copyright) identifies OpenSkill
+for stars and matchmaking. Its exact updater and parameters remain unavailable,
+so matching the rating family does not establish exact star parity.
 
 Competitive episodes omit `seed`, generating a fresh server-private 32-bit seed.
 Explicit seeds are for reproducible local tests/evaluations. The seed is recorded

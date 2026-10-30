@@ -206,7 +206,7 @@ The [official version history](https://generals.io/versions) documents its
 kill/win partition. This release records elimination sequence, credited killers,
 and enemy army destroyed inside the authoritative transition. FFA outcomes now
 follow that partition and reverse elimination order. Scores preserve the ordering
-for Softmax; its Elo updater remains separate from the omitted official star updater.
+for Softmax; its OpenSkill implementation remains separate from the omitted official updater.
 
 The adapter follows the live source's 50-tick surrender capture window,
 neutralization credit, inactivity check at tick 121, and army/land/seat
@@ -245,10 +245,19 @@ the official score stream; exact counts are recorded only for completed replays/
 The official copyright page identifies OpenSkill for stars and matchmaking.
 The public `strakam/generals-bots` tree at
 `954927f508aa47899019d66317cc313af3e9cc19` contains no rating updater.
-Softmax already implements OpenSkill, but its settings API refuses an algorithm
-change while standings exist. Existing Elo history is preserved pending an
-explicit choice of a fresh OpenSkill league; exact official star parameters
-remain unverified.
+The user requested continuation of the existing league under OpenSkill. Its
+settings API requires an explicit typed-state migration rather than interpreting
+Elo numbers as OpenSkill. Scheduling was paused with zero pending, claimed or
+running rounds. The commissioner-state compare-and-swap moved standings aside,
+settings were conditionally replaced, and all four typed OpenSkill standings
+were restored before resuming. No round, episode or membership was deleted.
+Round attribution, round counts, score tallies and policy bookkeeping were kept.
+The old pairwise Elo win/draw/loss counters were restarted because OpenSkill
+counts whole episodes. Ratings start at mu 50 and sigma 50/3; future results
+establish their estimates. Plackett-Luce uses the library-scaled beta and tau
+defaults; exact official star parameters remain unverified.
+The pre-migration state is backed up in
+[Nexus](https://softmax.nexus/artifacts/b1792b0d-0d9e-46be-a0b7-2d06d2ea0c60).
 
 Pre-release checks: 600 generated Survival-order cases and 600 surrender/neutralization
 cases matched the supplied live Game methods across three through eight seats.
@@ -261,3 +270,16 @@ Manual browser proof used the saved eight-seat recording on
 `http://127.0.0.1:18995/#replay=long.json`, at 1440×1000 and 390×844.
 Seeking from tick 49,000 back to 512, changing to Maroon fog, the official
 clock, scorecards and result all rendered without browser errors.
+
+All 224 checks passed locally, including the private terminal-board reference,
+all browser modules and both new real-session FFA system cases. Modules ran in
+separate processes with CPU JAX and four-core affinity. The benchmark-only
+`test_performance.py` collects zero tests. One concurrent live-handoff attempt
+failed when its baseline player hit an initial timeout; the isolated complete
+workflow subsequently passed with zero timeouts.
+
+The real human FFA check used `--human --players 4 --seed 7 --max-turns 80`
+on port 18991, at 1440×1200. Clicking Surrender after automatic passes eliminated
+the seat while leaving its general owned. Surrender is independent of the action
+deadline and is accepted during collection or resolution.
+[Browser proof](https://softmax.nexus/artifacts/450cfc72-af66-4461-a9c8-74f0ad87d1d3).

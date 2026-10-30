@@ -112,9 +112,11 @@ In FFA, use the Surrender button or send `{"type":"surrender"}`.
 Disconnecting also surrenders. Your territory remains owned, grows, and can be
 captured for 50 more ticks. Then it becomes neutral with its armies intact, and
 your general becomes a city. A living opponent who destroyed the most of your
-army receives the kill credit, if anyone did. Softmax's league still uses Elo;
-[the official site](https://generals.io/copyright) identifies OpenSkill for stars
-and matchmaking. The official updater and exact parameters remain unavailable.
+army receives the kill credit, if anyone did. The FFA league uses OpenSkill
+Plackett-Luce, matching the rating family identified by
+[the official site](https://generals.io/copyright). Existing rounds and entrants
+are preserved; future matches establish the new estimates. Exact official star
+parameters remain unavailable.
 
 ## Build a bot or try locally
 
