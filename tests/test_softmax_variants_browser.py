@@ -22,6 +22,8 @@ def connect_player(page, base, players, ruleset="classic", slot=0):
     page.route_web_socket("**/player?*", connected)
     page.goto(f"{base}/client/player?slot={slot}&token=test")
     expect(page.locator("#mode")).to_have_text("PLAYER")
+    assert actions == [{"type": "subscribe", "replay": True}]
+    actions.clear()
     sockets[0].send(json.dumps({"type": "hello", "slot": slot, "players": players, "ruleset": ruleset}))
     return sockets[0], actions
 
