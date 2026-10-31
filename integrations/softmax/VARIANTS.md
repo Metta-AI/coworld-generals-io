@@ -79,6 +79,29 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.6.2 — October 31, 2026 (UTC)
+
+- Released `c174984c68d36ad7de54ff90de873e435c00d849` with Coworld SDK 0.1.68.
+  Dispatch: `gh workflow run coworld-release.yml --ref main -f version=0.6.2`.
+  [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41223308984)
+  passed all nine native AMD64 fixtures (90 checks) and all ten hosted checks.
+- Requires platform revision `8038ecc4441271b9641682165751401a6cd50de4`.
+  Hosted certification used contract `main-8038ecc44412`.
+  The manifest declares `player_runtime: [platform-hosted, game-hosted]`;
+  BASIC files, existing container policies, and human seats share the game.
+- Canonical Coworld: `cow_bcffbcdf-2248-4758-abce-87eaaa90f65f`.
+  Public API readbacks confirm Classic, FFA, and Build resolve both current and
+  canonical Coworld IDs to this release. FFA remains default and uses OpenSkill;
+  all three leagues remain public, enabled, and unpaused.
+
+Published artifact identities:
+
+- Manifest: `sha256:b18dfdd683ab892d6712f6bf1bb3235b54f40f01cafd1a03cb4359bed9996f56`.
+- Game image: `img_ab6a925f-5233-4c53-ae88-ef71a7b35343`.
+- Player image: `img_fb43b580-85aa-419f-8611-026c4538380d`.
+- BASIC baseline: `sha256:5c6988224b71a16c5d60313bd3b9b9837951c45897ff30a1235456028c9c8bc7`.
+- Replay bundle: `sha256:ba5a1447ce4d265d9d35f47bd85a4af742e9758bd9ac1806a68574018c258470`.
+
 ### 0.6.1 — October 30, 2026 (UTC)
 
 - Released `69d95a0faadf9b98b9126e1855a8ac175d2f18c8` with SDK 0.1.60.
