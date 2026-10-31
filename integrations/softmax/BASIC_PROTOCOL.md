@@ -65,7 +65,7 @@ published dependency lock when this integration was prepared.
 
 ## Local verification
 
-Build the game and player images with the Coworld SDK that supports `game.player_types`:
+Build the game and player images with a Coworld SDK that supports `player_runtime` lists:
 
 ```bash
 coworld build --project integrations/softmax --version VERSION

@@ -60,7 +60,7 @@ def template():
         "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
         "tags": ["strategy", "1v1", "ffa", "fog-of-war", "territory-control"],
         "game": {
-            "player_types": ["file", "container", "human"],
+            "player_runtime": ["platform-hosted", "game-hosted"],
             "name": "generals-competition",
             "owner": "Softmax",
             "description": (

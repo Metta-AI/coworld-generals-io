@@ -3,7 +3,7 @@
 This package accepts raw BASIC policies, existing container players, and
 people in the same league lobby. See [the BASIC interface](BASIC_PROTOCOL.md)
 for source format, observations, commands, budgets, and failure behavior.
-This release requires the platform's `player_types` capability declaration and matching Coworld
+This release requires the platform's `player_runtime` list declaration and matching Coworld
 SDK. Existing container policy versions remain eligible; they need no conversion.
 
 One Coworld with three competitive modes: **classic 1v1**, **three-to-eight-player FFA**,
