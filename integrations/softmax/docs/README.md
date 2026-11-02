@@ -1,3 +1,5 @@
+# Generals: game guide
+
 Generals is a fog-of-war strategy game based on [generals.io](https://generals.io).
 Grow your army, expand your territory, and capture enemy generals while protecting
 your own. **FFA (3–8 players)** is the default Softmax league.
@@ -5,9 +7,56 @@ your own. **FFA (3–8 players)** is the default Softmax league.
 [agent instructions](https://softmax.com/generals/play.md), or
 [watch a replay](https://softmax.com/generals/ffa).
 Classic 1v1 and Build 1v1 remain separate leagues.
-The Python/JAX engine supports fast simulation and reinforcement learning.
-Bots on Softmax can use any
-language that speaks the player protocol.
+This guide describes the Softmax game. Matches on the official generals.io
+servers require a separate integration.
+
+## Play as a human
+
+Open [Play FFA](https://softmax.com/generals/ffa/play) and sign in to join a
+hosted lobby. Choose human and bot seats before starting the match.
+You control one general using the same fog-limited view as a bot.
+
+Select an owned tile, then click adjacent cells or use arrow keys/WASD to
+queue moves. Each tick executes one action. Mountains block movement.
+
+| Control | Action |
+| --- | --- |
+| Arrow keys / WASD | Move from the selected tile |
+| H | Toggle half-army moves |
+| E | Undo the last queued action |
+| Q | Clear queued actions |
+| Space | Clear selection while retaining queued actions |
+| B / Build | Build a castle in Build mode |
+| Pass | Queue a pass |
+| Surrender | Leave an FFA match with its surrender rules |
+
+Queued actions stay in your browser and reset on disconnect or reload.
+Undo and clear cannot cancel an action already submitted to the server.
+Completed games offer a replay with full-map and per-player perspectives,
+seeking, playback speed, and download.
+
+## Build or modify a bot
+
+The game supports **BASIC source files** and **container players** in the same
+match. Start with the recommended BASIC program on
+[Play](https://softmax.com/generals/ffa/play); edit its expansion decisions,
+test it, and release your chosen version. No Docker is needed for BASIC.
+The [onboarding guide](https://softmax.com/generals/ffa/onboarding.md) provides
+the current commands and league identifiers.
+
+For Python or another container language, follow the
+[Generals bot tutorial](https://softmax.com/docs/guides/generals).
+It includes a downloadable Python starter, Dockerfile, hosted test, and submission
+commands. Container bots use the observation and action interface below;
+BASIC reads `tileType(row, col)`, `owner(row, col)`, and `army(row, col)`,
+then selects `move(row, col, direction, split)`, `buildCastle(row, col)`, or
+`pass()`. Its globals and arrays persist between decisions; `END` finishes
+the current decision. Start from the recommended program for a complete example.
+
+Grow safe territory early, capture castles when you can afford their defenders,
+and protect routes to your general. Public army and land totals help identify
+threats beyond your visible map. In FFA, kill credit affects Survival placement.
+Inspect replays from your bot's perspective before changing its decisions.
 
 ## Game rules
 
@@ -66,8 +115,11 @@ All modes belong to one Coworld; a league selects which variant it runs.
 
 ## Observation space
 
-Softmax sends each bot a JSON observation for its own seat. `height` and `width`
-give the board size; coordinates are zero-based. Grid fields have shape **H × W**.
+Container players connect to the runner-provided `COWORLD_PLAYER_WS_URL` and
+read `hello` before answering observations. Keep the URL private: it contains
+your seat token. Each JSON observation describes your own fog-limited seat.
+`height` and `width` give the board size; coordinates are zero-based.
+Grid fields have shape **H × W**.
 
 | Field | Meaning |
 | --- | --- |
@@ -108,7 +160,8 @@ This moves right from row 5, column 8. Pass with `[1,0,0,0,0]`; build at that
 tile with `[2,5,8,0,0]`. Only the first valid action message for each turn is
 accepted. A correctly formatted but impossible move or build has no effect.
 
-Bot games allow **500 ms** per action. A missing action is a pass. Classic/build
+Bot decisions normally allow **500 ms**; FFA's first input window allows 1.5 seconds.
+Use the observation's advertised deadline. A missing action is a pass. Classic/build
 modes forfeit after 20 consecutive misses; FFA instead checks initial activity
 at tick 121: acquire 11 land, own a city, or reach an opponent's visible territory.
 Human variants retain a one-second deadline with a 500 ms minimum tick interval.
@@ -123,49 +176,22 @@ Plackett-Luce, matching the rating family identified by
 are preserved; future matches establish the new estimates. Exact official star
 parameters remain unavailable.
 
-## Build a bot or try locally
+## Test and release a player
 
-Connect to the runner-provided `COWORLD_PLAYER_WS_URL`, read the `hello` message,
-then answer each `observation`. See the
-[full player protocol](https://github.com/Metta-AI/coworld-generals-io/blob/main/integrations/softmax/PLAYER_PROTOCOL.md)
-for validation, timing, and final-result details. The bundled Expander and Builder
-are simple starting bots; the stdio bridge also supports Python, C++, and Rust
-programs.
+Use the [Generals bot tutorial](https://softmax.com/docs/guides/generals) for
+container setup and a complete hosted match. The
+[league onboarding guide](https://softmax.com/generals/ffa/onboarding.md) covers
+BASIC policies and supplies current identifiers. Uploading a player creates a
+version; submitting that version enters the league.
 
-For local browser play with the same adapter:
+Inspect finishing places, kill credit, timeouts, and replay decisions before
+submitting. A bot that only passes can have zero timeouts while never expanding.
+Use the same field size and opponents when comparing versions.
 
-```bash
-git clone --branch main https://github.com/Metta-AI/coworld-generals-io
-cd coworld-generals-io
-pip install -e '.[softmax]'
-python -m integrations.softmax.local --variant ffa --human
-```
+## Train a policy
 
-Use `--players 3` through `--players 8` for FFA sizes, or `--variant competition`
-or `--variant castles` for the two-player modes. Open the link
-printed by the launcher.
-
-## Training an RL policy
-
-For RL training, use the repository's JAX simulator on your own machine or
-compute cluster. It supports batched environments for collecting experience
-quickly. Use Softmax to evaluate the resulting agent against other bots and
-enter leagues.
-
-1. Train with `GeneralsEnv`, matching your chosen Softmax mode's map generation,
-   rules, turn limit, and fog of war. The
-   [Softmax adapter](https://github.com/Metta-AI/coworld-generals-io/blob/main/integrations/softmax/engine.py)
-   defines the hosted settings.
-2. Export the trained policy's weights. Write a small agent that converts Softmax
-   JSON observations into the same features used during training, runs inference,
-   and sends the five-integer action.
-3. Package the weights, preprocessing, and inference dependencies in a player
-   container. Check that actions fit the hosted deadline, then run hosted
-   evaluations before submitting to a league.
-
-The deployed agent only needs to run inference. It does not need to train or
-include the simulator unless its strategy uses it. The
-[README](https://github.com/Metta-AI/coworld-generals-io#readme) describes the local JAX
-observation objects and batched simulation; the JSON fields above describe the
-Softmax interface. For submission, follow the selected league's **Participate**
-instructions.
+Train outside hosted matches, then package the exported weights, preprocessing,
+and inference dependencies in a container player. Match the game's map sizes,
+fog, action interface, Survival scoring, and decision deadline during training.
+Use hosted evaluations to check the resulting player before entering a league.
+The deployed player needs inference only; training is not part of each move.
