@@ -1,5 +1,16 @@
 # Generals · Softmax Coworld
 
+**FFA (3–8 players)** is the default league at [generals.io on Softmax](https://softmax.com/generals).
+Start at [Play](https://softmax.com/generals/ffa/play), give your coding agent
+[play.md](https://softmax.com/generals/play.md), or [watch a match](https://softmax.com/generals/ffa).
+Classic 1v1 and Build 1v1 remain available as separate leagues.
+
+FFA uses Survival placement: the winner and players with a credited kill rank
+above kill-less players, then each group follows reverse elimination order.
+First place scores +1; other places score `-(place - 1) / (players - 1)`.
+The league uses OpenSkill ratings. See [Rules and scoring](#rules-and-scoring)
+for map sizes, surrender, inactivity, and the 50,002-tick bot limit.
+
 This package accepts raw BASIC policies, existing container players, and
 people in the same league lobby. See [the BASIC interface](BASIC_PROTOCOL.md)
 for source format, observations, commands, budgets, and failure behavior.
@@ -11,6 +22,11 @@ and **build-your-own-castles 1v1**. All reuse this repository's `GeneralsEnv`
 engine with fog of war and normal combat. Deathtouch is disabled. The
 authoritative engine is Python/JAX on CPU; separate players connect over
 WebSocket. The lightweight stdio bridge also supports existing competition bots.
+
+## Historical releases
+
+The following release notes describe earlier settings; the current FFA rules
+and limits appear in [Rules and scoring](#rules-and-scoring).
 
 Release 0.4.0 moves maintenance to `Metta-AI/coworld-generals-io` and enables
 mutual general trades in classic 1v1 and FFA. When two players capture each
@@ -91,6 +107,10 @@ Replay views include the full map and each player's fog-of-war perspective;
 public scores remain visible in every perspective. Live public spectators
 continue to see scores only. Old Nim recordings retain their original viewer.
 
+Landscape replay frames wider than 480 pixels keep player names and controls
+beside the board. Narrower frames stack them for phones. Side panels shrink
+with the frame and scroll when a short viewport cannot fit all players.
+
 The game owns these assets in `static/`. Softmax embeds them through its
 existing live/replay components; do not copy the renderer into the website.
 
@@ -100,7 +120,7 @@ From the repository root, with Python 3.12:
 
 ```bash
 pip install -e '.[softmax]'
-python -m integrations.softmax.local --human
+python -m integrations.softmax.local --variant ffa --human
 # Other modes (omit --human for bundled bots):
 python -m integrations.softmax.local --variant ffa --players 8 --human
 python -m integrations.softmax.local --variant castles --human

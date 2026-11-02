@@ -1,6 +1,11 @@
 Generals is a fog-of-war strategy game based on [generals.io](https://generals.io).
 Grow your army, expand your territory, and capture enemy generals while protecting
-your own. The Python/JAX engine supports fast simulation and reinforcement learning.
+your own. **FFA (3–8 players)** is the default Softmax league.
+[Play FFA](https://softmax.com/generals/ffa/play), read the
+[agent instructions](https://softmax.com/generals/play.md), or
+[watch a replay](https://softmax.com/generals/ffa).
+Classic 1v1 and Build 1v1 remain separate leagues.
+The Python/JAX engine supports fast simulation and reinforcement learning.
 Bots on Softmax can use any
 language that speaks the player protocol.
 
@@ -133,10 +138,11 @@ For local browser play with the same adapter:
 git clone --branch main https://github.com/Metta-AI/coworld-generals-io
 cd coworld-generals-io
 pip install -e '.[softmax]'
-python -m integrations.softmax.local --human
+python -m integrations.softmax.local --variant ffa --human
 ```
 
-Add `--variant ffa` or `--variant castles` to try the other modes. Open the link
+Use `--players 3` through `--players 8` for FFA sizes, or `--variant competition`
+or `--variant castles` for the two-player modes. Open the link
 printed by the launcher.
 
 ## Training an RL policy
