@@ -35,8 +35,9 @@ game actions have the same no-op behavior as container actions.
 
 The policy receives only its own fog-filtered observation and public scores.
 No hidden map, private seed, opponent action, or connection token enters its VM.
-Eliminated players stop receiving decisions. Match rules, 2,000-turn bot caps,
-1,200-turn human caps, general trades, scoring, and replay format stay unchanged.
+Eliminated players stop receiving decisions. BASIC seats use the same match
+rules, general trades, scoring, and replay format as other seats. FFA bots allow 50,002 engine ticks; classic/build bots allow
+2,000; paced human variants allow 1,200. See [modes](VARIANTS.md#modes).
 
 ## Limits and failures
 
@@ -80,3 +81,13 @@ three in four-player FFA; release checks also exercise classic and castles.
 
 The direct local launcher also accepts repeated `--basic SLOT=PATH` options.
 Set `GENERALS_BASIC_WORKER` to a locally compiled worker binary first.
+It also requires Linux's `prlimit` (from util-linux). The Docker game target
+builds and installs the worker automatically; `pip install` does not compile it.
+Use [`Dockerfile`](Dockerfile)'s `basic-build` stage for the pinned Nim,
+Bassy, and Fixxy inputs when building a native worker.
+
+```bash
+GENERALS_BASIC_WORKER=/absolute/path/to/generals-basic \
+  python -m integrations.softmax.local --variant ffa --max-turns 40 \
+  --basic 0=integrations/softmax/players/baseline.bas
+```

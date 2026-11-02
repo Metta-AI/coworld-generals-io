@@ -3,9 +3,10 @@
 Objective: verify the existing Hunter's complete Softmax submission experience.
 This is a first-entry integration check, not an ongoing strategy optimization
 project. The runtime is `platform-hosted`; Hunter was submitted against Coworld
-`cow_adee8c4a-e0ed-43b0-b45c-fe6073ef4987` (v0.2.5). Its player container is
-unchanged, while the league now runs the current canonical game (v0.3.3 as of
-September 27: 2,000-turn games and generals.io move order; see VARIANTS.md).
+`cow_adee8c4a-e0ed-43b0-b45c-fe6073ef4987` (v0.2.5).
+The September 27 check recorded its unchanged container against canonical
+v0.3.3. That is historical participation evidence; consult
+[VARIANTS.md](VARIANTS.md) for later releases and verify membership before reuse.
 Game rules and protocol are documented in [README.md](README.md) and
 [PLAYER_PROTOCOL.md](PLAYER_PROTOCOL.md).
 
@@ -53,8 +54,8 @@ Published base image:
 
 Hunter uses JAX on CPU. It compiles all 16 supported map shapes (each side
 18–21) before connecting, within the game's 180-second connection window, so
-compilation does not consume a turn's 500 ms deadline. This player is for the
-current classic 1v1 mode, not a general multiplayer or castle-building player.
+compilation does not consume a turn's 500 ms deadline. This player supports
+classic 1v1; it is not a general multiplayer or castle-building player.
 
 Build from the repository root:
 

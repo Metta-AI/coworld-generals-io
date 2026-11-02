@@ -14,77 +14,61 @@ for map sizes, surrender, inactivity, and the 50,002-tick bot limit.
 This package accepts raw BASIC policies, existing container players, and
 people in the same league lobby. See [the BASIC interface](BASIC_PROTOCOL.md)
 for source format, observations, commands, budgets, and failure behavior.
-This release requires the platform's `player_runtime` list declaration and matching Coworld
-SDK. Existing container policy versions remain eligible; they need no conversion.
+The manifest declares `player_runtime: [platform-hosted, game-hosted]`;
+the release workflow pins Coworld SDK 0.1.68. Existing container policy
+versions remain eligible; they need no conversion.
 
 One Coworld with three competitive modes: **classic 1v1**, **three-to-eight-player FFA**,
-and **build-your-own-castles 1v1**. All reuse this repository's `GeneralsEnv`
-engine with fog of war and normal combat. Deathtouch is disabled. The
-authoritative engine is Python/JAX on CPU; separate players connect over
-WebSocket. The lightweight stdio bridge also supports existing competition bots.
+and **build-your-own-castles 1v1**. All reuse the Python/JAX rules through
+the single-episode `Match` adapter
+with fog of war and normal combat. Deathtouch is disabled. Container players
+and browsers connect over WebSocket; BASIC policies run in game-owned worker
+processes. The lightweight stdio bridge also supports existing competition bots.
 
-## Historical releases
+## Implementation map
 
-The following release notes describe earlier settings; the current FFA rules
-and limits appear in [Rules and scoring](#rules-and-scoring).
+All paths below are relative to `integrations/softmax/`.
 
-Release 0.4.0 moves maintenance to `Metta-AI/coworld-generals-io` and enables
-mutual general trades in classic 1v1 and FFA. When two players capture each
-other's generals in the same turn, both survive and exchange generals and land.
-Castle-building retains its previous rules. Move acknowledgements use the same
-resolver as gameplay, including trades. WebSocket shutdown now waits for its
-owned tasks to finish cleanup under cancellation.
+| Files | Responsibility |
+| --- | --- |
+| [`local.py`](local.py) | Starts a local server, configures seats, and launches bundled socket players |
+| [`config.py`](config.py), [`protocol.py`](protocol.py) | Validated game configuration, action envelopes, and stdio observation encoding |
+| [`server.py`](server.py) | Episode lifecycle, authenticated seats, deadlines, public scores, artifacts, and shutdown |
+| [`engine.py`](engine.py), [`ffa_map.py`](ffa_map.py) | Single-episode `Match`, action receipts, ranked FFA maps, surrender, and Survival outcomes |
+| [`player.py`](player.py), [`builder_player.py`](builder_player.py) | Container WebSocket clients and competition stdio bridge |
+| [`file_players.py`](file_players.py), [`basic_worker.nim`](basic_worker.nim), [`players/baseline.bas`](players/baseline.bas) | Game-hosted BASIC policies, bounded worker execution, and the editable baseline |
+| [`replay.py`](replay.py), [`artifacts.py`](artifacts.py) | Compact recording frames and artifact reads/writes |
+| [`static/`](static) | `app.js` live controls, `replay.js` playback, and shared `board.js` rendering/styles |
+| [`tools/manifest.py`](tools/manifest.py) | Generates the manifest template from configuration, variant definitions, and embedded docs |
+| [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml), [`tools/build_replay_viewer.sh`](tools/build_replay_viewer.sh) | Game/player images and the static replay bundle |
 
-Release 0.3.0 adds the `ffa` and `castles` variants, plus paced human versions
-`ffa-human` and `castles-human`. Existing `competition` and `human` IDs retain
-classic 1v1 rules. The bot variants (`competition`, `ffa`, `castles`) cap at
-2,000 turns; the paced human variants remain at 1,200. Each bot mode runs as its
-own Softmax league under the same `generals-competition` Coworld: Classic 1v1,
-FFA (3–8 players) and Build 1v1. The bundled Builder player
-funds an opening castle before expanding; Expander works in every mode but does
-not build. These are integration baselines, not strong competitive players.
+`server.Episode` owns one `engine.Match`. `Match` configures `GeneralsEnv` rules
+and calls [`generals.core.match`](../../generals/core/match.py) transitions
+without allocating an auto-reset training pool. FFA boards come from `ffa_map.py`;
+1v1 boards use `make_board`. The adapter owns wire observations, receipts,
+FFA exits and placement; the core engine owns board transitions and fog.
+See [the engine guide](../../generals/README.md) for the separate research interface.
 
-Release 0.2.0 replaces the competition modifiers used by 0.1.0. The registered
-Coworld name (`generals-competition`) and bot variant ID (`competition`) remain
-stable so existing links work. The repository's competition preset is unchanged.
+The server reads `COGAME_CONFIG_URI` and, for mixed runtimes,
+`COGAME_PLAYER_SEATS_URI`. The `coworld-play-seats/2` roster distinguishes
+`policy`, `container`, and `human` seats. BASIC workers receive fog-filtered
+observations through process pipes; other seats use authenticated `/player`
+sockets. The game saves its replay before publishing results, then drains
+terminal socket messages and shuts down its owned processes.
 
-Release 0.2.1 fixes human lobby connections through Softmax's hosted proxy.
-Browser pages accept its `address` parameter containing the complete player
-WebSocket URL, while local player links continue to accept `slot` and `token`.
-Release 0.2.2 also serves live assets and completed replays under `/client/`,
-which Softmax's hosted-play proxy forwards. Replay access still requires the
-match to finish; no live hidden state is exposed.
-Release 0.2.3 keeps tile icons and queue arrows mounted across turn updates,
-updating army counts and arrow state in place to avoid visual flicker.
-Release 0.2.4 sends automatic passes early enough for the hosted proxy and gives
-human lobbies a one-second network deadline. Their normal minimum tick interval
-remains 500 ms; slow connections can extend a turn. Status text stays steady
-while idle instead of alternating messages each tick.
-Release 0.2.5 tracks separately selected army routes: a failed route is removed
-while other queued routes continue in order.
-Release 0.3.1 raises the competition turn cap to 2,000. Human, FFA, and
-castle-building variants remain at 1,200 turns. All modes also move to the
-engine's replay-verified generals.io move order: defensive moves first, moves
-onto a general last, then larger armies first (previously smaller first),
-with ties broken by player order reversed on odd turns.
-Release 0.3.2 raises the FFA and castle-building bot variants to 2,000 turns,
-matching classic. Human variants stay at 1,200 so a paced game fits Softmax's
-20-minute hosted episode limit.
-Release 0.3.3 changes documentation only: per-mode turn caps, the move order
-and one league per bot mode.
+[`PLAYER_PROTOCOL.md`](PLAYER_PROTOCOL.md) defines socket/stdio actions;
+[`BASIC_PROTOCOL.md`](BASIC_PROTOCOL.md) defines the BASIC interface;
+[`GLOBAL_PROTOCOL.md`](GLOBAL_PROTOCOL.md) defines public updates and recordings.
+[`VARIANTS.md`](VARIANTS.md) owns mode IDs, league configuration, and release records;
+[`MIGRATION.md`](MIGRATION.md) retains provenance and validation evidence.
+[`WIKI.md`](WIKI.md) is the game-rules copy for the public wiki;
+[`HUNTER.md`](HUNTER.md) records the earlier classic-player participation exercise.
 
 FFA variants select an exact seat count: `ffa` and `ffa-human` have four seats;
 `ffa-3`, `ffa-5`, `ffa-6`, `ffa-7`, and `ffa-8` select the other supported sizes.
-Append `-human` for their paced versions. The league scheduler chooses the size
-that fits its current entrants, up to eight, without cloning policies.
-
-Release 0.6.0 aligns FFA outcomes and player exits with the supplied official
-base game. FFA Survival orders players with a kill, or the winner, ahead of
-kill-less players; each group follows reverse elimination order. Surrender leaves
-territory capturable for 50 ticks. Inactivity checks and the official idle/long-game
-adjudication replace the 2,000-tick draw. Compact recordings retain every tick
-without storing every board in full. See the current rules below; earlier release
-paragraphs describe their historical settings.
+Append `-human` for their paced versions. Together with classic and building,
+the generated manifest contains sixteen variants. The FFA league scheduler
+selects a supported size from its roster.
 
 ## Shared play experience
 
@@ -100,7 +84,8 @@ clears queued moves; offline/online events resume the same seat, with six
 bounded retries for other connection failures. Reconnecting cannot undo a
 server timeout or elimination. The server remains authoritative for actions.
 
-Completed matches deliver the saved recording over the existing browser socket,
+Browsers send `{"type":"subscribe","replay":true}` on their established socket.
+Completed matches deliver the saved recording over that socket,
 so replay playback and download survive retirement of the hosted HTTP proxy.
 They show their outcome, replay download, and a new-match link.
 Replay views include the full map and each player's fog-of-war perspective;
@@ -119,7 +104,8 @@ existing live/replay components; do not copy the renderer into the website.
 From the repository root, with Python 3.12:
 
 ```bash
-pip install -e '.[softmax]'
+python -m pip install -r integrations/softmax/requirements.lock
+python -m pip install -e '.[softmax]'
 python -m integrations.softmax.local --variant ffa --human
 # Other modes (omit --human for bundled bots):
 python -m integrations.softmax.local --variant ffa --players 8 --human
@@ -149,7 +135,7 @@ to the browser and reset on disconnect or reload. The human
 configuration advances at two turns per second. After the match, use the same
 page to watch the full replay. Ctrl+C stops the local server.
 
-For two bundled bots playing as fast as they can:
+For two bundled bots playing as fast as they can (the launcher defaults to classic 1v1):
 
 ```bash
 python -m integrations.softmax.local --seed 7 --keep-open
@@ -192,8 +178,10 @@ local port. The local launcher binds only to loopback.
   resolve before moves and produce ordinary castles; an invalid build is a pass.
 - In FFA, capturing a general eliminates that player, transfers their territory
   and half their armies to the captor, and turns the captured general into a
-  castle. The last surviving general wins. Eliminated players no longer owe
-  actions; they can remain connected until the final result.
+  castle. Classic 1v1 and FFA also allow mutual general trades: simultaneous
+  captures swap generals and territory while both players survive. Building
+  mode disables trades. The last surviving general wins. Eliminated players
+  no longer owe actions; they can remain connected until the final result.
 - General capture always requires beating its defending army, including after
   turn 800. There is no Deathtouch rule.
 - Classic and building modes score **+1** for the winner and **−1** for the
@@ -248,8 +236,10 @@ could reconstruct the hidden map.
 
 See [PLAYER_PROTOCOL.md](PLAYER_PROTOCOL.md) for the exact JSON contract and
 the existing [competition protocol](../../competition/protocol.py) for stdio bots.
-The bundled player is the repository's pure-Python Expander; it does not need
-JAX or access to the engine.
+The bundled container players are Expander and Builder; neither needs JAX.
+Expander is the pure-Python bot in `competition/agents/expander_python`; Builder
+adds an opening castle before expanding. BASIC Frontier runs inside the game
+image. These are integration baselines; local results do not measure league strength.
 
 To bridge another bot, run in its player container:
 
@@ -294,15 +284,26 @@ not be enabled by copying the example's public omniscient stream.
 
 The project lives in this directory so the training package does not depend on
 the Coworld SDK. It needs Docker with Compose/Buildx and Docker daemon access.
-Keep the SDK in a separate Python environment. The initial integration targets
-the public Coworld contract at commit
-`4c26e51` (2026-09-08); pin and review SDK updates before releases.
+Keep the SDK separate from the game dependencies. The
+[release workflow](../../.github/workflows/coworld-release.yml) pins
+`coworld[auth]==0.1.68`, which supports the manifest's runtime list.
+Use that pin for local build/certification commands:
 
-From the repository root:
+```bash
+uv tool install 'coworld[auth]==0.1.68'
+```
+
+The build reads `compose.yaml` and `coworld_manifest_template.json` from this
+project directory. The Dockerfile compiles the pinned Bassy/Fixxy BASIC worker
+into the CPU game image. The player image contains WebSockets and the Python
+Expander/Builder bridge; it has no JAX dependency. The optional `hunter` image
+target is separate from the bundled players.
+
+From the repository root, replace `MAJOR.MINOR.PATCH` with the intended release version:
 
 ```bash
 python -m integrations.softmax.tools.manifest --check
-coworld build --project integrations/softmax --version <next version>
+coworld build --project integrations/softmax --version MAJOR.MINOR.PATCH
 coworld certify integrations/softmax/dist/coworld_manifest.json
 ```
 
@@ -310,7 +311,7 @@ coworld certify integrations/softmax/dist/coworld_manifest.json
 Deployment defaults to `linux/amd64`. On Apple Silicon, certify native containers:
 
 ```bash
-GENERALS_ARCH=arm64 coworld build --project integrations/softmax --version <next version>
+GENERALS_ARCH=arm64 coworld build --project integrations/softmax --version MAJOR.MINOR.PATCH
 coworld certify integrations/softmax/dist/coworld_manifest.json --no-open-report
 ```
 
@@ -322,10 +323,22 @@ from the runtime model. If those sources change, regenerate it with
 `python -m integrations.softmax.tools.manifest`. The build hook recreates the
 static replay directory and Coworld resolves images to immutable identifiers.
 
-Before publishing, commit and push the release inputs on the integration branch
-so the pinned source URL resolves, inspect a full-length match and static replay,
-and confirm the game name/account ownership with Softmax. Then use the
-authenticated SDK:
+The normal hosted release path is an explicit dispatch from committed `main`:
+
+```bash
+gh workflow run coworld-release.yml --ref main -f version=MAJOR.MINOR.PATCH
+```
+
+The workflow builds native amd64 images with the pinned SDK, certifies the
+mixed-player fixture plus classic, all six FFA sizes, and building fixtures,
+then uploads and waits for hosted certification. It uses the repository's
+`SOFTMAX_TOKEN` secret and retains the resolved manifest as a workflow artifact.
+A source push runs tests; it does not publish a new Coworld version.
+See [release records](VARIANTS.md#releases) for the last recorded hosted inputs.
+
+For an explicitly managed manual release, commit and push the release inputs,
+inspect a full-length match and static replay, and verify account/game ownership
+before uploading the certified amd64 manifest:
 
 ```bash
 coworld upload-coworld integrations/softmax/dist/coworld_manifest.json
@@ -338,9 +351,23 @@ reporter, grader, or optimizer is required for this release.
 
 ## Maintenance and tests
 
+Install test dependencies into the Python 3.12 environment used for local play:
+
 ```bash
-JAX_PLATFORMS=cpu pytest -q tests/test_softmax.py tests/test_matchup.py
+python -m pip install -e '.[dev]' playwright
+python -m playwright install chromium
+python -m integrations.softmax.tools.manifest --check
+JAX_PLATFORMS=cpu SDL_VIDEODRIVER=dummy GENERALS_BROWSER_TESTS=1 python -m pytest -q
 ```
+
+For a focused adapter pass, use CPU JAX with:
+
+```bash
+JAX_PLATFORMS=cpu python -m pytest -q tests/test_softmax.py tests/test_matchup.py tests/system/
+```
+
+The existing real-browser harness covers controls, live-to-replay handoff,
+perspectives, and desktop/mobile layout.
 
 The integration tests cover real engine observation/wire parity, action
 validation, authentication, information boundaries, deterministic replay,
@@ -353,11 +380,20 @@ To run the real Chromium checks (including mobile layout, gzip, corrupt replays,
 and WebSocket pong), install `playwright` and Chromium, then run:
 
 ```bash
-GENERALS_BROWSER_TESTS=1 pytest -q tests/test_softmax_browser.py
+GENERALS_BROWSER_TESTS=1 python -m pytest -q \
+  tests/test_softmax_browser.py tests/test_softmax_variants_browser.py \
+  tests/system/test_live_replay_system.py
 ```
 
 Set `CHROMIUM_PATH` if Chromium is not on PATH, or use Playwright's installed
-browser. Deployment dependencies, including transitive packages, are pinned in
+browser. [`tests/system/test_mixed_players.py`](../../tests/system/test_mixed_players.py)
+requires a compiled worker at `GENERALS_BASIC_WORKER`; it skips without one.
+The private-reference check also skips unless `GENERALS_REFERENCE_ENGINE`
+points to external reference files. Those skips do not certify BASIC execution
+or official-engine parity. See [BASIC verification](BASIC_PROTOCOL.md#local-verification)
+and [reference validation](../../paper/validation/README.md#privately-supplied-replay-core).
+
+Deployment dependencies, including transitive packages, are pinned in
 `requirements.lock`; regenerate it with `uv pip compile requirements.txt
 --python-version 3.12 --output-file requirements.lock` from this directory when
 deliberately updating the runtime.

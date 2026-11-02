@@ -1,5 +1,10 @@
 # Organization-owned Generals
 
+This document preserves source provenance and release-specific evidence.
+Use [the adapter guide](README.md) for the current implementation and commands,
+and [VARIANTS.md](VARIANTS.md) for mode IDs, leagues, and published releases.
+Versioned validation sections below describe the release tested at that time.
+
 ## Provenance
 
 The repository was renamed from `Metta-AI/cogame-gen-generals-io` to
@@ -13,10 +18,12 @@ The old `gen-generals-io` 0.1.1 release points to
 pinned; the new Python game does not interpret its `COWLDGEN` binary replays
 or accept its prompt-plan players. No old episodes or leagues are migrated.
 
-The active game is `generals-competition`, previously published as 0.3.3 from
+At import, the active game `generals-competition` had been published as 0.3.3 from
 `strakam/generals-bots` commit `f65fb55d90a1a3397ca89a9591b296b899cca127`.
-Keep that game name and its six variant IDs. New releases change source ownership
-without creating a duplicate competition.
+The import retained that game name and the original six variant IDs.
+Later releases added ten FFA seat-count variants; the manifest now has sixteen.
+The current BASIC worker is Nim code, distinct from the archived Nim game.
+See [the mode table](VARIANTS.md#modes).
 
 ## Official-engine alignment
 

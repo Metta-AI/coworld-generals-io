@@ -1,250 +1,117 @@
 # Coworld Generals.io
 
-Softmax-owned Generals game, player bridge, browser client, and replay viewer.
-The default [generals.io league](https://softmax.com/generals) is **FFA (3–8 players)**.
-Grow armies under fog, capture enemy generals, and compete for Survival placement.
-[Play FFA](https://softmax.com/generals/ffa/play), read the
-[agent instructions](https://softmax.com/generals/play.md), or
-[watch replays](https://softmax.com/generals/ffa).
-Classic 1v1 and Build 1v1 remain separate leagues.
+Softmax's Generals game: a Python/JAX engine, Coworld server, BASIC runtime,
+container-player bridge, and shared browser client for play and replays.
+The default [Generals league](https://softmax.com/generals) is **free-for-all
+(FFA), with 3–8 players**. Classic 1v1 and Build 1v1 have separate leagues.
 
-Run the same FFA browser client locally:
+[Play FFA](https://softmax.com/generals/ffa/play) ·
+[Agent instructions](https://softmax.com/generals/play.md) ·
+[Watch replays](https://softmax.com/generals/ffa)
 
-```bash
-pip install -e '.[softmax]'
-python -m integrations.softmax.local --variant ffa --human
-# Use --players 3 through --players 8 to select the FFA field size.
-# Use --variant competition or --variant castles for the two-player modes.
-```
+## Run locally
 
-Follow the printed player link. Completed games become replays in the same
-screen, with full-map/player perspectives and a download button.
-See [the Softmax integration](integrations/softmax/README.md) for bot matches,
-protocols, and replay packaging. The desktop GUI and engine examples below
-remain research/debugging tools; the browser client is the product interface.
-
-Based on [Matej Straka’s generals-bots](https://github.com/strakam/generals-bots/tree/softmax),
-imported at `0fcb5a00226387670624d2f326f6d5ad61914584`. The upstream MIT license
-and attribution are retained. The deployed Coworld remains `generals-competition`.
-See [the migration record](integrations/softmax/MIGRATION.md) for provenance,
-archived releases, validation, and remaining official-engine work.
-
-<div align="center">
-
-<p align="center">
-  <img src="generals/assets/images/game1.webp" width="250" alt="Self-play game 1" />
-  <img src="generals/assets/images/game2.webp" width="250" alt="Self-play game 2" />
-  <img src="generals/assets/images/game3.webp" width="250" alt="Self-play game 3" />
-</p>
-
-## **Generals.io Bots**
-
-[Installation](#-installation) • [Getting Started](#-getting-started) • [Environment](#-environment) • [Deployment](#-deployment)
-</div>
-
-A high-performance JAX-based simulator for [generals.io](https://generals.io), designed for reinforcement learning research.
-
-**Highlights:**
-* ⚡ **10M+ steps/second** — fully JIT-compiled JAX simulator with vectorized `vmap` for massive parallelism
-* 🎯 **Pure functional design** — immutable state, reproducible trajectories
-* 🚀 **Live deployment** — deploy agents to [generals.io](https://generals.io) servers
-* 🎮 **Built-in GUI** — visualize games and debug agent behavior
-
-## 📦 Installation
+Use Python 3.12, as in CI. Run these commands from the checkout root:
 
 ```bash
-git clone https://github.com/Metta-AI/coworld-generals-io
+git clone git@github.com:Metta-AI/coworld-generals-io.git
 cd coworld-generals-io
-pip install -e .
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r integrations/softmax/requirements.lock
+python -m pip install -e '.[softmax]'
+python -m integrations.softmax.local --variant ffa --human
 ```
 
-> [!Note]
-> This repository is based on the [generals.io](https://generals.io) game.
-> The goal is to provide a fast bot development platform for reinforcement learning research.
-> Upstream reports matching 10,000 ranked replays from 2026. That is historical
-> validation, not a comparison against the privately supplied engine revision;
-> see the migration record for remaining dependencies and parity work.
+Follow the printed player link. You control seat 0 against bundled bots.
+Completed games switch to replay in the same screen, with full-map and player
+perspectives, seeking, and download. Ctrl+C stops the server.
 
-## 🌱 Getting Started
-
-### Basic Game Loop
-
-```python
-import jax.numpy as jnp
-import jax.random as jrandom
-
-from generals import GeneralsEnv, get_observation
-from generals.agents import RandomAgent, ExpanderAgent
-
-# Create environment (customize grid size and truncation)
-env = GeneralsEnv(grid_dims=(10, 10), truncation=500)
-
-# Create agents
-agent_0 = RandomAgent()
-agent_1 = ExpanderAgent()
-
-# Initialize — reset returns the auto-reset pool plus the first state
-key = jrandom.PRNGKey(42)
-pool, state = env.reset(key)
-
-# Game loop
-while True:
-    # Get observations
-    obs_0 = get_observation(state, 0)
-    obs_1 = get_observation(state, 1)
-
-    # Get actions
-    key, k1, k2 = jrandom.split(key, 3)
-    action_0 = agent_0.act(obs_0, k1)
-    action_1 = agent_1.act(obs_1, k2)
-    actions = jnp.stack([action_0, action_1])
-
-    # Step environment (auto-resets from the pre-generated pool)
-    timestep, state = env.step(state, actions, pool)
-
-    if timestep.terminated or timestep.truncated:
-        break
-
-print(f"Winner: Player {int(timestep.info.winner)}")
+```bash
+# Choose an FFA field size; the default is four.
+python -m integrations.softmax.local --variant ffa --players 8 --human
+# Other human modes:
+python -m integrations.softmax.local --variant competition --human
+python -m integrations.softmax.local --variant castles --human
+# Short bot-only episode; retain the server for replay inspection:
+python -m integrations.softmax.local --variant ffa --max-turns 40 --keep-open
 ```
 
-### ⚡Vectorized Parallel Environments
+The launcher defaults to classic 1v1 when `--variant` is omitted.
+Bot FFA allows 50,002 engine ticks; classic/build bots allow 2,000;
+human games allow 1,200. Two engine ticks equal one displayed game turn.
+See [local controls and outputs](integrations/softmax/README.md#play-locally).
 
-Run **thousands** of games in parallel using `jax.vmap`:
+No Docker or Softmax account is required for these local browser games.
+BASIC seats additionally need the compiled worker; see
+[BASIC setup](integrations/softmax/BASIC_PROTOCOL.md#local-verification).
+The `integrations` modules run from this checkout; the installed Python
+package is still named `generals-bots` and exports `generals`.
 
-```python
-import jax
-import jax.random as jrandom
-from generals import GeneralsEnv, get_observation
+## Repository map
 
-# Create single environment
-env = GeneralsEnv(grid_dims=(10, 10), truncation=500)
+| Path | Responsibility |
+| --- | --- |
+| [`generals/core/`](generals/core) | JAX board state, rules, observations, training environment, and single-episode helpers |
+| [`generals/modifiers/`](generals/modifiers) | Castle-building and Deathtouch modifiers for research presets |
+| [`generals/agents/`](generals/agents), [`gui/`](generals/gui), [`remote/`](generals/remote) | Research agents, desktop debugging, and external generals.io client |
+| [`integrations/softmax/`](integrations/softmax/README.md) | Hosted/local game server, ranked FFA adapter, player runtimes, protocols, and packaging |
+| [`integrations/softmax/static/`](integrations/softmax/static) | Shared live player, public scores, and static replay client |
+| [`competition/`](competition) | Two-player stdio match runner, protocol, and Python/C++/Rust reference bots |
+| [`examples/`](examples) | Engine examples; experimental training lives in `_experimental/` |
+| [`paper/`](paper) | Benchmark results and replay/reference-engine validation tools |
+| [`tests/`](tests) | Engine, adapter, browser, and complete system workflows |
+| [`.github/workflows/`](.github/workflows) | Source CI and explicitly dispatched Coworld releases |
 
-# Generate state pool once, then create per-env starting states
-NUM_ENVS = 1024
-key = jrandom.PRNGKey(0)
-key, pool_key = jrandom.split(key)
-pool, _ = env.reset(pool_key)  # generates the shared pool
+## Development guides
 
-keys = jrandom.split(key, NUM_ENVS)
-states = jax.vmap(env.init_state)(keys)  # Batched states
+- [Game adapter](integrations/softmax/README.md): runtime flow, local play,
+  rules, player bridge, replay bundle, and release commands.
+- [Player protocol](integrations/softmax/PLAYER_PROTOCOL.md),
+  [BASIC interface](integrations/softmax/BASIC_PROTOCOL.md), and
+  [global/replay protocol](integrations/softmax/GLOBAL_PROTOCOL.md).
+- [Modes, leagues, and release records](integrations/softmax/VARIANTS.md).
+- [Engine API and research examples](generals/README.md), including observations,
+  actions, vectorization, teams, and the paper citation.
+- [Roadmap](integrations/softmax/ROADMAP.md) and
+  [migration/reference evidence](integrations/softmax/MIGRATION.md).
 
-# Step all environments in parallel (auto-resets from the shared pool)
-# ... get batched observations and actions ...
-step_vmap = jax.vmap(lambda s, a: env.step(s, a, pool))
-timesteps, states = step_vmap(states, actions)
+The browser client is the product interface. `GeneralsEnv`, desktop tools, and
+the external generals.io client serve research and debugging.
+The research `competition` preset enables building and Deathtouch;
+the Coworld `competition` variant is classic 1v1 with neither enabled.
+Hosted FFA also has its own ranked map sampler and Survival placement scoring.
+
+## Checks and releases
+
+From the activated environment above:
+
+```bash
+python -m pip install -e '.[dev]' playwright
+python -m playwright install chromium
+python -m integrations.softmax.tools.manifest --check
+JAX_PLATFORMS=cpu SDL_VIDEODRIVER=dummy GENERALS_BROWSER_TESTS=1 python -m pytest -q
 ```
 
-See `examples/vectorized_example.py` for a complete example.
+BASIC system checks require `GENERALS_BASIC_WORKER`; private-reference checks
+require external reference inputs. See [maintenance](integrations/softmax/README.md#maintenance-and-tests)
+for those opt-ins. Updating docs embedded in the manifest requires
+`python -m integrations.softmax.tools.manifest` before the consistency check.
 
-### 👥 Teams and Free-For-All
+The [Coworld release workflow](.github/workflows/coworld-release.yml) builds and
+certifies containers before uploading a requested version. A source push runs
+CI; publishing a Coworld release requires a separate workflow dispatch.
+See [build and certify](integrations/softmax/README.md#build-and-certify).
 
-The same env plays 1v1 (the default), N-player free-for-all, and team games:
+## Provenance
 
-```python
-env = GeneralsEnv(grid_dims=(15, 15))                   # 1v1
-env = GeneralsEnv(grid_dims=(15, 15), num_players=4)    # 4-player free-for-all
-env = GeneralsEnv(grid_dims=(15, 15), teams=[0, 0, 1, 1])   # 2v2: players 0+1 vs 2+3
-```
+Imported from [Matej Straka's generals-bots](https://github.com/strakam/generals-bots/tree/softmax)
+at `0fcb5a00226387670624d2f326f6d5ad61914584`. The upstream
+[MIT license and attribution](LICENSE) are retained.
+The Coworld identity remains `generals-competition`; Python package versions
+and Coworld release versions are independent.
 
-With N players, actions are `(N, 5)`, `state.ownership` is `(N, H, W)`, and
-observations and rewards are stacked `(N, ...)`. Rules beyond 1v1:
-
-* Moving onto a **teammate's** cell pools the armies and hands the cell to the mover.
-* **Capturing a general** transfers all of the victim's cells to the capturer with
-  every army halved (rounded up); the general becomes a castle and the victim is
-  eliminated (their actions are ignored from then on). The game goes on while
-  another team is alive.
-* A team loses only when **every** one of its generals has fallen; the **last
-  team standing** wins. `info.winner` is the winning team id (the player index
-  in 1v1 / free-for-all), and every player on that team gets reward `+1`,
-  everyone else `-1`.
-* **Sight is shared** within a team. Observations carry `allied_cells`,
-  `allied_land_count` and `allied_army_count` (all zero when you have no
-  teammate); `opponent_*` covers every enemy team together.
-
-See `examples/multiplayer_example.py` for batched 2v2 / FFA / 1v1 games under `jax.jit`.
-
-## 🌍 Environment
-
-### Softmax Coworld integration
-
-The optional [Softmax integration](integrations/softmax/README.md) packages
-classic 1v1, four-player FFA and build-your-own-castles 1v1 with networked
-players, browser controls, and portable replays. Run `pip install -e '.[softmax]'`, then
-`python -m integrations.softmax.local --human` to play locally.
-
-### Observation
-
-Each player receives an `Observation` with these fields:
-
-| Field | Shape | Description |
-|-------|-------|-------------|
-| `armies` | `(H,W)` | Army counts in visible cells |
-| `generals` | `(H,W)` | Mask of visible generals |
-| `castles` | `(H,W)` | Mask of visible castles (formerly `cities` — a deprecated alias remains) |
-| `mountains` | `(H,W)` | Mask of visible mountains |
-| `owned_cells` | `(H,W)` | Mask of cells you own |
-| `opponent_cells` | `(H,W)` | Mask of opponent's visible cells |
-| `neutral_cells` | `(H,W)` | Mask of neutral visible cells |
-| `fog_cells` | `(H,W)` | Mask of fog (unexplored) cells |
-| `structures_in_fog` | `(H,W)` | Mask of castles/mountains in fog |
-| `owned_land_count` | scalar | Total cells you own |
-| `owned_army_count` | scalar | Total armies you have |
-| `opponent_land_count` | scalar | Opponent's cell count |
-| `opponent_army_count` | scalar | Opponent's army count |
-| `timestep` | scalar | Current game step |
-| `allied_cells` | `(H,W)` | Mask of teammates' visible cells (team games; all-False otherwise) |
-| `allied_land_count` | scalar | Teammates' cell count |
-| `allied_army_count` | scalar | Teammates' army count |
-
-`obs.as_tensor()` stacks the first 14 fields into a `(14, H, W)` tensor;
-`obs.as_tensor(include_allied=True)` appends the three allied channels.
-
-### Action
-
-Actions are arrays of 5 integers: `[pass, row, col, direction, split]`
-
-| Index | Field | Values |
-|-------|-------|--------|
-| 0 | `pass` | `1` to pass, `0` to move |
-| 1 | `row` | Source cell row |
-| 2 | `col` | Source cell column |
-| 3 | `direction` | `0`=up, `1`=down, `2`=left, `3`=right |
-| 4 | `split` | `1` to send half army, `0` to send all-1 |
-
-Use `compute_valid_move_mask` to get legal moves:
-
-```python
-from generals import compute_valid_move_mask
-
-mask = compute_valid_move_mask(obs.armies, obs.owned_cells, obs.mountains)
-# mask shape: (H, W, 4) - True where move from (i,j) in direction d is valid
-```
-
-## 🚀 Deployment
-
-Deploy agents to live [generals.io](https://generals.io) servers:
-
-```python
-from generals.remote import autopilot
-from generals.agents import ExpanderAgent
-
-agent = ExpanderAgent()
-autopilot(agent, user_id="your_user_id", lobby_id="your_lobby")
-```
-
-Register at [generals.io](https://generals.io) to get your user ID.
-
-## 📄 Citation
-
-```bibtex
-@misc{generals_rl,
-      author    = {Matej Straka, Martin Schmid},
-      title     = {Artificial Generals Intelligence: Mastering Generals.io with Reinforcement Learning},
-      year      = {2025},
-      eprint    = {2507.06825},
-      archivePrefix = {arXiv},
-      primaryClass = {cs.LG},
-}
-```
+The previous Nim game and its binary replays remain in pinned historical releases.
+The current game uses Python/JAX; its BASIC worker is written in Nim.
+Privately supplied official-engine sources remain outside this repository and
+distributed artifacts. See [migration provenance](integrations/softmax/MIGRATION.md).

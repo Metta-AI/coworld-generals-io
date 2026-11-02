@@ -5,12 +5,13 @@ carries every mode; each bot mode runs as its own Softmax league. The display-na
 override preserves the manifest identity, version history, and existing links.
 New releases are maintained in `Metta-AI/coworld-generals-io`.
 
-**FFA (3–8 players) is the default landing league and Game of the Week.**
+**FFA (3–8 players) is the recorded default landing league.**
 The [Generals page](https://softmax.com/generals), its Play button,
 and [play.md](https://softmax.com/generals/play.md) select the FFA league.
 Classic and Build stay available through their explicit league addresses.
 Game-of-the-Week selection and the default league are separate platform settings;
-check both after publishing a release.
+re-check both after publishing a release. The settings and hosted status below
+reflect the release readbacks recorded here; source `main` can contain later changes.
 
 ## Modes
 
@@ -322,3 +323,19 @@ Hosted verification uses the baselines `strakam-generals-expander:v2`
 (`c2c6eb89-51ff-4fba-928d-e35dfa278357`) and `strakam-generals-builder:v1`
 (`0d7a26da-c81a-4173-906e-ee1fff21ffc4`), registered for 0.3.0 on the uploaded
 lightweight player image. They are not league entrants.
+
+### 0.2.x — early browser integration
+
+These historical notes were previously embedded in the adapter README.
+
+- 0.2.0 replaced the 0.1.0 competition modifiers with classic capture-only play,
+  retaining the `generals-competition` game name and `competition` variant ID.
+  The research competition preset remained separate.
+- 0.2.1 accepted the hosted proxy's complete player WebSocket URL in `address`,
+  while local links continued to use `slot` and `token`.
+- 0.2.2 served live assets and completed replays under the proxied `/client/` path.
+- 0.2.3 preserved mounted tile icons and queue arrows across turn updates.
+- 0.2.4 sent automatic passes earlier and allowed human lobbies a one-second
+  network deadline, retaining a 500 ms minimum tick interval and steady idle status.
+- 0.2.5 kept independent queued routes separate, so one failed route did not
+  cancel other routes.
