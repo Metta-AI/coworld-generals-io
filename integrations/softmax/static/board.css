@@ -4,23 +4,20 @@
   --fg: #0a0a0c;
   --muted: #6b6b74;
   --accent: #e23a3a;
-  /* player colors — the engine's replay palette, exact (generals/gui/replay_gui.py):
-     blue rgb(70,100,220), red rgb(220,70,70) */
-  --blue: #4664dc;
-  --red: #dc4646;
-  --green: #27804f;
-  --purple: #9257bf;
+  /* Default generals.io player palette; shared by live boards, replays, and scorecards. */
+  --blue: #1031ff;
+  --red: #ff0000;
+  --green: #008000;
+  --purple: #800080;
   --orange: #fa8c01;
   --pink: #f032e6;
   --teal: #008080;
   --maroon: #9b0101;
-  /* board tiles — exact engine values (generals/gui/rendering.py):
-     plains rgb(230,230,230), mountains rgb(187,187,187), neutral castles rgb(128,128,128) */
-  --neutral-tile: #e6e6e6;
+  /* Default generals.io terrain palette. */
+  --neutral-tile: #dcdcdc;
   --neutral-castle-tile: #808080;
-  --mountain-tile: #bbbbbb;
-  --fog-tile: #4a4f56;
-  --fog-mountain-tile: #767b83;
+  --mountain-tile: #acacac;
+  --fog-tile: #393939;
   --border: rgba(0, 0, 0, 0.12);
   --stage-max: 1600px;
 
@@ -41,14 +38,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #e6e6e6;
-  /* engine grid (rendering.py draw_channel): 1px left+top lines per tile, in a
-     0.72-brightness shade of the tile's own fill — softer than a flat black grid */
+  color: #fff;
   --fill: var(--neutral-tile);
   background: var(--fill);
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--fill) 72%, black);
-  border-top: 1px solid color-mix(in srgb, var(--fill) 72%, black);
+  border-left: 1px solid #000;
+  border-top: 1px solid #000;
   transition: background-color 0.4s ease, opacity 500ms ease var(--d, 0s);
   position: relative;
   line-height: 1;
@@ -85,11 +80,9 @@
 }
 
 /* fog: neither player sees this cell (owner -2) — dark, no army or terrain */
-.tile.fog { --fill: var(--fog-tile); color: transparent; }
-/* a mountain in fog stays visible as static terrain: a grayer tile + icon */
-.tile.fog.fog-mountain { --fill: var(--fog-mountain-tile); }
-.tile.neutral { --fill: var(--neutral-tile); color: #333; }
-.tile.mountain { --fill: var(--mountain-tile); color: #222; }
+.tile.fog { --fill: var(--fog-tile); color: transparent; border-color: transparent; }
+.tile.neutral { --fill: var(--neutral-tile); }
+.tile.mountain { --fill: var(--mountain-tile); }
 .tile.neutral-castle { --fill: var(--neutral-castle-tile); color: #fff; }
 .tile.blue { --owner: var(--blue); --fill: var(--owner); color: #fff; }
 .tile.red { --owner: var(--red); --fill: var(--owner); color: #fff; }
@@ -99,10 +92,6 @@
 .tile.pink { --owner: var(--pink); --fill: var(--owner); color: #fff; }
 .tile.teal { --owner: var(--teal); --fill: var(--owner); color: #fff; }
 .tile.maroon { --owner: var(--maroon); --fill: var(--owner); color: #fff; }
-/* owned structures stand out as a darker shade of the owner's color — exact
-   engine factors (rendering.py): generals 0.65, captured castles 0.8 */
-.tile:is(.blue,.red,.green,.purple,.orange,.pink,.teal,.maroon).has-general { --fill: color-mix(in srgb, var(--owner) 65%, black); }
-.tile:is(.blue,.red,.green,.purple,.orange,.pink,.teal,.maroon).has-castle { --fill: color-mix(in srgb, var(--owner) 80%, black); }
 
 .tile { transition: none; overflow: visible; }
 .tile.selected {

@@ -373,13 +373,16 @@ ownership need agreement with Softmax.
 ## Visual sources
 
 `static/board.js` reuses the tile-rendering function from
-`generals-competition/board.js` at commit `83a9b23`. `static/board.css` contains
-that repo's tile styles and color variables from the same commit. Only the
-Coworld snapshot-to-tile mapping and selected-cell indicator are adapter-specific.
+`generals-competition/board.js` at commit `83a9b23`. `static/board.css` retains
+that renderer's tile layout and uses the default [generals.io](https://generals.io)
+player and terrain colors, including unchanged owner colors on castles and generals.
+The palette was checked against `generals-main-prod-v31.4.6-df40179d.css`
+on November 2, 2026. The Coworld snapshot-to-tile mapping and selected-cell
+indicator remain adapter-specific.
 The surrounding layout follows its `assets/site.css` replay viewer. There is no
 procedural game fallback or second game simulation in this renderer.
 
-Keep the tile styling aligned with the competition site when updating it.
+Keep board and scorecard colors aligned with the official game when updating them.
 Sprites stay owned by `generals/assets/images`, and the Quicksand font comes
 from `generals/assets/fonts`, including its license in the replay bundle. No
 copied source assets need to be synchronized manually.
