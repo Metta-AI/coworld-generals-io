@@ -87,6 +87,37 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.6.4 — November 2, 2026 (UTC)
+
+- Released `4b761975030c6f9260ab7697d2671009af1cd021` with Coworld SDK 0.1.68.
+  Dispatch: `gh workflow run coworld-release.yml --ref main -f version=0.6.4`.
+  [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41527330470)
+  passed all nine native AMD64 fixtures (90 checks) and all ten hosted checks.
+- Canonical Coworld: `cow_eedfa858-bac6-419e-89da-b86d6605a1ba`.
+  Public API readbacks confirm Classic, FFA, and Build resolve both current and
+  canonical Coworld IDs to this release. Hosted certification reports `certified`
+  under contract `main-713fc262f557`.
+- Live boards and new replay bundles use the official player, terrain, fog,
+  and grid colors. Generals and captured castles retain their owner's color.
+  Existing episodes retain their pinned historical viewers.
+- The full local engine/integration/browser suite passed 223 tests, with four
+  skipped. Manifest consistency and ten native arm64 container checks passed.
+- Loaded the deployed static viewer with an existing seven-player recording.
+  It rendered 648 tiles and played the replay with the new palette. The deployed
+  `board.css` matches the tested source SHA-256 below.
+  [Hosted screenshot](https://softmax.nexus/artifacts/0c7d18a2-5c1b-4c13-95f8-482ebe672003)
+  is available to staff. This checks the new viewer against a saved recording;
+  the hosted certification separately exercised a new real game episode.
+
+Published artifact identities:
+
+- Manifest: `sha256:d2e0aed10c19b9013733939a5d14c30877c279cec3e87324aa9c087f17e7d970`.
+- Game image: `sha256:5da7b3ab792f575aa83529f40c84319d7ef57c8a8904ec5314e75e5c90967ba0`.
+- Player image: `sha256:046b8371e6b0386c59c92900fec1a9e020046a67a70dca6b2335a00c8f26b403`.
+- BASIC baseline: `sha256:5c6988224b71a16c5d60313bd3b9b9837951c45897ff30a1235456028c9c8bc7`.
+- Replay bundle: `sha256:a705ceb7abc0297232a8e9b65d9171aedb0d0ec88121f4022f9a9f35e1b3293e`.
+- Deployed board stylesheet: `sha256:8e52d2d000d07e06ff835af9773367c898132480abb1d35cc901885b6070629a`.
+
 ### 0.6.2 — October 31, 2026 (UTC)
 
 - Released `c174984c68d36ad7de54ff90de873e435c00d849` with Coworld SDK 0.1.68.
