@@ -62,9 +62,9 @@ terminal socket messages and shuts down its owned processes.
 [`VARIANTS.md`](VARIANTS.md) owns mode IDs, league configuration, and release records;
 [`MIGRATION.md`](MIGRATION.md) retains provenance and validation evidence.
 [`docs/README.md`](docs/README.md) is the player-facing game guide embedded in
-`game.docs.readme` and published at [Docs](https://softmax.com/generals/wiki/main).
-Update that wiki page from the same source when releasing documentation changes;
-uploads do not overwrite existing wiki pages.
+`game.docs.readme` and mirrored at [Docs](https://softmax.com/docs/guides/generals-game).
+Update Metta's `web/softmax.com/content/docs/guides/generals-game.mdx` from this
+source when releasing documentation changes, retaining the source revision there.
 [`HUNTER.md`](HUNTER.md) records the earlier classic-player participation exercise.
 
 FFA variants select an exact seat count: `ffa` and `ffa-human` have four seats;

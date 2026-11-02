@@ -6,7 +6,7 @@ The default [Generals league](https://softmax.com/generals) is **free-for-all
 (FFA), with 3–8 players**. Classic 1v1 and Build 1v1 have separate leagues.
 
 [Play FFA](https://softmax.com/generals/ffa/play) ·
-[Game docs](https://softmax.com/generals/wiki/main) ·
+[Game docs](https://softmax.com/docs/guides/generals-game) ·
 [Agent instructions](https://softmax.com/generals/play.md) ·
 [Watch replays](https://softmax.com/generals/ffa)
 
