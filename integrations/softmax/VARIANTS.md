@@ -87,6 +87,38 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.6.5 — November 2, 2026 (UTC)
+
+- Released `03b151c30d3cbcdf65372f2ff73a0da26e5867e4` with Coworld SDK 0.1.68.
+  Built from the `relh/generals-game-docs` worktree branch with
+  `gh workflow run coworld-release.yml --ref relh/generals-game-docs -f version=0.6.5`.
+  [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41542963247)
+  passed all nine native AMD64 fixtures (90 checks) and all ten hosted checks.
+- Canonical Coworld: `cow_a083d120-69e0-4119-b516-358feb473703`.
+  Public API readbacks confirm Classic, FFA, and Build resolve both current and
+  canonical Coworld IDs to this release. Hosted certification reports `certified`
+  under contract `main-10663a413cd0`.
+- The manifest now embeds `docs/README.md`, the player-facing game guide,
+  instead of the developer integration runbook. It covers controls, BASIC and
+  container players, rules, Survival scoring, deadlines, and replays.
+  Public readback matches the source README byte for byte.
+- The website mirror and Generals Docs link are tracked in
+  [Metta PR #30377](https://app.graphite.dev/github/pr/Metta-AI/metta/30377).
+  They use the public docs area because community wiki routes are unavailable
+  in the newer play experience.
+- The full local engine/integration/browser suite passed 223 tests, with four
+  skipped, in 424.92 seconds. Manifest consistency and ten native arm64
+  container checks passed. No rules, player protocols, or runtime code changed.
+
+Published artifact identities:
+
+- Manifest: `sha256:26012ea2dec8c33995f604c079f5989ae3ee21eb1e6e677ac81db0bb09b3afd8`.
+- Game image: `sha256:a48daec0883854ff667bafa6cc6c7a6c679c21b96eae61cb08b46b23254dc86f`.
+- Player image: `sha256:726b5a28be40a940bac90b6e52459b151a71110fb80a1c0f31749d8e56fd5950`.
+- BASIC baseline: `sha256:5c6988224b71a16c5d60313bd3b9b9837951c45897ff30a1235456028c9c8bc7`.
+- Replay bundle: `sha256:a705ceb7abc0297232a8e9b65d9171aedb0d0ec88121f4022f9a9f35e1b3293e`.
+- README: `sha256:c72e3a716b6c67739d2189c469876c58ff5a80dad999ce01f5a838cb8c2ddd0c`.
+
 ### 0.6.4 — November 2, 2026 (UTC)
 
 - Released `4b761975030c6f9260ab7697d2671009af1cd021` with Coworld SDK 0.1.68.
