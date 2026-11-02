@@ -79,7 +79,7 @@ def template():
                 "player": document("PLAYER_PROTOCOL.md", "BASIC_PROTOCOL.md"),
                 "global": document("GLOBAL_PROTOCOL.md"),
             },
-            "docs": {"readme": document("README.md")},
+            "docs": {"readme": document("docs/README.md")},
             "replay_viewer": {"bundle": "replay-viewer", "replay_compression": "gzip"},
         },
         "player": [
