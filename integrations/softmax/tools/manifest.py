@@ -64,8 +64,8 @@ def template():
             "name": "generals-competition",
             "owner": "Softmax",
             "description": (
-                "Fog-of-war territory strategy: classic 1v1, three-to-eight-player free-for-all, "
-                "and build-your-own-castles 1v1. Capture generals to win; no Deathtouch."
+                "Three-to-eight-player free-for-all under fog of war. Grow armies, capture rival generals, "
+                "and compete for Survival placement. Classic 1v1 and Build 1v1 are also available."
             ),
             "runnable": {
                 "type": "game",

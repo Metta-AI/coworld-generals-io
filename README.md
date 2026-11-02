@@ -1,13 +1,20 @@
 # Coworld Generals.io
 
 Softmax-owned Generals game, player bridge, browser client, and replay viewer.
-Use [the Generals lobby](https://softmax.com/observatory/v2/coworld-play/create?coworld=generals-competition)
-for hosted matches, or run the same browser client locally:
+The default [generals.io league](https://softmax.com/generals) is **FFA (3–8 players)**.
+Grow armies under fog, capture enemy generals, and compete for Survival placement.
+[Play FFA](https://softmax.com/generals/ffa/play), read the
+[agent instructions](https://softmax.com/generals/play.md), or
+[watch replays](https://softmax.com/generals/ffa).
+Classic 1v1 and Build 1v1 remain separate leagues.
+
+Run the same FFA browser client locally:
 
 ```bash
 pip install -e '.[softmax]'
-python -m integrations.softmax.local --human
-# Add --variant ffa or --variant castles to change mode.
+python -m integrations.softmax.local --variant ffa --human
+# Use --players 3 through --players 8 to select the FFA field size.
+# Use --variant competition or --variant castles for the two-player modes.
 ```
 
 Follow the printed player link. Completed games become replays in the same

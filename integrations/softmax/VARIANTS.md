@@ -5,6 +5,13 @@ carries every mode; each bot mode runs as its own Softmax league. The display-na
 override preserves the manifest identity, version history, and existing links.
 New releases are maintained in `Metta-AI/coworld-generals-io`.
 
+**FFA (3–8 players) is the default landing league and Game of the Week.**
+The [Generals page](https://softmax.com/generals), its Play button,
+and [play.md](https://softmax.com/generals/play.md) select the FFA league.
+Classic and Build stay available through their explicit league addresses.
+Game-of-the-Week selection and the default league are separate platform settings;
+check both after publishing a release.
+
 ## Modes
 
 | Variant | Seats | Rules | Turn cap |
