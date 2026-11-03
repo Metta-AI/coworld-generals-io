@@ -87,6 +87,43 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.7.1 — November 3, 2026 (UTC)
+
+- Released `94714fea76247bcb60779237952cac71d7793f11` from `main` after
+  [PR 23](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/23).
+  The native replay reveals the winner/reason only at its end and hides them
+  after rewind. The player column is 240 logical pixels; grid gaps are two pixels.
+  Player and event text are larger.
+- [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41580761750)
+  passed all nine native AMD64 fixtures (90 checks) and ten hosted checks.
+  Canonical Coworld: `cow_41063b1f-d001-4d19-92fb-3a2d6550647f`, certified
+  under `main-0027dbc916f3`, job `15b6c25d-5df4-4d73-963d-54abb1cfd9a2`.
+- Current leaderboard skill display is implemented in the viewer, enabled through
+  `COWORLD_REPLAY_PLAYER_RATINGS=true`. Actual values require the companion
+  [platform PR 30441](https://app.graphite.dev/github/pr/Metta-AI/metta/30441),
+  awaiting merge authorization at this release. Until deployment, seats show —.
+  The platform uses the normal leaderboard's published score and player identities;
+  local API/Postgres/storage proof covers policy seats, ranked humans and retries.
+  These are current standings, not historical pre-match ratings.
+- Fresh hosted Classic, FFA8 and Build checks completed 80 ticks with zero player
+  timeouts, using existing registered container/file policies. These shortened
+  packaging checks do not establish playing strength. Public episodes:
+  [Classic](https://softmax.com/generals/episodes/45b926c4-5a35-400c-a4b9-0f8e8742c8cb),
+  [FFA8](https://softmax.com/generals/episodes/df841f0c-0cc9-4fce-a6c5-b8a967b6e9bf),
+  [Build](https://softmax.com/generals/episodes/614db5e1-8e86-45e1-bc10-5ac231ca0474).
+  The production FFA8 viewer was checked at 1440×1000: no initial result,
+  the winner at tick 80, and no result after rewind. Older episodes retain
+  their release's immutable viewer.
+- Artifact digests (SHA-256): game
+  `be20a96aeab1ad4580ddcdb35d7e45a065930dd4217dd4b1529d62cc4925164c`;
+  container baselines
+  `a5f1dee334660bf7c56f8f6b3d9e8e9ea9df699e41f716c30505563cf067a342`;
+  BASIC `5c6988224b71a16c5d60313bd3b9b9837951c45897ff30a1235456028c9c8bc7`;
+  viewer `ad5edca41e11fb705d627f1f3aae243a6ffb505feb753af9094b4ffd46175cf3`;
+  manifest `d949c1c1bc2d0ba80489a1494d80b9659d12ccb8073e742f907f62328ec7c87d`.
+  Upstream sync still follows `main`; the release records its imported source
+  `500a98d66777f53e6dd1ca1f2127ebb826018f4a` for provenance.
+
 ### 0.7.0 — November 3, 2026 (UTC)
 
 - Released `e9a22e69c79344fe0f72891e61eec7547fce7ff6` from `main` with
