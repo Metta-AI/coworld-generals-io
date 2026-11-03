@@ -5,6 +5,30 @@ Use [the adapter guide](README.md) for the current implementation and commands,
 and [VARIANTS.md](VARIANTS.md) for mode IDs, leagues, and published releases.
 Versioned validation sections below describe the release tested at that time.
 
+## Paired platform rollout and FFA recovery
+
+Live skill snapshots require the platform changes in
+[Metta PR 30441](https://app.graphite.dev/github/pr/Metta-AI/metta/30441).
+That rollout also fixes mixed-roster file faults losing seat attribution in the Kubernetes coordinator.
+A BASIC work-budget failure remains a policy fault; do not raise its budget to recover scheduling.
+
+After both PRs merge:
+
+1. Deploy the matching platform backend/coordinator bundle and verify the running coordinator digest.
+2. Refresh Polyworld from its floating `main` with the documented sync command; record the resolved revision.
+   Build and certify the resulting source before publishing. Do not dispatch another release while one is running.
+3. Rebuild and upload a new version through `coworld-release.yml`, await hosted certification, and verify the canonical
+   `generals-competition` version. Source commits and older successful uploads do not establish this release's state.
+4. Read the current FFA pause and latest round before resuming only
+   `league_f189ad01-2700-4fc8-ba89-f9de477099e4` through the platform's `rounds-paused` API.
+   Keep the league's OpenSkill settings, thirty-minute cadence, and retry limits.
+5. Verify a fresh FFA round starts and completes using the intended version. Inspect its planned episodes,
+   any policy-failure attribution, and published skill standings. Record the release and round IDs in VARIANTS.md.
+
+The November 3 outage exhausted three attempts on version 0.6.5. Production debug artifacts showed
+`BASIC work limit exceeded` in a file seat, followed by an unattributed coordinator `StopIteration` during a pod lookup.
+A certified upload does not clear that durable league pause. Do not report recovery until a new round completes.
+
 ## Provenance
 
 The repository was renamed from `Metta-AI/cogame-gen-generals-io` to
