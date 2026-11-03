@@ -26,6 +26,7 @@ source .venv/bin/activate
 python -m pip install -r integrations/softmax/requirements-polyworld.lock
 integrations/softmax/tools/build_polyworld_runtime.sh "$PWD/polyworld/out"
 export GENERALS_POLYWORLD_ENGINE="$PWD/polyworld/out/generals-polyworld"
+export GENERALS_BASIC_WORKER="$PWD/polyworld/out/generals-basic"
 python -m integrations.softmax.local --variant ffa --human
 ```
 

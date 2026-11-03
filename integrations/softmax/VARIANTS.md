@@ -87,6 +87,28 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.7.4 — November 3, 2026 (UTC)
+
+- Release inputs: source `f1ed54e935508839f29f30d8c33dcea923fb5276`, Coworld SDK 0.1.68,
+  floating Polyworld `main` resolved to `872774b9f593e7f771b215f0d5c1dd65031f05e7`.
+  [PR 29](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/29) adds compact binary replays and
+  responsive viewing; [PR 31](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/31) unifies policies.
+- [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41730488030) owns native AMD64
+  certification, publication and hosted certification. Use its `generals-release` manifest and the
+  [release verification record](https://softmax.nexus/activity/note%3A1c16c4ad-5110-4e3b-8287-1f502ab79098)
+  for the published artifact identities, canonical readback and hosted match results.
+- Standalone and hosted BASIC use one policy host and decision limits. Existing row/column policies and the
+  unchanged upstream Scout work. BASIC, container and human seats share the actual Polyworld MessageHub,
+  including names, skill, private mail, public chat and game events. A build reserves the same action slot
+  before engine legality checks for both BASIC and socket players. Private messages never enter replays.
+- The final source passes both complete CI runs, the imported Nim suite, 46 server checks, 18 browser/rules/handoff
+  checks, six Linux system cases and 40 native ARM64 container checks. All three current BASIC champions pass
+  strict native compilation and finish a bounded real-image FFA at tick 457, with zero timeouts.
+  An actual human/Docker message exchange completes 80 ticks with zero timeouts. Its compact replay retains
+  public chat at its recorded tick and excludes both private texts; rewind hides later chat and the result.
+- The first workflow attempt was cancelled during build before its publish step when the additional policy
+  unification was requested. This release uses the final merged source; historical uploads remain unchanged.
+
 ### 0.7.2 — November 3, 2026 (UTC)
 
 - Released source `98eb024c47814c0c16dd3006387d0472ad9f9821` after

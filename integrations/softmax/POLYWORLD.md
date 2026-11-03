@@ -64,13 +64,15 @@ fetches the public native dependencies and uses Emscripten 5.0.7. The image
 contains the compiled viewer and licenses; source dependency trees stay in its
 build stage. `replay-dependencies.lock` supplies two transitive viewer libraries
 omitted from the imported dependency list.
-The game image contains no JAX runtime. The former Docker `game` target and
+Both local server engines need `generals-basic` for the shared MessageHub broker,
+even when every seat is a container or human. The game image contains no JAX runtime. The former Docker `game` target and
 Python engine remain independently buildable.
 
 ```sh
 integrations/softmax/tools/build_polyworld_runtime.sh /tmp/generals-runtime
-GENERALS_POLYWORLD_ENGINE=/tmp/generals-runtime/generals-polyworld \
-  python -m integrations.softmax.local --variant ffa --max-turns 40
+export GENERALS_POLYWORLD_ENGINE=/tmp/generals-runtime/generals-polyworld
+export GENERALS_BASIC_WORKER=/tmp/generals-runtime/generals-basic
+python -m integrations.softmax.local --variant ffa --max-turns 40
 # Explicitly run the retained engine:
 python -m integrations.softmax.local --engine jax --variant ffa --max-turns 40
 
@@ -111,6 +113,7 @@ For source browser checks, first build a local viewer:
 ```sh
 integrations/softmax/tools/build_polyworld_viewer.sh "$PWD/polyworld/out/replay-viewer"
 GENERALS_POLYWORLD_ENGINE=/tmp/generals-runtime/generals-polyworld \
+GENERALS_BASIC_WORKER=/tmp/generals-runtime/generals-basic \
 GENERALS_POLYWORLD_VIEWER="$PWD/polyworld/out/replay-viewer" \
 GENERALS_BROWSER_TESTS=1 pytest tests/system/test_polyworld_system.py
 ```
