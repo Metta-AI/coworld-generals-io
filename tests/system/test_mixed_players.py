@@ -127,6 +127,45 @@ wend
     assert not (tmp_path / "failure.json").exists()
 
 
+def test_basic_build_reserves_the_action_like_a_socket_build(tmp_path: Path, monkeypatch, inspect_native_replay):
+    """An impossible build must not let BASIC submit a second action instead."""
+    if "GENERALS_BASIC_WORKER" not in os.environ:
+        pytest.skip("Build the native BASIC worker and set GENERALS_BASIC_WORKER")
+    policy = tmp_path / "policy"
+    policy.write_text('print "BUILD", buildCastle(0, 0), move(0, 0, 3, 0)\n')
+    roster = tmp_path / "seats.json"
+    roster.write_text(json.dumps({
+        "schema": "coworld-play-seats/2",
+        "player_status_uri": (tmp_path / "status.json").as_uri(),
+        "seats": [{
+            "kind": "policy", "slot": 0, "file_uri": policy.as_uri(),
+            "content_hash": "sha256:" + "d" * 64, "size_bytes": policy.stat().st_size,
+            "log_uri": (tmp_path / "basic.log").as_uri(),
+            "artifact_uri": (tmp_path / "basic.zip").as_uri(),
+        }, {"kind": "container", "slot": 1}],
+    }))
+    monkeypatch.setenv("COGAME_PLAYER_SEATS_URI", roster.as_uri())
+    config = GameConfig(tokens=["basic", "socket"], players=[{"name": "Basic"}, {"name": "Socket"}],
+                        ruleset="build_castles", seed=7, max_turns=2)
+    artifacts = {name: (tmp_path / name).as_uri() for name in ("results", "replay", "failure")}
+    with TestClient(create_app(config, artifacts, engine="polyworld")) as client:
+        with client.websocket_connect("/player?slot=1&token=socket") as opponent:
+            assert opponent.receive_json()["type"] == "hello"
+            for tick in range(2):
+                observation = opponent.receive_json()
+                assert observation["turn"] == tick
+                if tick:
+                    assert observation["last_build_executed"] is False
+                opponent.send_json({"type": "action", "turn": tick, "action": [2, 0, 0, 0, 0]})
+            final = opponent.receive_json()
+            assert final["type"] == "final" and final["result"]["timeouts"] == [0, 0]
+        replay = client.get("/replay.json").json()
+    assert (tmp_path / "basic.log").read_text() == "BUILD 1 0\nBUILD 1 0\n"
+    assert all(turn["actions"] == [[2, 0, 0, 0, 0]] * 2 for turn in replay["turns"])
+    assert inspect_native_replay(tmp_path / "replay")["turns"] == 2
+    assert not (tmp_path / "failure").exists()
+
+
 def test_unmodified_polyworld_scout_plays_a_hosted_socket_opponent(tmp_path: Path, monkeypatch, inspect_native_replay):
     """A standalone policy must compile, communicate and move without porting."""
     if "GENERALS_BASIC_WORKER" not in os.environ:

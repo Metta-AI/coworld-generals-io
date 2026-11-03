@@ -41,6 +41,7 @@ for line in stdin.lines:
   let width = observation["width"].getInt()
   let height = observation["height"].getInt()
   var view = PolicyView(width: width, height: height, tick: observation["turn"].getInt(),
+    buildingEnabled: observation["ruleset"].getStr() == "build_castles",
     maximumTicks: observation["max_turns"].getInt(), general: -1,
     buildCosts: newSeq[int](width * height), armies: newSeq[int](hub.count),
     lands: newSeq[int](hub.count), eliminated: newSeq[bool](hub.count),

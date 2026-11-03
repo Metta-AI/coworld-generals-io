@@ -8,6 +8,7 @@ export policy_source
 type
   PolicyView* = object
     observation*: Observation
+    buildingEnabled*: bool
     width*, height*, tick*, maximumTicks*, general*: int
     armies*, lands*, buildCosts*: seq[int]
     eliminated*, rated*: seq[bool]
@@ -174,7 +175,7 @@ proc buildPolicyHost*(state: PolicyState): Host =
   discard result.addFunction(policyFunctionName("buildCastle", 2), 2,
     proc(args: openArray[int32]): int32 =
       let index = state.cell(args[0].int, args[1].int)
-      if state.submitted or index < 0 or state.view.buildCosts[index] <= 0: return 0
+      if state.submitted or index < 0 or not state.view.buildingEnabled: return 0
       state.building = index
       state.submitted = true
       1, 16)
