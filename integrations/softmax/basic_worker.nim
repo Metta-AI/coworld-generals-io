@@ -1,5 +1,5 @@
 ## A persistent, metered BASIC seat. Only fog-filtered observations enter this process.
-import std/[json, os], bassy
+import std/[json, os, math], bassy
 
 const SourceLimit = 256 * 1024
 
@@ -40,6 +40,23 @@ proc addPublicQuery(scoreField: string) =
 
 for field in ["army", "land", "eliminated"]:
   addPublicQuery(field)
+
+proc addSkillQuery(name: string, rated: bool) =
+  discard host.addFunction(name, 1, proc(args: openArray[int32]): int32 =
+    let slot = int(args[0])
+    if slot < 0 or slot >= observation["players"].len:
+      return 0
+    let ratings = observation["player_ratings"]
+    if ratings.kind == JNull:
+      return 0
+    for player in ratings["players"].getElems():
+      if player["slot"].getInt == slot and player["score"].kind != JNull:
+        return if rated: 1 else: int32(round(player["score"].getFloat * 100))
+    0
+  )
+
+addSkillQuery("playerRated", true)
+addSkillQuery("playerSkill", false)
 
 discard host.addFunction("move", 4, proc(args: openArray[int32]): int32 =
   if selected or args[0] < 0 or args[0] >= observation["height"].getInt or

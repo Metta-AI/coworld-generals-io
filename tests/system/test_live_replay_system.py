@@ -26,6 +26,7 @@ def test_live_players_and_spectators_keep_replay_after_http_proxy_retires(tmp_pa
         port = listener.getsockname()[1]
     config = {
         "tokens": ["human", "bot"], "players": [{"name": "Human"}, {"name": "Bot"}],
+        "player_ratings": {"league": "Fixture FFA", "label": "MMR", "players": [{"slot": 0, "score": -2.34}, {"slot": 1, "score": 27.38}]},
         "seed": 7, "max_turns": 12, "turn_timeout_seconds": 1, "tick_interval_seconds": 0.05,
     }
     (tmp_path / "config.json").write_text(json.dumps(config))
@@ -87,6 +88,9 @@ server.run()
                         spectator.goto(base + "/client/global")
                         expect(player.locator("#mode")).to_have_text("PLAYER")
                         expect(spectator.locator("#mode")).to_have_text("LIVE")
+                        for page in (player, spectator):
+                            expect(page.locator("#skill0")).to_have_text("★ -2.3")
+                            expect(page.locator("#skill1")).to_have_text("★ 27.4")
                         bot = subprocess.Popen([sys.executable, "-m", "integrations.softmax.player"], cwd=ROOT,
                             env={**os.environ, "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{port}/player?slot=1&token=bot"},
                             stdout=log, stderr=subprocess.STDOUT)
@@ -96,6 +100,7 @@ server.run()
                                 frame = page.frames[1]
                                 frame.wait_for_function("() => typeof Module.replayTick === 'number' || failed")
                                 assert not frame.evaluate("failed"), frame.locator("#status-detail").inner_text()
+                                assert frame.evaluate("Module.replaySkillScores") == ["-2.3", "27.4"]
                             else:
                                 expect(page.locator("#mode")).to_have_text("REPLAY", timeout=30000)
                                 expect(page.locator("#board .tile").first).to_be_visible()

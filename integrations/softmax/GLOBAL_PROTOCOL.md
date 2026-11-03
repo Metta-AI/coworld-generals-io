@@ -7,7 +7,9 @@ the game. WebSocket ping receives a matching pong.
 
 Updates contain `type: "global"`, `protocol_version: 1`, `phase`, `turn`,
 `max_turns`, two to eight `players` display names, per-slot `army`, `land`, `eliminated`, `has_kill`, and `neutralize_in` arrays,
-`ruleset`, `result`, and `board`. During the match, `board` and `result` are null. Phases
+`ruleset`, `player_ratings`, `result`, and `board`.
+`player_ratings` is the public match-start leaderboard snapshot, shared with player
+observations: `{league, label, players:[{slot, score}]}`, or null when unavailable. During the match, `board` and `result` are null. Phases
 are `waiting`, `playing`, `resolving`, `saving`, `finished`, and `failed`;
 brief transitional phases need not each be delivered to a slow viewer.
 

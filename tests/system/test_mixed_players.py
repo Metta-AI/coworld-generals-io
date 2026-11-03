@@ -20,7 +20,7 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
     if "GENERALS_BASIC_WORKER" not in os.environ:
         pytest.skip("Build the native BASIC worker and set GENERALS_BASIC_WORKER")
     source = Path("integrations/softmax/players/baseline.bas").read_text()
-    (tmp_path / "policy").write_text('print "PRIVATE", slot, turn\n' + source)
+    (tmp_path / "policy").write_text('print "PRIVATE", slot, turn\nprint "SKILL", playerSkill(1), playerRated(1), playerRated(3), playerSkill(3)\n' + source)
     seats = []
     for slot in range(4):
         if slot in (1, 2):
@@ -47,6 +47,10 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
     config = GameConfig(
         tokens=[f"token-{s}" for s in range(4)],
         players=[{"name": f"Player {s}"} for s in range(4)],
+        player_ratings={"league": "Fixture FFA", "label": "MMR", "players": [
+            {"slot": 0, "score": 27.38}, {"slot": 1, "score": -2.34},
+            {"slot": 2, "score": 0.0}, {"slot": 3, "score": None},
+        ]},
         seed=7,
         max_turns=40,
     )
@@ -60,6 +64,7 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
                 observation = ws.receive_json()
                 assert observation["type"] == "observation"
                 assert observation["turn"] == turn
+                assert observation["player_ratings"] == config.player_ratings.model_dump(mode="json")
                 ws.send_json({"type": "action", "turn": turn, "action": [1, 0, 0, 0, 0]})
         for ws in sockets:
             assert ws.receive_json()["type"] == "final"
@@ -71,6 +76,7 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
     assert any(turn["actions"][0][0] == 0 for turn in replay["turns"])
     for slot in (0, 3):
         log = (tmp_path / f"seat-{slot}.log").read_text()
+        assert "SKILL -234 1 0 0" in log
         assert f"PRIVATE {slot} 39" in log
         assert f"PRIVATE {3 - slot} " not in log
     assert not (tmp_path / "failure.json").exists()

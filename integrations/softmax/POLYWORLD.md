@@ -98,3 +98,10 @@ GENERALS_BROWSER_TESTS=1 pytest tests/system/test_polyworld_system.py
 For the imported native application's commands, run from `polyworld/` and follow
 its [README](../../polyworld/README.md). Use the pinned dependency fetcher before
 running the complete Nim suite. Core rules and hosted builds need no such fetch.
+
+Live skill metadata comes from the platform’s published public standings through
+`COWORLD_PLAYER_RATINGS=true`. The runtime receives a typed `player_ratings`
+configuration value, then sends it to player handshakes, observations, and spectators.
+The value is fixed for the match. Native offline replays retain that snapshot;
+platform replay pages may overlay the current standings. Neither affects engine
+state, action resolution, hashes, or episode scores.

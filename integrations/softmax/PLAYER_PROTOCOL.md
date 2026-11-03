@@ -27,6 +27,7 @@ Each observation has:
 | `afk_warning` | FFA initial inactivity warning, ticks 99–120 |
 | `turn_timeout_seconds` | Deadline duration from server observation publication |
 | `my_land`, `my_army`, `opp_land`, `opp_army` | Public totals; opponents aggregate all other players |
+| `player_ratings` | Public leaderboard snapshot at match start: `{league, label, players:[{slot, score}]}`; `null` when unavailable. Scores can be negative/decimal; an unrated seat has `score:null`. Also sent in `hello` and live spectator messages. |
 | `public_scores` | Per-slot `army`, `land`, `eliminated`, `has_kill`, and `neutralize_in` arrays |
 | `eliminated` | Whether your slot is eliminated; stop sending actions and await final |
 | `ruleset` | Same as handshake |

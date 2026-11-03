@@ -389,3 +389,13 @@ eight episodes per round. The transport fix changes no game or rating rules.
 Final CI at test-only follow-up `c01f5ba` passed 223 checks with the private
 reference skipped. The runtime source is identical to released `69d95a0`;
 subsequent commits record documentation evidence only.
+
+### Live skill scores (companion to Metta PR 30441)
+
+The live game now displays the public launch-time rating next to every name.
+Socket players receive the same typed `player_ratings` metadata in `hello` and
+observations. BASIC reads integer hundredths with `playerSkill(slot)` and checks
+availability with `playerRated(slot)`. A null score remains unrated; names are
+never used as identity keys. The persisted native recording retains launch scores.
+The platform opt-in is `COWORLD_PLAYER_RATINGS=true`; existing published replay
+versions retain their original flag and immutable bundles.

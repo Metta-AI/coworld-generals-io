@@ -36,7 +36,7 @@
     $('cover-title').textContent = 'Unable to open this match'; $('cover-text').textContent = message;
     post({type: 'error', message});
   }
-  function names(players) {
+  function names(players, ratings = null) {
     const matchbar = document.querySelector('.matchbar');
     playerCount = players.length;
     matchbar.classList.toggle('ffa', playerCount > 2);
@@ -54,6 +54,13 @@
       label.closest('.player').style.setProperty('--player-row', Math.floor(i / 2) + 1);
       label.closest('.player').style.setProperty('--player-column', i % 2 === 0 ? 1 : 3);
       if (label.textContent !== name) label.textContent = name;
+      if (!$(`skill${i}`)) {
+        const skill = document.createElement('small'); skill.id = `skill${i}`;
+        label.after(skill);
+      }
+      const score = ratings?.players.find(player => player.slot === i)?.score;
+      $(`skill${i}`).textContent = `★ ${score == null ? '—' : score.toFixed(1)}`;
+      $(`skill${i}`).title = ratings ? `${ratings.league} · ${ratings.label} at match start` : 'Skill unavailable';
       if (playerCount > 2 && !$(`kills${i}`)) {
         const badge = document.createElement('small'); badge.id = `kills${i}`;
         label.parentElement.append(badge);
@@ -336,7 +343,7 @@
     $('surrender').hidden = message.players.length < 3;
     const previousMove = inFlight;
     slot = message.slot; currentTurn = message.turn; sent = false; inFlight = null;
-    ruleset = message.ruleset || ruleset; eliminated = !!message.eliminated; names(message.players);
+    ruleset = message.ruleset || ruleset; eliminated = !!message.eliminated; names(message.players, message.player_ratings);
     if (playerCount > 2 && !message.visible_owner_grid) throw new Error('This multiplayer observation is missing visible owner identities.');
     const owners = message.visible_owner_grid || message.owner_grid.map(row => row.map(o => o === 0 ? 0 : o === 1 ? slot+1 : 2-slot));
     board = {...message, owner_grid: owners};
@@ -401,12 +408,12 @@
         reconnectAttempt = 0;
         if (message.type === 'hello') {
           ruleset = message.ruleset || 'classic';
-          slot = message.slot; names(message.players); $('play-controls').hidden = false;
+          slot = message.slot; names(message.players, message.player_ratings); $('play-controls').hidden = false;
           updateBuildControl();
         } else if (message.type === 'observation') observe(message);
         else if (message.type === 'global') {
           ruleset = message.ruleset || ruleset;
-          names(message.players); scoreboard(message.turn, message.army, message.land, message.eliminated, message.has_kill);
+          names(message.players, message.player_ratings); scoreboard(message.turn, message.army, message.land, message.eliminated, message.has_kill);
           if (message.phase === 'finished') { loadReplay(message.replay).catch(err => fail(err.message)); }
           else {
             if (message.phase === 'failed') terminal = true;
