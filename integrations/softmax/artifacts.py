@@ -29,6 +29,10 @@ def read_json(uri: str) -> dict:
 
 def write_json(uri: str, payload: dict, method: str = "PUT") -> None:
     data = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode()
+    write_bytes(uri, data, method, content_type="application/json")
+
+
+def write_bytes(uri: str, data: bytes, method: str = "PUT", *, content_type: str = "application/octet-stream") -> None:
     scheme = urlparse(uri).scheme
     if scheme in ("http", "https"):
         if method not in ("PUT", "POST"):
@@ -38,7 +42,7 @@ def write_json(uri: str, payload: dict, method: str = "PUT") -> None:
             uri,
             content=data,
             timeout=60,
-            headers={"Content-Type": "application/json", "User-Agent": "generals-coworld/0.1"},
+            headers={"Content-Type": content_type, "User-Agent": "generals-coworld/0.1"},
         )
         response.raise_for_status()
         return

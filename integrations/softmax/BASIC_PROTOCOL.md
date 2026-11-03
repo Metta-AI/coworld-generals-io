@@ -1,6 +1,9 @@
 # Generals BASIC policies
 
-Upload raw UTF-8 BASIC source with `coworld upload-policy --file player.bas`.
+Upload UTF-8 BASIC source with `coworld upload-policy --file player.bas`, or a
+Polyworld ZIP package containing exactly one `.bas` entry and optional resources.
+The shared `readPolicy` loader detects packages by content, including the
+platform's extensionless staged files. Package resources expose no filesystem API.
 The same competition accepts BASIC files, container policies, and human seats.
 Files need no Docker image or WebSocket client. Start from `players/baseline.bas`.
 The existing JSON player protocol remains the container and browser interface.
@@ -11,6 +14,13 @@ The game compiles each policy once using Bassy, then restarts its program at
 each observation. Globals and arrays persist between turns. No action defaults
 to a pass. The first accepted action function wins; later action calls return 0.
 `END` finishes the current decision, not the match.
+
+Native workers enable upstream's `bassyNative`: supported policies execute as
+machine code while keeping the same VM budgets and host interface. Unsupported
+native programs follow Bassy's interpreted path. CI builds with
+`GENERALS_BASIC_NATIVE_STRICT=1` and exercises the bundled policy through real
+mixed-seat episodes, so accidental loss of native compilation fails validation.
+The browser replay never compiles or executes player policies.
 
 Read-only integer data: `turn`, `slot`, `height`, `width`, `max_turns`,
 `my_land`, `my_army`, `opp_land`, and `opp_army`. Slots and coordinates are
@@ -48,7 +58,8 @@ registered. Native callbacks check coordinates before reading grids.
 
 Limits per policy:
 
-- Raw source: 256 KiB; bytecode: 100,000 instructions.
+- Compressed policy package: 16 MiB; raw/extracted BASIC source: 256 KiB.
+- Bytecode: 100,000 instructions.
 - Logical VM memory: 8 MiB; arrays: 100,000 elements.
 - Each decision: 200,000 VM instructions and 200,000 work units.
 - Each decision's PRINT output: 4 KiB and 256 events.
@@ -83,8 +94,10 @@ The direct local launcher also accepts repeated `--basic SLOT=PATH` options.
 Set `GENERALS_BASIC_WORKER` to a locally compiled worker binary first.
 It also requires Linux's `prlimit` (from util-linux). The Docker game target
 builds and installs the worker automatically; `pip install` does not compile it.
-Use [`Dockerfile`](Dockerfile)'s `basic-build` stage for the pinned Nim,
-Bassy, and Fixxy inputs when building a native worker.
+Run `integrations/softmax/tools/build_polyworld_runtime.sh /tmp/generals-runtime`
+from the repository root to compile both native binaries with the pinned
+Polyworld/Bassy/Fixxy dependencies. Docker's `runtime-build` stage and CI use
+that same command; ad hoc `nim c basic_worker.nim` omits required compiler flags.
 
 ```bash
 GENERALS_BASIC_WORKER=/absolute/path/to/generals-basic \

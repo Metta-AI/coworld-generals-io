@@ -1,5 +1,8 @@
 ## A persistent, metered BASIC seat. Only fog-filtered observations enter this process.
-import std/[json, os, math], bassy
+import std/[json, os, math], bassy, polyworld/policies
+
+when not defined(bassyNative):
+  {.error: "Build hosted BASIC workers with build_polyworld_runtime.sh (bassyNative required).".}
 
 const SourceLimit = 256 * 1024
 
@@ -93,8 +96,9 @@ limits.maxPrintBytes = 4096
 limits.maxPrintEvents = 256
 
 let path = paramStr(1)
-doAssert getFileSize(path) <= SourceLimit, "BASIC source exceeds 256 KiB"
-let program = compile(readFile(path), host, limits)
+doAssert getFileSize(path) <= MaxPackageBytes, "BASIC policy exceeds 16 MiB"
+let policy = readPolicy(path)
+let program = compile(policy.source, host, limits)
 var runtime = initRuntime(program, host, limits)
 stdout.writeLine("{\"kind\":\"ready\"}")
 stdout.flushFile()

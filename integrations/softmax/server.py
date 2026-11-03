@@ -16,10 +16,10 @@ from urllib.parse import parse_qs, urlsplit
 import uvicorn
 from anyio import CancelScope
 from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .artifacts import read_json, write_json
+from .artifacts import read_json, write_bytes, write_json
 from .config import GameConfig
 from .file_players import PolicyFault, load_file_players
 from .protocol import PASS, VERSION, parse_action
@@ -155,7 +155,7 @@ class Episode:
         if not uri:
             raise RuntimeError(f"missing {name} artifact destination")
         method = self.artifacts.get(f"{name}_method", "PUT")
-        await asyncio.to_thread(write_json, uri, payload, method)
+        await asyncio.to_thread(write_bytes if isinstance(payload, bytes) else write_json, uri, payload, method)
 
     async def run(self):
         try:
@@ -307,7 +307,8 @@ class Episode:
         self.browser_replay = await asyncio.to_thread(lambda: {
             "encoding": "gzip+base64",
             "data": base64.b64encode(gzip.compress(
-                json.dumps(saved_replay, separators=(",", ":")).encode(), compresslevel=1
+                (saved_replay if isinstance(saved_replay, bytes) else
+                 json.dumps(saved_replay, separators=(",", ":")).encode()), compresslevel=1
             )).decode(),
         })
         self.phase = "finished"
@@ -472,11 +473,13 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
             raise HTTPException(409, "replay is available when the episode completes")
         return JSONResponse(episode.replay)
 
-    @app.get("/client/replay.json")
+    @app.get("/client/replay.data")
     async def replay_data():
         episode = app.state.episode
         if episode.phase != "finished":
             raise HTTPException(409, "replay is available when the episode completes")
+        if isinstance(episode.saved_replay, bytes):
+            return Response(episode.saved_replay, media_type="application/octet-stream")
         return JSONResponse(episode.saved_replay)
 
     @app.websocket("/player")

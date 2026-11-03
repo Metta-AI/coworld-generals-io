@@ -1,5 +1,6 @@
 """Coworld observations and hosted rules over the authoritative Nim engine."""
 
+import json
 import os
 import subprocess
 from typing import Literal
@@ -88,11 +89,16 @@ class Match:
             self.recording[-1].extend(self.commands)
         self.commands = []
 
-    def replay(self, metadata: dict) -> dict:
+    def replay(self, metadata: dict) -> bytes:
         assert not self.commands
-        return {**{key: value for key, value in metadata.items() if key not in ("frames", "format", "version")},
+        recording = {**{key: value for key, value in metadata.items() if key not in ("frames", "format", "version")},
                 "format": "polyworld-generals-hosted", "version": 1,
                 "ticks": [[event.model_dump() for event in tick] for tick in self.recording]}
+        return subprocess.run(
+            [self.process.args[0], "--encode-replay"],
+            input=json.dumps(recording, separators=(",", ":")).encode(),
+            stdout=subprocess.PIPE, check=True,
+        ).stdout
 
     def close(self):
         self.process.stdin.close()

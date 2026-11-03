@@ -11,7 +11,7 @@ First place scores +1; other places score `-(place - 1) / (players - 1)`.
 The league uses OpenSkill ratings. See [Rules and scoring](#rules-and-scoring)
 for map sizes, surrender, inactivity, and the 50,002-tick bot limit.
 
-This package accepts raw BASIC policies, existing container players, and
+This package accepts raw or packaged BASIC policies, existing container players, and
 people in the same league lobby. See [the BASIC interface](BASIC_PROTOCOL.md)
 for source format, observations, commands, budgets, and failure behavior.
 The manifest declares `player_runtime: [platform-hosted, game-hosted]`;
@@ -78,7 +78,7 @@ selects a supported size from its roster.
 The same browser assets render local play, hosted seats, public live scores,
 and static replays. Open `/client/launch` on a running local server, or open
 `index.html` through a static HTTP server after building the replay bundle.
-The entry screen accepts saved JSON/gzip replays and links to the Generals
+The entry screen accepts binary/gzip tapes and retained JAX JSON replays and links to the Generals
 lobby flow on Softmax. Hosted lobbies own mode selection, human invitations,
 bot seats, authentication, and match creation.
 
@@ -95,9 +95,10 @@ Replay views include the full map and each player's fog-of-war perspective;
 public scores remain visible in every perspective. Live public spectators
 continue to see scores only. Old Nim recordings retain their original viewer.
 
-Landscape replay frames wider than 480 pixels keep player names and controls
-beside the board. Narrower frames stack them for phones. Side panels shrink
-with the frame and scroll when a short viewport cannot fit all players.
+Desktop native replays place the map beside names, skill scores and event chat.
+Portrait phones stack a full-width board above the player table and chat, with
+playback controls wrapped into three rows. Board sizing leaves clearance below
+the turn counter and above the ribbon without clipping the map.
 
 The game owns these assets in `static/`. Softmax embeds them through its
 existing live/replay components; do not copy the renderer into the website.
@@ -108,8 +109,7 @@ From the repository root, with Python 3.12:
 
 ```bash
 python -m pip install -r integrations/softmax/requirements-polyworld.lock
-nim c -d:release --mm:arc --path:polyworld/src \
-  -o:polyworld/out/generals-polyworld integrations/softmax/polyworld_bridge.nim
+integrations/softmax/tools/build_polyworld_runtime.sh "$PWD/polyworld/out"
 export GENERALS_POLYWORLD_ENGINE="$PWD/polyworld/out/generals-polyworld"
 python -m integrations.softmax.local --variant ffa --human
 # Other modes (omit --human for bundled bots):
@@ -149,7 +149,7 @@ python -m integrations.softmax.local --seed 7 --keep-open
 `--max-turns 40` makes a short smoke test. Without it, local games use the hosted
 caps: 50,002 engine ticks for FFA bots, 2,000 for other bots, and 1,200 with `--human`. Each local run writes into its own ignored `local-output/episode-*`
 directory. `config.json` contains local player tokens; do not publish it. The
-shareable outputs are `results.json` and `replay.json`. `--port` selects another
+shareable outputs are `results.json` and `game.replay` (`replay.json` with JAX). `--port` selects another
 local port. The local launcher binds only to loopback.
 
 ## Rules and scoring
@@ -261,11 +261,12 @@ an unauthenticated omniscient WebSocket would defeat fog of war. Player pages
 and `/player` require the slot's token. The public stream accepts no game-control
 commands, and `/replay.json` is unavailable until all success artifacts are saved.
 
-Polyworld replays preserve the hosted command tape, seed, timeout flags and
-result. A portable hash follows every command. The native Polyworld Silky viewer,
-compiled to WebAssembly, replays those commands through the same hosted engine
-module and rejects a state mismatch. It supports autoplay, looping, pause, seek,
-playback speed, perspectives, resize, download and gzip replay bytes.
+Polyworld replays use upstream's binary container and packed Generals moves,
+with a versioned hosted-rule extension for construction and surrenders. Portable
+64-bit tick hashes let the native WebAssembly viewer reject divergent playback.
+It supports autoplay, looping, pause, seek, speed, perspectives, resize, download
+and gzip. See [the binary protocol](GLOBAL_PROTOCOL.md) for format ownership.
+
 The static bundle needs no game server or JAX installation.
 Browser seats preload it before joining; completion delivers the tape over the
 existing socket, so playback survives retirement of the live HTTP proxy.
@@ -283,9 +284,9 @@ For a standalone replay, serve the generated bundle and a replay over HTTP:
 ```bash
 # After coworld build, extract the viewer from its game image:
 integrations/softmax/tools/build_replay_viewer.sh integrations/softmax/dist/replay-viewer
-# Copy only a completed replay into dist/replay-viewer/replay.json, then:
+# Copy only a completed replay into dist/replay-viewer/game.replay, then:
 python -m http.server 8090 --directory integrations/softmax/dist/replay-viewer
-# Open http://localhost:8090/#replay=replay.json
+# Open http://localhost:8090/#replay=game.replay
 ```
 
 See [GLOBAL_PROTOCOL.md](GLOBAL_PROTOCOL.md). Full live board spectating would
@@ -306,7 +307,7 @@ uv tool install 'coworld[auth]==0.1.68'
 ```
 
 The build reads `compose.yaml` and `coworld_manifest_template.json` from this
-project directory. The Dockerfile compiles the pinned Bassy/Fixxy BASIC worker
+project directory. The shared runtime build compiles the pinned Bassy/Fixxy BASIC worker
 into the CPU game image. The player image contains WebSockets and the Python
 Expander/Builder bridge; it has no JAX dependency. The optional `hunter` image
 target is separate from the bundled players.

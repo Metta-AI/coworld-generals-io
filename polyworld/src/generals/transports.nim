@@ -18,6 +18,10 @@ type Transport* = object
   player*: Player
   dragging*: bool
 
+proc replayTransportHeight*(width: float32): float32 =
+  ## Wraps controls, speeds and the timeline into three rows on narrow screens.
+  if width < TransportMinWidth: 184.0'f else: TransportHeight
+
 proc addTransport*(builder: AtlasBuilder, assets: string) =
   ## Adds the shared replay glyphs and ribbon without changing the game theme.
   proc add(name, directory: string) =
@@ -72,8 +76,18 @@ proc drawTransport*(
 ) =
   ## Draws the shared playback controls and scrubber for a fixed game board.
   sk.drawRibbon(panel)
+  var slots = panel.transportPanels()
+  if panel.size.x < TransportMinWidth:
+    for i, slot in slots.controls.mpairs:
+      slot = GameUiPanel(origin: panel.origin + vec2(12 + i.float32 * 72, 8), size: vec2(64))
+    slots.loop = GameUiPanel(origin: panel.origin + vec2(388, 8), size: vec2(64))
+    for i, slot in slots.speeds.mpairs:
+      slot = GameUiPanel(origin: panel.origin + vec2(12 + i.float32 * 72, 72), size: vec2(64))
+    slots.tick = GameUiPanel(origin: panel.origin + vec2(panel.size.x - 178, 88), size: vec2(166, 34))
+    slots.scrub = GameUiPanel(origin: panel.origin + vec2(12, 144), size: vec2(panel.size.x - 24, 24))
+    slots.recorded = GameUiPanel(origin: panel.origin + vec2(12, 172), size: vec2(panel.size.x - 24, 6))
+    slots.scrubHit = GameUiPanel(origin: slots.scrub.origin - vec2(0, 8), size: slots.scrub.size + vec2(0, 24))
   let
-    slots = panel.transportPanels()
     playing = transport.player.playing or transport.player.targetTick >= 0
     pressed = window.buttonPressed[MouseLeft]
   for i, slot in slots.controls:

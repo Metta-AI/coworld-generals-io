@@ -23,12 +23,7 @@ jobs:
           nim-version: '2.2.10'
       - name: Build hosted engines and check imported Polyworld rules
         run: |
-          nim c -d:release --mm:arc --path:polyworld/src -o:/tmp/generals-polyworld integrations/softmax/polyworld_bridge.nim
-          git clone https://github.com/treeform/bassy.git /tmp/generals-bassy
-          git -C /tmp/generals-bassy checkout a9effcaab13abc9dfe42d7658cf87ee4783b0e14
-          git clone https://github.com/treeform/fixxy.git /tmp/generals-fixxy
-          git -C /tmp/generals-fixxy checkout 05e5446dffb70093056cebb0c57721a60deaf52a
-          nim c -d:release --path:/tmp/generals-bassy/src --path:/tmp/generals-fixxy/src -o:/tmp/generals-basic integrations/softmax/basic_worker.nim
+          GENERALS_BASIC_NATIVE_STRICT=1 integrations/softmax/tools/build_polyworld_runtime.sh /tmp
           cd polyworld
           nim r -d:release tests/test_rules.nim
           nim r -d:release tests/test_bots.nim
