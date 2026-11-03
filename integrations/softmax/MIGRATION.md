@@ -62,6 +62,33 @@ Run the imported version before changing rules. Validate complete local FFA,
 human play, standalone replay, container certification, and hosted operation.
 Record release-specific commands and outcomes here before publishing.
 
+### 0.7.1 preparation — November 3, 2026 (UTC)
+
+- Runtime source `cad29c1a671f50ec5b4ced146efdff8e71579c32` hides the final
+  result until the last replay tick and hides it again after seeking backward.
+  Player names use 240 rather than 184 logical pixels; score/event typography
+  is larger and board grid lines use two pixels.
+- The Skill column preserves decimal and negative published MMR/Elo values.
+  The manifest opts into public platform metadata with
+  `COWORLD_REPLAY_PLAYER_RATINGS=true`. The companion
+  [platform PR](https://app.graphite.dev/github/pr/Metta-AI/metta/30441) matches
+  exact seat identities and excludes private standings. Ratings are current
+  public standings, not historical pre-match snapshots; unavailable seats show —.
+- Validation passed 42 core cases, four native system cases, the native live
+  replay handoff, two browser cases using the image-built viewer, the full
+  imported Nim suite, and 40 ARM64 certification checks across four fixtures.
+  The early-result mutant fails the browser check; restored source passes.
+- Real API, Postgres and Floci checks cover duplicate display names, reversed
+  standings, unavailable scores, private boards, best-row-per-player behavior
+  and a ranked Classic/Elo board overriding the default FFA/OpenSkill board.
+  Native browser proof covers 1440×1000 and 390×844 viewports.
+- Build: `GENERALS_ARCH=arm64 coworld build --project integrations/softmax
+  --version 0.7.1`. Certify the generated manifest and Classic, FFA8 and Build
+  fixtures with `coworld certify MANIFEST --no-open-report --timeout-seconds 180`.
+  Native AMD64 and hosted qualification use the existing release workflow:
+  `gh workflow run coworld-release.yml --ref main -f version=0.7.1`.
+  Historical episodes retain their pinned viewer bundles.
+
 ### 0.7.0 — November 3, 2026 (UTC)
 
 - Imported all 173 tracked files from Polyworld `main` at
