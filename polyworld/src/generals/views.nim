@@ -59,6 +59,8 @@ type
     boardOrigin: Vec2
     cellSize: float32
     size: Vec2
+    stacked: bool
+    scoreboard: Rect
     visible: seq[bool]
     log: MatchLog
     editor: Editor
@@ -246,7 +248,7 @@ proc tileOrigin(view: View, index: int): Vec2 =
 
 proc contentHeight(view: View): float32 =
   ## Reserves the shared transport ribbon only while watching a replay.
-  view.size.y - (if view.replaying: TransportHeight else: 0.0'f)
+  view.size.y - (if view.replaying: replayTransportHeight(view.size.x) else: 0.0'f)
 
 proc rankWidth(view: View): float32 =
   ## Accommodates supplied MMR values without overlapping adjacent columns.
@@ -267,18 +269,29 @@ proc sidebarWidth(view: View): float32 =
   SidebarWidth + view.rankWidth() - 50 +
     (if view.replaying: 52.0'f else: 0.0'f)
 
+proc chatWidth(view: View): float32 =
+  ## Aligns phone chat with the full-width player table.
+  if view.stacked: view.size.x - 24 else: SidebarWidth
+
 proc layout(view: View) =
-  ## Fits the full map and a fixed-width sidebar inside the current window.
+  ## Fits the map beside desktop panels or above them on a portrait phone.
+  let previousChatWidth = view.chatWidth()
+  view.stacked = view.screen == GameScreen and
+    view.window.size.x < 760 and view.window.size.x < view.window.size.y
   view.sk.uiScale = min(
-    view.window.size.x.float32 / 1280,
+    view.window.size.x.float32 / (if view.stacked: 520.0'f else: 1280.0'f),
     view.window.size.y.float32 / 900
   )
   view.size = view.window.size.vec2 / view.sk.uiScale
+  if view.chatWidth() != previousChatWidth:
+    view.chatDirty = true
   let
     inset = vec2(12, 44)
+    scoreboardHeight = (2 + (view.world.config.players + 1) * 36).float32
     available = vec2(
-      view.size.x - view.sidebarWidth() - inset.x * 2,
-      view.contentHeight() - inset.y - 12
+      view.size.x - (if view.stacked: 0.0'f else: view.sidebarWidth()) - inset.x * 2,
+      view.contentHeight() - inset.y - 12 -
+        (if view.stacked: scoreboardHeight + 24 + ChatLineHeight * 2 + 8 + ChatInputHeight else: 0.0'f)
     )
     columns = view.world.config.width.float32
     rows = view.world.config.height.float32
@@ -288,6 +301,11 @@ proc layout(view: View) =
   )
   let mapSize = vec2(columns, rows) * view.cellSize
   view.boardOrigin = inset + (available - mapSize) / 2
+  if view.stacked:
+    view.boardOrigin.y = inset.y
+    view.scoreboard = rect(12, view.boardOrigin.y + mapSize.y + 12, view.size.x - 24, scoreboardHeight)
+  else:
+    view.scoreboard = rect(view.size.x - view.sidebarWidth(), 0, view.sidebarWidth(), scoreboardHeight)
 
 proc start(view: View, newSeed = false) =
   ## Resets match state and gives the selected human seat its own general.
@@ -699,9 +717,9 @@ proc drawPov(view: View, player: int, origin: Vec2) =
 proc drawScoreboard(view: View) =
   ## Ranks public scores and adds original POV controls for recorded games.
   let
-    widths = [50.0'f, view.rankWidth(), 240.0'f, 54.0'f, 52.0'f]
-    sidebar = view.sidebarWidth()
-    origin = vec2(view.size.x - sidebar, 0)
+    sidebar = view.scoreboard.w
+    widths = [50.0'f, view.rankWidth(), 240.0'f + sidebar - view.sidebarWidth(), 54.0'f, 52.0'f]
+    origin = view.scoreboard.xy
     players = view.world.config.players
   var
     armies, lands: array[MaxPlayers, int]
@@ -725,7 +743,7 @@ proc drawScoreboard(view: View) =
   )
   view.sk.drawRect(
     origin,
-    vec2(sidebar, (2 + (players + 1) * 36).float32),
+    view.scoreboard.wh,
     Black
   )
   for row in 0 .. players:
@@ -805,12 +823,12 @@ proc rebuildChat(view: View) =
     let style = if font.len == 0: currentFont else: font
     for token, space in strutils.tokenize(view.displayChat(value)):
       let width = view.sk.getTextSize(style, token).x
-      if x + width > SidebarWidth - 10:
+      if x + width > view.chatWidth() - 10:
         if space:
           continue
         if x > 20:
           newLine()
-      if width <= SidebarWidth - 30:
+      if width <= view.chatWidth() - 30:
         view.chatLines[^1].parts.add(ChatPart(
           x: x, text: token, font: style, player: -1
         ))
@@ -820,7 +838,7 @@ proc rebuildChat(view: View) =
           let
             glyph = rune.toUTF8()
             glyphWidth = view.sk.getTextSize(style, glyph).x
-          if x + glyphWidth > SidebarWidth - 10:
+          if x + glyphWidth > view.chatWidth() - 10:
             newLine()
           view.chatLines[^1].parts.add(ChatPart(
             x: x, text: glyph, font: style, player: -1
@@ -828,7 +846,7 @@ proc rebuildChat(view: View) =
           x += glyphWidth
   proc addPlayer(player: int) =
     ## Keeps a player's color marker beside the beginning of their name.
-    if x + 40 > SidebarWidth - 10:
+    if x + 40 > view.chatWidth() - 10:
       newLine()
     view.chatLines[^1].parts.add(ChatPart(x: x, player: player))
     x += 14
@@ -869,15 +887,22 @@ proc rebuildChat(view: View) =
       addText(view.replay.data.header.setup.outcome)
   view.chatDirty = false
 
+proc chatRows(view: View): int =
+  ## Keeps scrolling events clear of the player table in a stacked layout.
+  result = MaxChatLines
+  if view.stacked:
+    let height = view.contentHeight() - view.scoreboard.y - view.scoreboard.h - 12
+    result = min(result, int((height - ChatInputHeight - 8) / ChatLineHeight))
+
 proc chatBounds(view: View): Rect =
-  ## Returns the entire bottom-right chat area for drawing and hit testing.
+  ## Returns the chat area above the ribbon and below the portrait player table.
   let
-    lines = min(MaxChatLines, max(1, view.chatLines.len))
+    lines = min(view.chatRows(), max(1, view.chatLines.len))
     height = lines.float32 * ChatLineHeight + 8 + ChatInputHeight
   rect(
-    view.size.x - SidebarWidth,
+    (if view.stacked: 12.0'f else: view.size.x - view.chatWidth()),
     view.contentHeight() - height,
-    SidebarWidth,
+    view.chatWidth(),
     height
   )
 
@@ -894,12 +919,12 @@ proc drawChatInput(view: View, origin: Vec2) =
     entry = sk.atlas.entries[WhiteTileKey]
     uv = vec2(entry.x.float32, entry.y.float32) +
       vec2(entry.width.float32, entry.height.float32) / 2
-  sk.drawRect(origin, vec2(SidebarWidth, ChatInputHeight - 10), Ink)
+  sk.drawRect(origin, vec2(view.chatWidth(), ChatInputHeight - 10), Ink)
   sk.drawRect(origin + vec2(10, ChatInputHeight - 10),
-    vec2(SidebarWidth - 20, 10), Ink)
+    vec2(view.chatWidth() - 20, 10), Ink)
   for corner in 0 .. 1:
     let
-      x = if corner == 0: SidebarWidth - 10 else: 10.0'f
+      x = if corner == 0: view.chatWidth() - 10 else: 10.0'f
       center = origin + vec2(x, ChatInputHeight - 10)
     for i in 0 ..< 12:
       let
@@ -917,7 +942,7 @@ proc drawChat(view: View) =
     sk = view.sk
     bounds = view.chatBounds()
     input = vec2(bounds.x, view.contentHeight() - ChatInputHeight)
-    rows = min(MaxChatLines, view.chatLines.len)
+    rows = min(view.chatRows(), view.chatLines.len)
   view.chatScroll = clamp(view.chatScroll, 0, view.chatLines.len - rows)
   let
     last = view.chatLines.len - view.chatScroll
@@ -925,7 +950,7 @@ proc drawChat(view: View) =
   sk.drawRect(bounds.xy, bounds.wh, rgbx(0, 0, 0, 128))
   sk.pushClipRect(rect(
     bounds.xy,
-    vec2(SidebarWidth, bounds.h - ChatInputHeight)
+    vec2(view.chatWidth(), bounds.h - ChatInputHeight)
   ))
   for i in first ..< last:
     let at = bounds.xy + vec2(0, 4 + (i - first).float32 * ChatLineHeight)
@@ -947,7 +972,7 @@ proc drawChat(view: View) =
       thumb = height * rows.float32 / view.chatLines.len.float32
       offset = (height - thumb) * first.float32 /
         max(1, view.chatLines.len - rows).float32
-    sk.drawRect(bounds.xy + vec2(SidebarWidth - 5, 4 + offset),
+    sk.drawRect(bounds.xy + vec2(view.chatWidth() - 5, 4 + offset),
       vec2(3, thumb), rgbx(170, 170, 170, 255))
   sk.popClipRect()
   view.drawChatInput(input)
@@ -960,12 +985,12 @@ proc drawChat(view: View) =
     )
     return
   if view.editor.focused:
-    view.border(input, vec2(SidebarWidth, ChatInputHeight), Teal)
+    view.border(input, vec2(view.chatWidth(), ChatInputHeight), Teal)
   let
     cursorX = sk.getTextSize("Chat", view.editorPrefix(view.editor.cursor)).x
-    offset = max(0.0'f, cursorX - SidebarWidth + 24)
+    offset = max(0.0'f, cursorX - view.chatWidth() + 24)
     textOrigin = input + vec2(10 - offset, 8)
-  sk.pushClipRect(rect(input + vec2(8, 4), vec2(SidebarWidth - 16, 28)))
+  sk.pushClipRect(rect(input + vec2(8, 4), vec2(view.chatWidth() - 16, 28)))
   if view.editor.focused:
     let
       selection = view.editor.selection()
@@ -984,16 +1009,16 @@ proc drawChat(view: View) =
   sk.popClipRect()
   if view.emotesOpen:
     let origin = input - vec2(0, 48)
-    sk.drawRect(origin, vec2(SidebarWidth, 48), rgbx(15, 15, 15, 255))
+    sk.drawRect(origin, vec2(view.chatWidth(), 48), rgbx(15, 15, 15, 255))
     for i, emote in Emotes:
-      let at = origin + vec2(i.float32 * SidebarWidth / Emotes.len.float32, 0)
+      let at = origin + vec2(i.float32 * view.chatWidth() / Emotes.len.float32, 0)
       if i == view.emoteIndex:
         sk.drawRect(
           at + vec2(2),
-          vec2(SidebarWidth / Emotes.len.float32 - 4, 44),
+          vec2(view.chatWidth() / Emotes.len.float32 - 4, 44),
           Teal
         )
-      view.centered(emote, at + vec2(0, 12), SidebarWidth / Emotes.len.float32,
+      view.centered(emote, at + vec2(0, 12), view.chatWidth() / Emotes.len.float32,
         Ink, "Score")
 
 proc sendChat(view: View, message: string) =
@@ -1081,7 +1106,7 @@ proc handleChat(view: View): bool =
       view.chatScroll = clamp(
         view.chatScroll + int(round(window.scrollDelta.y * 3)),
         0,
-        max(0, view.chatLines.len - MaxChatLines)
+        max(0, view.chatLines.len - view.chatRows())
       )
     return overChat and
       (window.buttonPressed[MouseLeft] or window.scrollDelta.y != 0)
@@ -1105,14 +1130,14 @@ proc handleChat(view: View): bool =
     view.chatScroll = clamp(
       view.chatScroll + int(round(window.scrollDelta.y * 3)),
       0,
-      max(0, view.chatLines.len - MaxChatLines)
+      max(0, view.chatLines.len - view.chatRows())
     )
   if window.buttonPressed[MouseLeft]:
-    if view.emotesOpen and mouse.x >= view.size.x - SidebarWidth and
+    if view.emotesOpen and mouse.x >= view.chatBounds().x and
       mouse.y >= view.size.y - ChatInputHeight - 48 and
       mouse.y < view.size.y - ChatInputHeight:
-        let chosen = clamp(int((mouse.x - view.size.x + SidebarWidth) /
-          (SidebarWidth / Emotes.len.float32)), 0, Emotes.len - 1)
+        let chosen = clamp(int((mouse.x - view.chatBounds().x) /
+          (view.chatWidth() / Emotes.len.float32)), 0, Emotes.len - 1)
         view.sendChat(Emotes[chosen])
         return true
     if overChat:
@@ -1120,7 +1145,7 @@ proc handleChat(view: View): bool =
         let
           cursorX = view.sk.getTextSize("Chat",
             view.editorPrefix(view.editor.cursor)).x
-          offset = max(0.0'f, cursorX - SidebarWidth + 24)
+          offset = max(0.0'f, cursorX - view.chatWidth() + 24)
           target = mouse.x - bounds.x - 10 + offset
         var
           closest = 0
@@ -1337,13 +1362,13 @@ proc handleInput(view: View) =
     if window.buttonPressed[KeyEnd]:
       view.transport.player.skipToEnd()
     let mouse = window.mousePos.vec2 / view.sk.uiScale
-    if mouse.x >= view.size.x - SidebarWidth and
+    if mouse.x >= view.chatBounds().x and
       mouse.y >= view.chatBounds().y and
       mouse.y < view.contentHeight() and window.scrollDelta.y != 0:
         view.chatScroll = clamp(
           view.chatScroll + int(round(window.scrollDelta.y * 3)),
           0,
-          max(0, view.chatLines.len - MaxChatLines)
+          max(0, view.chatLines.len - view.chatRows())
         )
     return
   if window.buttonPressed[KeySpace]:
@@ -1430,7 +1455,7 @@ proc frame(view: View) =
       if view.replaying:
         view.transport.drawTransport(view.sk, view.window, GameUiPanel(
           origin: vec2(0, view.contentHeight()),
-          size: vec2(view.size.x, TransportHeight)
+          size: vec2(view.size.x, replayTransportHeight(view.size.x))
         ))
       view.drawOutcome()
     silkyContexts.textInputs(view.sk).submitInput(

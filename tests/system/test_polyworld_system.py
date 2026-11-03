@@ -131,8 +131,20 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_function("() => Module.canvas.width === 390 && Module.canvas.height === 844")
     page.screenshot(path=str(tmp_path / f"native-{variant}-mobile.png"))
+    # Portrait controls must remain visible and usable after the panels reflow.
+    scale = 390 / 520
+    controls_y = 844 - (184 - 40) * scale
+    click(page, page, 44 * scale, controls_y)
+    page.wait_for_function(f"() => Module.replayPlaying && Module.replayTick > 0 && Module.replayTick < {turns}")
+    click(page, page, 188 * scale, controls_y)
+    page.wait_for_function("() => !Module.replayPlaying")
+    paused_tick = page.evaluate("Module.replayTick")
+    click(page, page, 188 * scale, controls_y)
+    page.wait_for_function("tick => Module.replayTick > tick", arg=paused_tick)
+    click(page, page, 188 * scale, controls_y)
+    page.wait_for_function("() => !Module.replayPlaying")
     key(page, page, "Home")
-    key(page, page, "ArrowRight")
+    click(page, page, 260 * scale, controls_y)
     page.wait_for_function("() => Module.replayTick === 1")
     assert not page.evaluate("failed")
     assert "Result:" not in page.evaluate("Module.replayMessages"), "rewinding must hide the final result again"

@@ -56,6 +56,12 @@ assert html.count(old) == 1, 'upstream replay shell fetch changed'
 html = html.replace(old, new)
 html = html.replace('      const downloaded = bytes.length;', "      if (bytes.length > MaxReplayBytes) throw new Error('Replay exceeds the 64 MiB limit.');\n      const downloaded = bytes.length;", 1)
 html = html.replace('<canvas id="canvas"', '<a id="download-replay" download="generals-polyworld.replay.json" style="position:fixed;right:12px;bottom:90px;z-index:2;color:white;background:#161922;border:1px solid #666;padding:6px 10px;border-radius:4px;text-decoration:none;font:12px sans-serif">Download replay</a><canvas id="canvas"', 1)
+html = html.replace('</head>', '''<style>
+@media (max-width: 759px) and (orientation: portrait) {
+  #download-replay { top: 4px; bottom: auto !important; right: 8px !important;
+    padding: 3px 6px !important; font-size: 11px !important; }
+}
+</style></head>''', 1)
 metadata = """      const ratings = new URLSearchParams(location.hash.slice(1)).get('player_ratings');
       if (ratings !== null) {
         const metadata = JSON.parse(ratings);
