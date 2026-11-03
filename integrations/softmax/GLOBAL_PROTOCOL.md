@@ -7,7 +7,10 @@ the game. WebSocket ping receives a matching pong.
 
 Updates contain `type: "global"`, `protocol_version: 1`, `phase`, `turn`,
 `max_turns`, two to eight `players` display names, per-slot `army`, `land`, `eliminated`, `has_kill`, and `neutralize_in` arrays,
-`ruleset`, `player_ratings`, `result`, and `board`.
+`ruleset`, `player_ratings`, `result`, `board`, public `chats` and game `events`.
+Chat/event histories contain at most 128 entries. Private inboxes and pending
+messages are never exposed. Public chat uses `{tick,player,text}`; game events
+use `{tick,kind,player,target,text}`.
 `player_ratings` is the public match-start leaderboard snapshot, shared with player
 observations: `{league, label, players:[{slot, score}]}`, or null when unavailable. During the match, `board` and `result` are null. Phases
 are `waiting`, `playing`, `resolving`, `saving`, `finished`, and `failed`;
@@ -25,8 +28,8 @@ preserve construction and rejected commands without losing replay semantics.
 The versioned game identifier is `generals_hosted`, game version 1. Its typed
 setup records the effective seed, generated dimensions, castle preset, public
 roster, match-start skill labels and final outcome. Small per-tick markers retain
-the order of steps, surrenders and delayed neutralization. No JSON command
-objects, board frames, policy source, private logs, credentials or upload URLs
+the order of steps, surrenders and delayed neutralization. Accepted public chat is stored in the tape's existing bounded ReplayMessages section.
+No JSON command objects, board frames, private messages, policy source, private logs, credentials or upload URLs
 are persisted in the binary tape. Timeout counts and scoring remain in the
 separate authoritative results artifact.
 

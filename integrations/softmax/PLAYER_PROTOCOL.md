@@ -38,6 +38,25 @@ Each observation has:
 | `owner_grid` | H×W, perspective-relative: 0 neutral/unknown, 1 me, 2 any opponent |
 | `army_grid` | H×W visible army counts; zero in fog |
 
+Messages and public events are shared with BASIC seats. Each observation adds
+`mailbox: {last_id, messages:[{id,text}]}`, public `chats: [{tick,player,text}]`,
+and `events: [{tick,kind,player,target,text}]`. Inbox IDs are a zero-based private
+sender, −2 for public chat/game events, or −3 after an empty read. Only your
+inbox is included. Public histories retain the most recent 128 entries.
+
+Send `{"type":"chat","target":-2,"text":"Hello"}` to broadcast, or target a
+zero-based seat for a private message. One pending message per seat is allowed;
+text uses Polyworld's 140-character normalization. Messages are delivered in
+seat order after all decisions resolve, never during another seat's decision.
+Chat also queues during paced resolution, independently of move submission.
+
+Send `{"type":"mailbox","count":3}` to consume three oldest entries. Up to
+101 reads are allowed; a read past the empty inbox sets `last_id` to −3.
+The next observation carries the remaining inbox and last sender ID. Neither
+chat nor mailbox reads consumes the move slot. The final message also carries
+the final inbox and public game events. Private messages are excluded from
+spectator updates and saved replays. Human controls use these same commands.
+
 Reply with exactly these three fields:
 
 ```json

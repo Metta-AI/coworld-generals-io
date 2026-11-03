@@ -4,7 +4,7 @@ COPY polyworld/dependencies.lock /build/polyworld/dependencies.lock
 COPY polyworld/tools/fetch_deps.sh /build/polyworld/tools/fetch_deps.sh
 RUN sh polyworld/tools/fetch_deps.sh
 COPY polyworld/src/generals /build/polyworld/src/generals
-COPY integrations/softmax/basic_worker.nim integrations/softmax/polyworld_bridge.nim integrations/softmax/polyworld_hosted.nim /build/integrations/softmax/
+COPY integrations/softmax/basic_worker.nim integrations/softmax/policy_messages.nim integrations/softmax/polyworld_bridge.nim integrations/softmax/polyworld_hosted.nim /build/integrations/softmax/
 COPY integrations/softmax/tools/build_polyworld_runtime.sh /build/integrations/softmax/tools/
 RUN bash integrations/softmax/tools/build_polyworld_runtime.sh /build/out
 
@@ -27,11 +27,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends util-linux && r
 COPY --from=runtime-build /build/out/generals-basic /usr/local/bin/generals-basic
 COPY --from=runtime-build /build/polyworld/.deps/bassy/LICENSE /usr/share/doc/generals-basic/BASSY-LICENSE
 COPY --from=runtime-build /build/polyworld/.deps/fixxy/LICENSE /usr/share/doc/generals-basic/FIXXY-LICENSE
+COPY --from=runtime-build /build/polyworld/.deps/jsony/LICENSE /usr/share/doc/generals-basic/JSONY-LICENSE
+COPY --from=runtime-build /build/polyworld/.deps/polyworld/LICENSE /usr/share/doc/generals-basic/POLYWORLD-LICENSE
 COPY integrations/softmax/requirements.lock /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY generals /app/generals
 COPY integrations/__init__.py /app/integrations/__init__.py
-COPY integrations/softmax/__init__.py integrations/softmax/config.py integrations/softmax/protocol.py integrations/softmax/engine.py integrations/softmax/ffa_map.py integrations/softmax/artifacts.py integrations/softmax/replay.py integrations/softmax/server.py integrations/softmax/file_players.py /app/integrations/softmax/
+COPY integrations/softmax/__init__.py integrations/softmax/config.py integrations/softmax/protocol.py integrations/softmax/engine.py integrations/softmax/ffa_map.py integrations/softmax/artifacts.py integrations/softmax/replay.py integrations/softmax/server.py integrations/softmax/file_players.py integrations/softmax/messages.py /app/integrations/softmax/
 COPY integrations/softmax/static /app/integrations/softmax/static
 RUN chmod -R a+rX /app
 EXPOSE 8080
@@ -62,6 +64,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends util-linux && r
 COPY --from=runtime-build /build/out/generals-basic /usr/local/bin/generals-basic
 COPY --from=runtime-build /build/polyworld/.deps/bassy/LICENSE /usr/share/doc/generals-basic/BASSY-LICENSE
 COPY --from=runtime-build /build/polyworld/.deps/fixxy/LICENSE /usr/share/doc/generals-basic/FIXXY-LICENSE
+COPY --from=runtime-build /build/polyworld/.deps/jsony/LICENSE /usr/share/doc/generals-basic/JSONY-LICENSE
+COPY --from=runtime-build /build/polyworld/.deps/polyworld/LICENSE /usr/share/doc/generals-basic/POLYWORLD-LICENSE
 COPY --from=runtime-build /build/out/generals-polyworld /usr/local/bin/generals-polyworld
 COPY --from=replay-build /build/replay-viewer /app/polyworld-viewer
 COPY polyworld/LICENSE /usr/share/doc/generals-polyworld/LICENSE
@@ -70,7 +74,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY generals/assets /app/generals/assets
 COPY LICENSE /usr/share/doc/generals-coworld/LICENSE
 COPY integrations/__init__.py /app/integrations/__init__.py
-COPY integrations/softmax/__init__.py integrations/softmax/config.py integrations/softmax/protocol.py integrations/softmax/polyworld_engine.py integrations/softmax/artifacts.py integrations/softmax/replay.py integrations/softmax/server.py integrations/softmax/file_players.py /app/integrations/softmax/
+COPY integrations/softmax/__init__.py integrations/softmax/config.py integrations/softmax/protocol.py integrations/softmax/polyworld_engine.py integrations/softmax/artifacts.py integrations/softmax/replay.py integrations/softmax/server.py integrations/softmax/file_players.py integrations/softmax/messages.py /app/integrations/softmax/
 COPY integrations/softmax/static /app/integrations/softmax/static
 RUN chmod -R a+rX /app
 EXPOSE 8080

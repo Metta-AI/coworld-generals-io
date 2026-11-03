@@ -213,6 +213,7 @@ def test_live_public_routes_do_not_reveal_hidden_state(tmp_path):
             message = global_ws.receive_json()
             assert message["board"] is None
             assert set(message) == {
+                "chats", "events",
                 "type",
                 "protocol_version",
                 "phase",

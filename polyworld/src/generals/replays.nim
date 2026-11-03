@@ -663,6 +663,11 @@ when defined(softmaxReplay):
       data.header.setup.skillScores.add(
         if score.kind == JNull: "—" else: formatFloat(score.getFloat(), ffDecimal, 1))
     data.header.setup.skillLabel = payload["skill_label"].getStr()
+    # Existing downloaded JSON tapes predate hosted chat.
+    if payload.hasKey("chats"):
+      for chat in payload["chats"].getElems():
+        data.metrics.chats.add ReplayChat(tick: chat["tick"].getInt().uint32,
+          player: chat["player"].getInt().int32, text: chat["text"].getStr())
     let winner = payload["result"]["winner"].getInt()
     data.header.setup.outcome = "Result: " &
       (if winner < 0: "draw" else: data.header.setup.roster.displayName(winner) & " won") &
