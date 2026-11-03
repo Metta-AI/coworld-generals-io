@@ -47,7 +47,8 @@ class Episode:
         self.artifacts, self.shutdown = artifacts, shutdown
         self.names = [p.name for p in config.players]
         self.num_players = len(self.names)
-        self.player_ratings = config.player_ratings.model_dump(mode="json") if config.player_ratings is not None else None
+        self.player_ratings = (config.player_ratings.model_dump(mode="json")
+                               if config.player_ratings is not None else None)
         self.skill_scores = [None] * self.num_players
         if config.player_ratings is not None:
             for player in config.player_ratings.players:
@@ -292,7 +293,8 @@ class Episode:
             "result": result,
         }
         replay["skill_scores"] = self.skill_scores
-        replay["skill_label"] = (f"At match start: {self.config.player_ratings.league} {self.config.player_ratings.label}. — = unrated."
+        replay["skill_label"] = (f"At match start: {self.config.player_ratings.league} "
+                                 f"{self.config.player_ratings.label}. — = unrated."
                                  if self.config.player_ratings is not None else "Skill: unavailable for this replay.")
         # Results are the completion marker. Never mark success without a replay.
         saved_replay = self.match.replay(replay) if self.match.engine_name == "polyworld" else replay
