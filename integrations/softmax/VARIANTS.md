@@ -87,6 +87,55 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.7.0 — November 3, 2026 (UTC)
+
+- Released `e9a22e69c79344fe0f72891e61eec7547fce7ff6` from `main` with
+  Coworld SDK 0.1.68 after merging
+  [PR 21](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/21).
+  Dispatch: `gh workflow run coworld-release.yml --ref main -f version=0.7.0`.
+  [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41560770570)
+  passed all nine native AMD64 fixtures (90 checks) and all ten hosted checks.
+- Canonical Coworld: `cow_71c0969f-50b9-4061-8cbc-d0105def089f`.
+  Hosted certification reports `certified` under contract `main-dd69cce1df37`,
+  job `279b8aa4-4f0a-49b3-92d4-fdf9072f1a43`.
+- The game uses the Polyworld Nim engine and native Silky WebAssembly replay
+  viewer. Hosted recordings contain command tapes with per-command state hashes.
+  All 173 upstream files were imported from `main` at
+  `500a98d66777f53e6dd1ca1f2127ebb826018f4a`, rechecked before release.
+  The sync command follows upstream `main`; recorded revisions preserve provenance.
+- All sixteen variants and the same three leagues remain available. Readback
+  preserves all 21 champion memberships: thirteen distinct registered versions,
+  ten container policies and three file policies. FFA remains the default league.
+  All league version locks are unset, so they follow the canonical release.
+- Three ad hoc hosted checks used existing registered policies, seed 7, and an
+  80-tick cap. Classic, mixed eight-player FFA and Build completed with zero
+  timeouts. Their saved recordings use `polyworld-generals-hosted` format 1.
+  These checks verify compatibility and packaging, not playing strength.
+- Public replay pages display the native viewer for all three checked episodes.
+  FFA playback, seeking to tick 80, fog perspectives and resizing from 1440×1000
+  to 390×844 were verified in an isolated browser.
+  [Production screenshot](https://softmax.nexus/artifacts/b79dc9e6-b260-4131-9ca4-d08e0636f471),
+  [mobile](https://softmax.nexus/artifacts/acdd8dbb-66a8-46c4-bc2e-9ad5f06aca97),
+  [recording](https://softmax.nexus/artifacts/fb58bb8c-3a34-4b19-b5de-869103a3ecb9).
+- FFA scheduling was already automatically paused at 00:45 UTC, before this
+  release, after exhausting retries. That pause remains unchanged. The ad hoc
+  checks did not change league memberships, ratings or scheduler settings.
+
+Hosted verification:
+
+| Mode | Experience request | Public episode |
+| --- | --- | --- |
+| Classic | `xreq_35df4802-b367-40b2-ac8e-bdd1d514c0cf` | [Replay](https://softmax.com/generals/episodes/04c862fe-0652-44c3-b472-c2f7b1ec2c0b) |
+| FFA8 | `xreq_d408cfba-0e67-48a2-bfcb-984bb347ee97` | [Replay](https://softmax.com/generals/episodes/0de65c46-dae3-40a5-8ae2-3c2562e63c36) |
+| Build | `xreq_5f4affda-1af0-4801-a09d-7bcfa2c6fe20` | [Replay](https://softmax.com/generals/episodes/353b434f-6983-4f13-850b-821424c09c52) |
+
+Published artifact identities:
+
+- Manifest: `sha256:81019fc77fec337a2dc0a15c9a5a5cb4ae4e49f394537fbc0bc777d59916f8d1`.
+- Game image: `sha256:4d83b80ad9cfada26062a14a0f7e1fa25551bf32481612388e8cbd7cc7812e44`.
+- Player image: `sha256:79c27f800e4bb5a46e7a56846e7e67b86bfc41100056d2ea776ad021f18e2f68`.
+- Replay bundle: `sha256:dc55ae6e53e95dffaea665a2a4b344d11f6dc5064c07f1b655dffb9efe4a3ddf`.
+
 ### 0.6.5 — November 2, 2026 (UTC)
 
 - Released `03b151c30d3cbcdf65372f2ff73a0da26e5867e4` with Coworld SDK 0.1.68.
