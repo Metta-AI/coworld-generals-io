@@ -62,6 +62,36 @@ Run the imported version before changing rules. Validate complete local FFA,
 human play, standalone replay, container certification, and hosted operation.
 Record release-specific commands and outcomes here before publishing.
 
+### 0.7.0 preparation — November 3, 2026 (UTC)
+
+- Imported all 173 tracked files from Polyworld `main` at
+  `500a98d66777f53e6dd1ca1f2127ebb826018f4a`. The sync command follows `main`;
+  the recorded revision identifies the imported source rather than constraining updates.
+- The published runtime uses the Nim engine and actual Silky WebAssembly replay
+  viewer. Hosted command tapes verify a state hash after every command, including
+  construction, surrender, neutralization and terminal adjudication.
+- Current checks: 52 affected core/server/legacy-browser cases; five native replay
+  cases; five FFA/legacy-handoff cases; three Linux mixed-player cases; and two
+  browser cases using the image-built viewer passed. The full imported Nim suite
+  passes with the updated dependency lock. Mac source checks skip six Linux-only
+  BASIC cases; the Linux image checks cover the three Polyworld cases.
+- The native browser checks use real completed FFA8 and Build episodes, gzip,
+  desktop/mobile viewports, seeking, changed-hash rejection and replay download.
+  The surrender fixture captures within its 50-tick window, then verifies later
+  neutralization and Survival placement in both the game and native viewer.
+  A live human/container episode remains replayable after its HTTP proxy retires.
+- ARM64 container certification passed 40/40 steps across Classic, mixed FFA4,
+  FFA8 and Build. The qualification image config digest is
+  `sha256:bd0324df81aab48e9164b908152fdb3287a847cf2913737cc89728b3dd7e2749`.
+  Production still requires native AMD64 and hosted certification.
+- The isolated full local platform built its coordinator/certifier and passed
+  API/certifier health checks. AMD64 emulation fails Rosetta allocation under the
+  BASIC worker's existing address-space sandbox; that limit remains unchanged.
+  Native release-runner certification is the AMD64 qualification path.
+
+See [PR 21](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/21)
+for exact commands, current CI and native viewer review media.
+
 ### 0.4.0 preparation — October 15, 2026
 
 - Imported FFA baseline: `python -m integrations.softmax.local --variant ffa

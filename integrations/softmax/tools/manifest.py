@@ -24,7 +24,7 @@ def ffa_variant(count, human=False):
         "id": f"{variant_id}-human" if human else variant_id,
         "name": f"{'Human play FFA' if human else 'Free-for-all'} ({count} players)",
         "description": (
-            f"{count} independent generals on ranked-size maps; last survivor wins. "
+            f"{count} independent generals on Polyworld maps; last survivor wins. "
             + ("Paced at two engine ticks per second." if human else
                "FFA Survival scoring; official idle and long-game adjudication.")
         ),
@@ -71,6 +71,7 @@ def template():
                 "type": "game",
                 "image": "{{GENERALS_GAME_IMAGE}}",
                 "run": ["python", "-m", "integrations.softmax.server"],
+                "env": {"GENERALS_ENGINE": "polyworld"},
                 "source_url": SOURCE,
             },
             "config_schema": GameConfig.model_json_schema(),

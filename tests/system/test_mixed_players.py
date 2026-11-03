@@ -15,7 +15,8 @@ from integrations.softmax.config import GameConfig
 from integrations.softmax.server import create_app
 
 
-def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("engine", ["jax", "polyworld"])
+def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monkeypatch, engine):
     if "GENERALS_BASIC_WORKER" not in os.environ:
         pytest.skip("Build the native BASIC worker and set GENERALS_BASIC_WORKER")
     source = Path("integrations/softmax/players/baseline.bas").read_text()
@@ -50,7 +51,7 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
         max_turns=40,
     )
     artifacts = {name: (tmp_path / f"{name}.json").as_uri() for name in ("results", "replay", "failure")}
-    with TestClient(create_app(config, artifacts)) as client, ExitStack() as stack:
+    with TestClient(create_app(config, artifacts, engine=engine)) as client, ExitStack() as stack:
         sockets = [stack.enter_context(client.websocket_connect(f"/player?slot={s}&token=token-{s}")) for s in (1, 2)]
         for ws in sockets:
             assert ws.receive_json()["type"] == "hello"
@@ -66,6 +67,7 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
     result = json.loads((tmp_path / "results.json").read_text())
     assert result["turns"] == 40 and result["timeouts"] == [0] * 4
     replay = json.loads((tmp_path / "replay.json").read_text())
+    assert replay["engine"] == engine
     assert any(turn["actions"][0][0] == 0 for turn in replay["turns"])
     for slot in (0, 3):
         log = (tmp_path / f"seat-{slot}.log").read_text()
@@ -75,7 +77,8 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
 
 
 @pytest.mark.parametrize("source", ["this is not BASIC", "do\nloop"])
-def test_broken_basic_never_publishes_competitive_scores(tmp_path: Path, monkeypatch, source):
+@pytest.mark.parametrize("engine", ["jax", "polyworld"])
+def test_broken_basic_never_publishes_competitive_scores(tmp_path: Path, monkeypatch, source, engine):
     if "GENERALS_BASIC_WORKER" not in os.environ:
         pytest.skip("Build the native BASIC worker and set GENERALS_BASIC_WORKER")
     (tmp_path / "policy").write_text(source)
@@ -100,7 +103,7 @@ def test_broken_basic_never_publishes_competitive_scores(tmp_path: Path, monkeyp
     monkeypatch.setenv("COGAME_PLAYER_SEATS_URI", roster.as_uri())
     config = GameConfig(tokens=["red", "blue"], players=[{"name": "Red"}, {"name": "Blue"}], seed=7, max_turns=2)
     artifacts = {name: (tmp_path / f"{name}.json").as_uri() for name in ("results", "replay", "failure")}
-    with TestClient(create_app(config, artifacts)) as client:
+    with TestClient(create_app(config, artifacts, engine=engine)) as client:
         with client.websocket_connect("/global") as viewer:
             message = viewer.receive_json()
             while message["phase"] != "failed":

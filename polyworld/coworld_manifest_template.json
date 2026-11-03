@@ -1,0 +1,353 @@
+{
+  "tags": [
+    "strategy",
+    "basic",
+    "polyworld",
+    "grid"
+  ],
+  "game": {
+    "name": "Polyworld Generals",
+    "description": "Deterministic fog-of-war grid strategy for 2 to 10 BASIC policies, with seeded maps and Polyworld action-tape replays.",
+    "owner": "treeform",
+    "player_runtime": "game-hosted",
+    "runnable": {
+      "type": "game",
+      "image": "{{GAME_IMAGE}}",
+      "source_url": "https://github.com/Metta-AI/polyworld-generals/tree/main"
+    },
+    "config_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players",
+        "seed",
+        "max_ticks"
+      ],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "players": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Public player name, limited to 128 UTF-8 bytes by the game."
+              },
+              "mmr": {
+                "type": "integer",
+                "minimum": -1,
+                "maximum": 2147483647,
+                "default": -1,
+                "description": "Public MMR star rank. -1 means unknown."
+              }
+            }
+          }
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "max_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 28800,
+          "default": 4000
+        },
+        "width": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "const": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 13,
+              "maximum": 61
+            }
+          ],
+          "default": 0,
+          "description": "Zero selects seeded automatic sizing. Explicit dimensions must allow valid general spacing and reachability."
+        },
+        "height": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "const": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 13,
+              "maximum": 61
+            }
+          ],
+          "default": 0,
+          "description": "Zero selects seeded automatic sizing. Explicit dimensions must allow valid general spacing and reachability."
+        },
+        "expose_player_info": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow BASIC policies to query public player names and MMR ranks."
+        }
+      }
+    },
+    "results_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scores",
+        "ticks",
+        "seed",
+        "outcome"
+      ],
+      "properties": {
+        "scores": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 10,
+          "items": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          }
+        },
+        "ticks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 28800
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "banked_gold": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "returned": {
+          "type": "array",
+          "items": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "replay_viewer": {
+      "bundle": "replay-viewer",
+      "replay_compression": "gzip"
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "Upload raw BASIC source or a ZIP containing exactly one .bas file. The game runs one isolated bounded VM per zero-based player slot, once per half-second simulation tick. Board queries obey fog of war. send(source, target, half) queues one cardinal move. Public names and MMR queries are enabled by default and can be disabled with expose_player_info. Mailboxes carry direct and global messages plus game capture and outcome notices. PRINT and VM diagnostics are private to each seat. Malformed packages and compile errors fail the episode; runtime errors disable that policy. See the game documentation for the complete API and limits."
+      },
+      "global": {
+        "type": "text",
+        "value": "GET /healthz reports readiness. GET /client/global returns a static status page. /global sends one JSON status message after WebSocket upgrade and answers Ping with Pong. Gameplay executes inside the headless game process without WebSocket actions. The declared static replay bundle provides replay viewing."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "# Polyworld Generals\n\nA deterministic grid strategy game for 2 to 10 free-for-all players. Expand from your general, collect armies, capture cities, and defeat opposing generals through fog of war. The last surviving player wins. Each simulation tick is half a second of game time. Matches stop after 4,000 ticks by default. The winner scores 1 and all other seats score 0. A match that reaches its limit without a winner scores 0 for every seat.\n\n## Policy format and execution\n\nSubmit raw BASIC source or a ZIP with exactly one .bas file. The staged filename may have no extension. Uploads are limited to 16 MiB and 256 entries. ZIP source, resources, names, and accounting overhead share a 64 MiB decoded limit. BASIC source is limited to 256 KiB. Each seat has a separate VM with persistent variables, 4 MiB BASIC memory, 4 MiB native memory, and one decision per tick. Each decision allows 200,000 instructions, 400,000 work units, 4,096 PRINT bytes, and 128 PRINT events. BASIC has no filesystem, network, or process APIs. Package resources are not exposed by this game's policy API.\n\nA malformed package or compile error fails the episode and identifies the failing seat. A runtime error disables that policy and makes it pass for the rest of the match. PRINT and error details go only to that seat's private log. A policy may submit at most one accepted cardinal move and one message per tick.\n\n## Board API\n\nPlayer IDs and tile indices are zero-based. Tile (x, y) has index y * width() + x. selfPlayer(), playerCount(), selfGeneral(), width(), height(), and tileCount() identify the current player and board. worldTick() is the completed tick count; worldTurn() is floor(worldTick() / 2).\n\nvisible(tile), terrain(tile), owner(tile), and army(tile) query the current player's fog-limited view. Visible terrain is plain 0, mountain 1, city 2, or general 3. Hidden mountains and cities both report terrain -2; other hidden tiles report -1. Hidden or neutral ownership is -1, and hidden armies are 0.\n\nsend(source, target, half) queues one cardinal move and returns 1 if accepted or 0 if rejected. The source must belong to the player and contain more than one army. half=0 sends all but one; half=1 sends half rounded down while leaving at least one. Mountains cannot be entered. Acceptance does not guarantee winning the battle. Omitting a move passes.\n\n## Names, MMR, and messages\n\nThe engine supplies public names through players[].name and optional MMR star ranks through players[].mmr. MMR -1 means unknown. playerName$(id), mailboxName$(id), and playerMmr(id) expose those values when expose_player_info is true, the default. playerInfoEnabled() reports whether those queries are enabled. When disabled, name queries return empty text, ranks return -1, and host-generated message labels use Player N. The replay viewer still shows the public roster.\n\nsendChat(-2, text$) broadcasts; sendChat(playerId, text$) sends a direct message. pullMailbox$() consumes the oldest message. mailboxId() returns -2 for global chat and game events, the sender ID for direct messages, or -3 for an empty mailbox. mailboxCount(), mailboxSelf(), and mailboxPlayers() describe the inbox and roster. Text is normalized to 140 characters and each inbox holds 100 messages. Messages deliver in seat order after all decisions and the simulation tick. Capture, victory, and draw notices arrive on the global channel. Direct messages remain private. Replays store at most 16,384 public messages.\n\nANNOTATE(time, kind$, function$, argsJson$) writes optional private replay annotations through the shared Polyworld policy host. Annotation output is bounded and does not change simulation state.\n\n## Maps and replays\n\nA seed, player count, dimensions, and generator version deterministically define the initial map. Width and height may be 0 for automatic sizing or 13 through 61. Custom dimensions can fail if they cannot satisfy general spacing and reachability. Hosted max_ticks is 1 through 28,800, with a default of 4,000.\n\nReplays use version 4 of this game's shared POLYWORLDREPLAY action tape, with four-byte ordinary commands. Earlier replay versions require the archived game build and viewer that created them. Playback regenerates the initial board, applies the recorded moves to the same Nim simulation, and checks every tick's state hash. No bot source, package resources, private messages, or private PRINT output is included. The static browser viewer starts at tick zero, playing and looping, with shared Polyworld playback controls and selectable player POVs.\n\nThis package uses game-hosted file policies and supports automated episodes and replay viewing. It does not provide hosted human lobbies or persistent player processes. Source: https://github.com/Metta-AI/polyworld-generals.\n"
+      }
+    }
+  },
+  "player": [
+    {
+      "id": "scout",
+      "name": "Scout",
+      "type": "player",
+      "file": "examples/scout.bas",
+      "description": "A bounded BASIC baseline that expands through visible neighboring land and attacks when it has enough armies."
+    }
+  ],
+  "variants": [
+    {
+      "id": "competition",
+      "name": "Competition",
+      "game_config": {
+        "players": [
+          {
+            "name": "Player 1",
+            "mmr": -1
+          },
+          {
+            "name": "Player 2",
+            "mmr": -1
+          },
+          {
+            "name": "Player 3",
+            "mmr": -1
+          },
+          {
+            "name": "Player 4",
+            "mmr": -1
+          },
+          {
+            "name": "Player 5",
+            "mmr": -1
+          },
+          {
+            "name": "Player 6",
+            "mmr": -1
+          },
+          {
+            "name": "Player 7",
+            "mmr": -1
+          },
+          {
+            "name": "Player 8",
+            "mmr": -1
+          },
+          {
+            "name": "Player 9",
+            "mmr": -1
+          },
+          {
+            "name": "Player 10",
+            "mmr": -1
+          }
+        ],
+        "seed": 7,
+        "max_ticks": 4000,
+        "width": 0,
+        "height": 0,
+        "expose_player_info": true
+      },
+      "description": "Ten-player free-for-all on a seeded automatic map, up to 4,000 ticks."
+    },
+    {
+      "id": "duel",
+      "name": "Duel",
+      "game_config": {
+        "players": [
+          {
+            "name": "Player 1",
+            "mmr": -1
+          },
+          {
+            "name": "Player 2",
+            "mmr": -1
+          }
+        ],
+        "seed": 7,
+        "max_ticks": 4000,
+        "width": 0,
+        "height": 0,
+        "expose_player_info": true
+      },
+      "description": "Two-player match on a seeded automatic map, up to 4,000 ticks."
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "players": [
+        {
+          "name": "Player 1",
+          "mmr": -1
+        },
+        {
+          "name": "Player 2",
+          "mmr": -1
+        },
+        {
+          "name": "Player 3",
+          "mmr": -1
+        },
+        {
+          "name": "Player 4",
+          "mmr": -1
+        },
+        {
+          "name": "Player 5",
+          "mmr": -1
+        },
+        {
+          "name": "Player 6",
+          "mmr": -1
+        },
+        {
+          "name": "Player 7",
+          "mmr": -1
+        },
+        {
+          "name": "Player 8",
+          "mmr": -1
+        },
+        {
+          "name": "Player 9",
+          "mmr": -1
+        },
+        {
+          "name": "Player 10",
+          "mmr": -1
+        }
+      ],
+      "seed": 7,
+      "max_ticks": 4000,
+      "width": 0,
+      "height": 0,
+      "expose_player_info": true
+    },
+    "players": [
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      },
+      {
+        "player_id": "scout"
+      }
+    ]
+  }
+}

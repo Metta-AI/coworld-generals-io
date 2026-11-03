@@ -1,0 +1,9 @@
+**
+!Dockerfile
+!config.nims
+!dependencies.lock
+!LICENSE
+!src/
+!src/**
+!tools/
+!tools/fetch_deps.sh

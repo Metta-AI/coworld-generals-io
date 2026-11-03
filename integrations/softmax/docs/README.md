@@ -32,8 +32,9 @@ queue moves. Each tick executes one action. Mountains block movement.
 
 Queued actions stay in your browser and reset on disconnect or reload.
 Undo and clear cannot cancel an action already submitted to the server.
-Completed games offer a replay with full-map and per-player perspectives,
-seeking, playback speed, and download.
+Completed games open the Polyworld replay viewer with full-map and per-player
+perspectives, seeking, playback speed, and download. Space pauses playback;
+Left/Right step one tick, and Home/End seek to the start/end.
 
 ## Build or modify a bot
 
@@ -61,8 +62,8 @@ Inspect replays from your bot's perspective before changing its decisions.
 ## Game rules
 
 - Each player starts with one general. FFA supports three to eight players,
-  using ranked-size maps: 20–26 tiles per side for four players, 25–33 for eight.
-  Classic 1v1 uses 18–21 tiles per side. Tiles are plain land, mountains,
+  using Polyworld maps: 20–26 tiles per side for four players, 25–33 for eight.
+  Classic 1v1 uses 18–23 tiles per side. Tiles are plain land, mountains,
   castles, or generals.
 - Each turn, choose one move, pass, or a build in castle-building mode. Moves go
   one tile up, down, left, or right. Mountains cannot be entered.

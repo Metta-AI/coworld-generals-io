@@ -19,8 +19,8 @@ the release workflow pins Coworld SDK 0.1.68. Existing container policy
 versions remain eligible; they need no conversion.
 
 One Coworld with three competitive modes: **classic 1v1**, **three-to-eight-player FFA**,
-and **build-your-own-castles 1v1**. All reuse the Python/JAX rules through
-the single-episode `Match` adapter
+and **build-your-own-castles 1v1**. Published builds use the Polyworld Nim engine
+through the single-episode `Match` adapter
 with fog of war and normal combat. Deathtouch is disabled. Container players
 and browsers connect over WebSocket; BASIC policies run in game-owned worker
 processes. The lightweight stdio bridge also supports existing competition bots.
@@ -34,7 +34,8 @@ All paths below are relative to `integrations/softmax/`.
 | [`local.py`](local.py) | Starts a local server, configures seats, and launches bundled socket players |
 | [`config.py`](config.py), [`protocol.py`](protocol.py) | Validated game configuration, action envelopes, and stdio observation encoding |
 | [`server.py`](server.py) | Episode lifecycle, authenticated seats, deadlines, public scores, artifacts, and shutdown |
-| [`engine.py`](engine.py), [`ffa_map.py`](ffa_map.py) | Single-episode `Match`, action receipts, ranked FFA maps, surrender, and Survival outcomes |
+| [`polyworld_engine.py`](polyworld_engine.py), [`polyworld_bridge.nim`](polyworld_bridge.nim) | Active Nim simulation adapter, observations, castle building and hosted FFA rules |
+| [`engine.py`](engine.py), [`ffa_map.py`](ffa_map.py) | Retained Python/JAX engine and ranked-map implementation |
 | [`player.py`](player.py), [`builder_player.py`](builder_player.py) | Container WebSocket clients and competition stdio bridge |
 | [`file_players.py`](file_players.py), [`basic_worker.nim`](basic_worker.nim), [`players/baseline.bas`](players/baseline.bas) | Game-hosted BASIC policies, bounded worker execution, and the editable baseline |
 | [`replay.py`](replay.py), [`artifacts.py`](artifacts.py) | Compact recording frames and artifact reads/writes |
@@ -42,12 +43,11 @@ All paths below are relative to `integrations/softmax/`.
 | [`tools/manifest.py`](tools/manifest.py) | Generates the manifest template from configuration, variant definitions, and embedded docs |
 | [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml), [`tools/build_replay_viewer.sh`](tools/build_replay_viewer.sh) | Game/player images and the static replay bundle |
 
-`server.Episode` owns one `engine.Match`. `Match` configures `GeneralsEnv` rules
-and calls [`generals.core.match`](../../generals/core/match.py) transitions
-without allocating an auto-reset training pool. FFA boards come from `ffa_map.py`;
-1v1 boards use `make_board`. The adapter owns wire observations, receipts,
-FFA exits and placement; the core engine owns board transitions and fog.
-See [the engine guide](../../generals/README.md) for the separate research interface.
+`server.Episode` owns one engine adapter. The active `polyworld_engine.Match`
+uses [`polyworld/src/generals`](../../polyworld/src/generals) for board transitions.
+The former Python/JAX engine remains selectable with `--engine jax` locally.
+See [Polyworld integration](POLYWORLD.md) for source provenance, engine ownership,
+map differences and build commands.
 
 The server reads `COGAME_CONFIG_URI` and, for mixed runtimes,
 `COGAME_PLAYER_SEATS_URI`. The `coworld-play-seats/2` roster distinguishes
@@ -107,8 +107,10 @@ existing live/replay components; do not copy the renderer into the website.
 From the repository root, with Python 3.12:
 
 ```bash
-python -m pip install -r integrations/softmax/requirements.lock
-python -m pip install -e '.[softmax]'
+python -m pip install -r integrations/softmax/requirements-polyworld.lock
+nim c -d:release --mm:arc --path:polyworld/src \
+  -o:polyworld/out/generals-polyworld integrations/softmax/polyworld_bridge.nim
+export GENERALS_POLYWORLD_ENGINE="$PWD/polyworld/out/generals-polyworld"
 python -m integrations.softmax.local --variant ffa --human
 # Other modes (omit --human for bundled bots):
 python -m integrations.softmax.local --variant ffa --players 8 --human
@@ -152,13 +154,10 @@ local port. The local launcher binds only to loopback.
 
 ## Rules and scoring
 
-- Two opposing generals in 1v1 on an independently sampled 18–21 by 18–21
-  board. FFA supports three to eight independent players and uses ranked map
-  generation: four-player maps have sides of 20–26 tiles; eight-player maps
-  have sides of 25–33. Each side uses a squared-uniform draw, favoring smaller
-  maps. City budgets, mountain sampling, general separation, fair city placement,
-  nearby-city checks, and connectivity rejection follow the supplied official
-  base-game generator. Rejected maps are resampled without relaxing constraints.
+- Polyworld generates deterministic maps with reachable, separated generals
+  and neutral cities. Four-player boards have 20–26 tiles per side;
+  eight-player boards have 25–33. Classic 1v1 uses 18–23. Map layouts and
+  seed interpretation differ from the retained Python/JAX generator.
 - Fog of war: a player sees its owned tiles and their neighbors. Public army
   and land totals remain visible. Unexplored mountains/castles share one
   structure marker. Enemy generals are hidden until visible.
@@ -262,17 +261,20 @@ an unauthenticated omniscient WebSocket would defeat fog of war. Player pages
 and `/player` require the slot's token. The public stream accepts no game-control
 commands, and `/replay.json` is unavailable until all success artifacts are saved.
 
-The completed replay preserves every board frame using keyframes and tile changes, plus the submitted/applied
-actions, seed, timeout flags, and result. The tile renderer and styles from `generals-competition` serve player views
-and replays. Crown, castle, and mountain sprites come directly from this repo's
-`generals/assets/images`, with the same assets copied into the static bundle. The static replay bundle needs no Python server, JAX, WASM,
-or network access beyond fetching its replay and local assets. It supports
-autoplay, looping, pause, seek, playback speed, resize, and gzip replay bytes.
+Polyworld replays preserve the hosted command tape, seed, timeout flags and
+result. A portable hash follows every command. The native Polyworld Silky viewer,
+compiled to WebAssembly, replays those commands through the same hosted engine
+module and rejects a state mismatch. It supports autoplay, looping, pause, seek,
+playback speed, perspectives, resize, download and gzip replay bytes.
+The static bundle needs no game server or JAX installation.
+Browser seats preload it before joining; completion delivers the tape over the
+existing socket, so playback survives retirement of the live HTTP proxy.
 Historical releases keep their own immutable viewer bundle.
 
 For a standalone replay, serve the generated bundle and a replay over HTTP:
 
 ```bash
+# After coworld build, extract the viewer from its game image:
 integrations/softmax/tools/build_replay_viewer.sh integrations/softmax/dist/replay-viewer
 # Copy only a completed replay into dist/replay-viewer/replay.json, then:
 python -m http.server 8090 --directory integrations/softmax/dist/replay-viewer
@@ -401,15 +403,22 @@ Deployment dependencies, including transitive packages, are pinned in
 --python-version 3.12 --output-file requirements.lock` from this directory when
 deliberately updating the runtime.
 
-Both this adapter and the local competition runner call `generals.core.match`.
-The adapter selects regular rules; the competition runner keeps its competition
-preset. Publish a new Coworld version for rules,
+The adapter uses the Polyworld engine. The retained JAX runtime and local
+competition runner use `generals.core.match`. Publish a new Coworld version for rules,
 protocol, rendering, or dependency changes. Preserve old replay fixtures when
 the format changes. Keep participant support and league balancing distinct from
 technical adapter maintenance. Hosting/resource allowances and ongoing support
 ownership need agreement with Softmax.
 
 ## Visual sources
+
+The published replay viewer uses `polyworld/src/generals/views.nim` and its
+Silky theme, transport, fonts and sprites. The Docker build includes their
+licenses. The `softmaxReplay` build flag loads hosted action tapes and reports
+verified playback progress. See [POLYWORLD.md](POLYWORLD.md) for ownership and
+source browser commands.
+
+Live human controls and the retained JAX replay viewer use the renderer below.
 
 `static/board.js` reuses the tile-rendering function from
 `generals-competition/board.js` at commit `83a9b23`. `static/board.css` retains
@@ -423,5 +432,5 @@ procedural game fallback or second game simulation in this renderer.
 
 Keep board and scorecard colors aligned with the official game when updating them.
 Sprites stay owned by `generals/assets/images`, and the Quicksand font comes
-from `generals/assets/fonts`, including its license in the replay bundle. No
+from `generals/assets/fonts`, including its license in the retained JAX replay bundle. No
 copied source assets need to be synchronized manually.

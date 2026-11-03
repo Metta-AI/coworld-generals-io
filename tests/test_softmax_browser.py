@@ -97,7 +97,7 @@ def test_board_updates_preserve_icons_and_queue_arrows():
 def test_browser_premove_controls(tmp_path, hosted):
     """Drive turns explicitly to check fast inputs between observations deterministically."""
     bundle = tmp_path / "viewer"
-    subprocess.run([str(ROOT / "integrations/softmax/tools/build_replay_viewer.sh"), str(bundle)], check=True)
+    subprocess.run([str(ROOT / "integrations/softmax/tools/build_legacy_replay_viewer.sh"), str(bundle)], check=True)
 
     class PlayerHandler(QuietHandler):
         def do_GET(self):
@@ -508,7 +508,7 @@ def test_browser_play_and_standalone_replay(tmp_path, variant):
             server.terminate()
             server.wait(timeout=5)
             bundle = tmp_path / "viewer"
-            hook = ROOT / "integrations/softmax/tools/build_replay_viewer.sh"
+            hook = ROOT / "integrations/softmax/tools/build_legacy_replay_viewer.sh"
             subprocess.run([str(hook), str(bundle)], check=True)
             (bundle / "obsolete.txt").write_text("old generated output")
             subprocess.run([str(hook), str(bundle)], check=True)

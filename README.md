@@ -1,6 +1,6 @@
 # Coworld Generals.io
 
-Softmax's Generals game: a Python/JAX engine, Coworld server, BASIC runtime,
+Softmax's Generals game: the Polyworld Nim engine, Coworld server, BASIC runtime,
 container-player bridge, and shared browser client for play and replays.
 The default [Generals league](https://softmax.com/generals) is **free-for-all
 (FFA), with 3–8 players**. Classic 1v1 and Build 1v1 have separate leagues.
@@ -10,17 +10,23 @@ The default [Generals league](https://softmax.com/generals) is **free-for-all
 [Agent instructions](https://softmax.com/generals/play.md) ·
 [Watch replays](https://softmax.com/generals/ffa)
 
+The complete native Polyworld application lives in [`polyworld/`](polyworld/README.md).
+The former Python/JAX runtime remains available with `--engine jax`. See
+[the runtime integration](integrations/softmax/POLYWORLD.md) for provenance and packaging.
+
 ## Run locally
 
-Use Python 3.12, as in CI. Run these commands from the checkout root:
+Use Python 3.12 and Nim 2.2.10, as in CI. Run these commands from the checkout root:
 
 ```bash
 git clone git@github.com:Metta-AI/coworld-generals-io.git
 cd coworld-generals-io
 python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r integrations/softmax/requirements.lock
-python -m pip install -e '.[softmax]'
+python -m pip install -r integrations/softmax/requirements-polyworld.lock
+nim c -d:release --mm:arc --path:polyworld/src \
+  -o:polyworld/out/generals-polyworld integrations/softmax/polyworld_bridge.nim
+export GENERALS_POLYWORLD_ENGINE="$PWD/polyworld/out/generals-polyworld"
 python -m integrations.softmax.local --variant ffa --human
 ```
 

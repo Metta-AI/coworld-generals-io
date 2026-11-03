@@ -1,11 +1,11 @@
 services:
   generals-game:
-    image: generals-coworld-game:${GENERALS_ARCH:-amd64}
+    image: generals-polyworld-game:${GENERALS_ARCH:-amd64}
     platform: linux/${GENERALS_ARCH:-amd64}
     build:
       context: ../..
       dockerfile: integrations/softmax/Dockerfile
-      target: game
+      target: polyworld-game
   generals-player:
     image: generals-coworld-player:${GENERALS_ARCH:-amd64}
     platform: linux/${GENERALS_ARCH:-amd64}

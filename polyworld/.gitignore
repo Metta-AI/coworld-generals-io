@@ -1,0 +1,9 @@
+out/
+build/
+dist/
+.deps/
+.venv/
+__pycache__/
+.DS_Store
+nimcache/
+*.dSYM/

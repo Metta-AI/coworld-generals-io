@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "repository": "https://github.com/Metta-AI/coworld-generals-io",
+  "revision": "43deb578ccaee91fce317169691a0d8a0206a01e",
+  "license": "MIT, Copyright (c) 2024 Matej Straka",
+  "mode": "classic with general_trade=True",
+  "notes": "Unchanged reference source files only. No confidential official engine. Original Expander runs independently from each engine observation. Map generation is deliberately outside the equivalence claim.",
+  "files": {
+    "upstream/game.py": {
+      "source_path": "generals/core/game.py",
+      "sha256": "326371554e5357f092e754ec1a55875a92c7460204d8ea2ef9667531a67ea800"
+    },
+    "upstream/observation.py": {
+      "source_path": "generals/core/observation.py",
+      "sha256": "38461fc23361fe6396cb81b72a33a4a2f2ec1d21da9ee8e7229460843b6a2593"
+    },
+    "upstream/agent.py": {
+      "source_path": "competition/agents/expander_python/agent.py",
+      "sha256": "4634a14128940e1eb0b7a6305f25b6ba709467e495aa6a3cb2dbec642a1dccf6"
+    },
+    "upstream/LICENSE": {
+      "source_path": "LICENSE",
+      "sha256": "71d16a9ff9535844b4a2b398906440e78c5a412b16dd5fdebad940eabbcbf7c1"
+    }
+  }
+}

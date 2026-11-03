@@ -1,0 +1,54 @@
+name: Build
+
+on: [push, pull_request]
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - name: Check and test simulation
+        run: |
+          sh tools/fetch_deps.sh
+          nim check -d:headless src/generals.nim
+          nim r tests/tests.nim
+          nim check experiments/bench_paths.nim
+          nim r -d:release experiments/bench_paths.nim --verify-only
+          nim c -d:release -d:headless -o:out/generals-sim src/generals.nim
+          ./out/generals-sim --headless --seed=7 --players=4
+          python3 tools/check_cli.py --executable out/generals-sim
+      - name: Check hosted CoWorld contracts
+        run: |
+          nim check --skipParentCfg:on -d:coworld src/generals.nim
+          nim c --skipParentCfg:on -d:release -d:coworld -o:out/generals-coworld src/generals.nim
+          python3 tools/check_coworld.py --executable out/generals-coworld
+
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/reference_requirements.txt
+      - name: Install the pinned Python oracle
+        run: python -m pip install -r tools/reference_requirements.txt
+      - name: Compare original agent and rules every tick
+        run: |
+          nim check tools/reference_runner.nim
+          python tools/check_reference.py
+      - name: Save comparison results and any failing replay
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-results
+          path: build/reference_*.json
+          if-no-files-found: ignore

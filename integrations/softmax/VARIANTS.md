@@ -18,8 +18,8 @@ reflect the release readbacks recorded here; source `main` can contain later cha
 | Variant | Seats | Rules | Turn cap |
 | --- | --- | --- | --- |
 | `competition` | 2 | Classic rules, neutral castles | 2,000 |
-| `ffa` | 4 | Ranked FFA maps, Survival outcomes and official adjudication | 50,002 |
-| `ffa-3`, `ffa-5` through `ffa-8` | 3, 5–8 | Corresponding ranked-size FFA | 50,002 |
+| `ffa` | 4 | Polyworld maps, Survival outcomes and hosted adjudication | 50,002 |
+| `ffa-3`, `ffa-5` through `ffa-8` | 3, 5–8 | Corresponding Polyworld FFA | 50,002 |
 | `castles` | 2 | Build castles on owned plain land; no starting neutral castles | 2,000 |
 | `human`, `ffa-human`, `castles-human` | 2, 4, 2 | Corresponding rules, 500 ms minimum tick and 1 s deadline | 1,200 |
 | `ffa-3-human`, `ffa-5-human` through `ffa-8-human` | 3, 5–8 | Corresponding paced FFA | 1,200 |
