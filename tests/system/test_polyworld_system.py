@@ -15,7 +15,7 @@ from integrations.softmax.replay import replay_frame
 from integrations.softmax.server import create_app
 
 
-def test_polyworld_builders_finish_and_replay_their_constructed_castles(tmp_path):
+def test_polyworld_builders_finish_and_replay_their_constructed_castles(tmp_path, inspect_native_replay):
     if "GENERALS_POLYWORLD_ENGINE" not in os.environ:
         pytest.skip("Compile polyworld_bridge.nim and set GENERALS_POLYWORLD_ENGINE")
     config = GameConfig(tokens=["red", "blue"], players=[{"name": "Red"}, {"name": "Blue"}],
@@ -42,9 +42,9 @@ def test_polyworld_builders_finish_and_replay_their_constructed_castles(tmp_path
         assert result["turns"] == 140 and result["timeouts"] == [0, 0]
         replay = client.get("/replay.json").json()
     assert len({slot for _, slot, _, _ in built}) == 2
-    saved = json.loads((tmp_path / "replay.json").read_text())
-    assert saved["format"] == "polyworld-generals-hosted" and saved["result"] == result
-    assert len(saved["ticks"]) == 141 and "frames" not in saved
+    saved = inspect_native_replay(tmp_path / "replay.json")
+    assert saved["format"] == "POLYWORLDREPLAY" and saved["game"] == "generals_hosted"
+    assert saved["turns"] == 140 and saved["actions"] > 0
     assert replay["engine"] == "polyworld"
     for turn, slot, row, col in built:
         frame = replay_frame(replay["frames"], turn)
@@ -52,7 +52,7 @@ def test_polyworld_builders_finish_and_replay_their_constructed_castles(tmp_path
     assert not (tmp_path / "failure.json").exists()
 
 
-def test_polyworld_final_surrenders_persist_one_terminal_tick(tmp_path):
+def test_polyworld_final_surrenders_persist_one_terminal_tick(tmp_path, inspect_native_replay):
     if "GENERALS_POLYWORLD_ENGINE" not in os.environ:
         pytest.skip("Compile polyworld_bridge.nim and set GENERALS_POLYWORLD_ENGINE")
     config = GameConfig(tokens=["red", "blue", "green"],
@@ -71,6 +71,7 @@ def test_polyworld_final_surrenders_persist_one_terminal_tick(tmp_path):
         result = sockets[2].receive_json()["result"]
         replay = client.get("/replay.json").json()
     assert result["winner"] == 2 and result["turns"] == 1
+    assert inspect_native_replay(tmp_path / "replay.json")["turns"] == 1
     assert result == json.loads((tmp_path / "results.json").read_text())
     assert [replay_frame(replay["frames"], i)["turn"] for i in range(2)] == [0, 1]
 
@@ -82,7 +83,7 @@ def test_polyworld_final_surrenders_persist_one_terminal_tick(tmp_path):
     "GENERALS_POLYWORLD_ENGINE" not in os.environ or "GENERALS_POLYWORLD_VIEWER" not in os.environ,
     reason="requires the compiled Polyworld engine/viewer and the real browser suite",
 )
-def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, variant, count, turns, native_controls):
+def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, variant, count, turns, native_controls, inspect_native_replay):
     """A shipped replay must reproduce hosted rules in the actual WASM viewer."""
     import gzip
     import socket
@@ -105,10 +106,10 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
          "--port", str(port), "--output", str(tmp_path / "episodes")],
         cwd=root, check=True, capture_output=True, text=True, timeout=180,
     )
-    recording = next((tmp_path / "episodes").glob("episode-*/replay.json"))
-    tape = json.loads(recording.read_text())
-    assert tape["format"] == "polyworld-generals-hosted" and "frames" not in tape
-    assert tape["result"]["timeouts"] == [0] * count
+    recording = next((tmp_path / "episodes").glob("episode-*/game.replay"))
+    tape = inspect_native_replay(recording)
+    assert tape["format"] == "POLYWORLDREPLAY"
+    assert json.loads((recording.parent / "results.json").read_text())["timeouts"] == [0] * count
     (bundle / "replay.gz").write_bytes(gzip.compress(recording.read_bytes()))
     scores = [-2.34, *([27.38] * (count - 2)), None]
     ratings = {"league": "Fixture standings", "label": "MMR",
@@ -124,7 +125,7 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     click(page, page, 420, 860)
     page.wait_for_function("() => !Module.replayRepeating")
     key(page, page, "End")
-    page.wait_for_function(f"() => failed || Module.replayTick === {tape['result']['turns']}")
+    page.wait_for_function(f"() => failed || Module.replayTick === {tape['turns']}")
     assert not page.evaluate("failed"), page.locator("#status-detail").inner_text()
     assert "Result:" in page.evaluate("Module.replayMessages")
     page.screenshot(path=str(tmp_path / f"native-{variant}-desktop.png"))
@@ -148,8 +149,10 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     page.wait_for_function("() => Module.replayTick === 1")
     assert not page.evaluate("failed")
     assert "Result:" not in page.evaluate("Module.replayMessages"), "rewinding must hide the final result again"
-    tape["ticks"][1][0]["hash"] = "0000000000000000"
-    (bundle / "divergent.json").write_text(json.dumps(tape))
-    page.goto(base + "/?divergent=1#replay=divergent.json")
+    divergent = bytearray(recording.read_bytes())
+    position = divergent.index(bytes.fromhex(tape["first_hash"])[::-1])
+    divergent[position] ^= 1
+    (bundle / "divergent.replay").write_bytes(divergent)
+    page.goto(base + "/?divergent=1#replay=divergent.replay")
     page.wait_for_function("() => failed", timeout=60000)
     assert "diverged" in page.locator("#status-detail").inner_text()

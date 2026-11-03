@@ -43,7 +43,7 @@ new = """      let bytes;
             if (event.source !== parent || event.origin !== location.origin ||
                 event.data?.type !== 'polyworld-replay-data') return;
             window.removeEventListener('message', receive);
-            resolve(new TextEncoder().encode(event.data.replay));
+            resolve(event.data.replay);
           };
           window.addEventListener('message', receive);
         });
@@ -55,7 +55,7 @@ new = """      let bytes;
 assert html.count(old) == 1, 'upstream replay shell fetch changed'
 html = html.replace(old, new)
 html = html.replace('      const downloaded = bytes.length;', "      if (bytes.length > MaxReplayBytes) throw new Error('Replay exceeds the 64 MiB limit.');\n      const downloaded = bytes.length;", 1)
-html = html.replace('<canvas id="canvas"', '<a id="download-replay" download="generals-polyworld.replay.json" style="position:fixed;right:12px;bottom:90px;z-index:2;color:white;background:#161922;border:1px solid #666;padding:6px 10px;border-radius:4px;text-decoration:none;font:12px sans-serif">Download replay</a><canvas id="canvas"', 1)
+html = html.replace('<canvas id="canvas"', '<a id="download-replay" download="generals-polyworld.replay" style="position:fixed;right:12px;bottom:90px;z-index:2;color:white;background:#161922;border:1px solid #666;padding:6px 10px;border-radius:4px;text-decoration:none;font:12px sans-serif">Download replay</a><canvas id="canvas"', 1)
 html = html.replace('</head>', '''<style>
 @media (max-width: 759px) and (orientation: portrait) {
   #download-replay { top: 4px; bottom: auto !important; right: 8px !important;
@@ -65,26 +65,21 @@ html = html.replace('</head>', '''<style>
 metadata = """      const ratings = new URLSearchParams(location.hash.slice(1)).get('player_ratings');
       if (ratings !== null) {
         const metadata = JSON.parse(ratings);
-        const replay = JSON.parse(new TextDecoder().decode(bytes));
         if (typeof metadata.league !== 'string' || typeof metadata.label !== 'string' ||
             !Array.isArray(metadata.players)) throw new Error('Invalid leaderboard metadata.');
-        const scores = Array(replay.players.length).fill(null);
         const slots = new Set();
         for (const player of metadata.players) {
-          if (!Number.isInteger(player.slot) || player.slot < 0 || player.slot >= scores.length ||
+          if (!Number.isInteger(player.slot) || player.slot < 0 || player.slot >= 8 ||
               slots.has(player.slot) ||
               (player.score !== null && (typeof player.score !== 'number' || !Number.isFinite(player.score)))) {
             throw new Error('Invalid leaderboard player score.');
           }
           slots.add(player.slot);
-          scores[player.slot] = player.score;
         }
-        replay.skill_scores = scores;
-        replay.skill_label = 'Current ' + metadata.league + ' ' + metadata.label + '. — = unrated.';
-        bytes = new TextEncoder().encode(JSON.stringify(replay));
+        FS.writeFile('/player-ratings.json', new TextEncoder().encode(ratings));
       }
       FS.writeFile('/episode.replay', bytes);
-      document.getElementById('download-replay').href = URL.createObjectURL(new Blob([bytes], {type:'application/json'}));"""
+      document.getElementById('download-replay').href = URL.createObjectURL(new Blob([bytes], {type:'application/octet-stream'}));"""
 assert html.count("      FS.writeFile('/episode.replay', bytes);") == 1, 'upstream replay staging changed'
 html = html.replace("      FS.writeFile('/episode.replay', bytes);", metadata, 1)
 (output / 'index.html').write_text(html)

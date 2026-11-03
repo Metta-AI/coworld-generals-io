@@ -121,8 +121,9 @@ server.run()
                                 assert not frame.evaluate("failed")
                                 with page.expect_download() as saved:
                                     frame.get_by_role("link", name="Download replay").click()
-                                assert json.loads(Path(saved.value.path()).read_text()) == json.loads(
-                                    (tmp_path / "replay.json").read_text())
+                                downloaded = Path(saved.value.path()).read_bytes()
+                                assert downloaded.startswith(b"POLYWORLDREPLAY")
+                                assert downloaded == (tmp_path / "replay.json").read_bytes()
                                 continue
                             page.get_by_role("button", name="Pause", exact=True).click()
                             page.locator("#seek").fill("12")

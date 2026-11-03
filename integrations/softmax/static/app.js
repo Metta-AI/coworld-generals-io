@@ -304,7 +304,7 @@
     let data = source;
     if (source?.encoding === 'gzip+base64') {
       const bytes = Uint8Array.from(atob(source.data), value => value.charCodeAt(0));
-      data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+      data = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
     } else if (typeof source === 'string') {
       const response = await fetch(source, {credentials:'omit'});
       if (!response.ok) throw new Error(`Replay could not be loaded (${response.status}).`);
@@ -312,16 +312,17 @@
       const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
       post({type:'phase', phase:'replay_fetch_end', bytes:bytes.length, compressed});
       if (compressed) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-      data = JSON.parse(new TextDecoder().decode(bytes));
+      data = bytes;
     }
     if (load !== replayLoad) return;
-    if (data.format === 'polyworld-generals-hosted') {
+    if (data instanceof Uint8Array && new TextDecoder().decode(data.subarray(0, 'POLYWORLDREPLAY'.length)) === 'POLYWORLDREPLAY') {
       await prepareNativeReplay();
       nativeReplayVisible = true;
       nativeReplay.style.display = 'block';
-      nativeReplay.contentWindow.postMessage({type:'polyworld-replay-data', replay:JSON.stringify(data)}, location.origin);
+      nativeReplay.contentWindow.postMessage({type:'polyworld-replay-data', replay:data}, location.origin);
       return;
     }
+    if (data instanceof Uint8Array) data = JSON.parse(new TextDecoder().decode(data));
     decodeReplayFrame = GeneralsReplay(data);
     replay = data; ruleset = data.ruleset || 'competition'; slot = null; selected = null; clearTimeout(passTimer);
     names(data.players); $('mode').textContent = 'REPLAY';
@@ -470,7 +471,7 @@
     if (url) loadReplay(url).catch(err => fail(err.message));
   });
   if (replayURL) loadReplay(replayURL).catch(err => fail(err.message));
-  else if (location.pathname.endsWith('/client/replay')) loadReplay(livePrefix+'/client/replay.json').catch(err => fail(err.message));
+  else if (location.pathname.endsWith('/client/replay')) loadReplay(livePrefix+'/client/replay.data').catch(err => fail(err.message));
   else if (['/client/player', '/client/global'].some(route => location.pathname.endsWith(route))) connectLive();
   else {
     $('launch').hidden = false;

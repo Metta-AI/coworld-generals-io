@@ -1,6 +1,7 @@
 """Shared browser fixture for replay and complete hosted-game workflows."""
 
 import functools
+import json
 import os
 import shutil
 import subprocess
@@ -83,3 +84,14 @@ def viewer(tmp_path, request):
     finally:
         http.shutdown()
         http.server_close()
+
+
+@pytest.fixture
+def inspect_native_replay():
+    def inspect(path):
+        result = subprocess.run(
+            [os.environ["GENERALS_POLYWORLD_ENGINE"], "--inspect-replay", str(path)],
+            check=True, capture_output=True, text=True, timeout=60,
+        )
+        return json.loads(result.stdout)
+    return inspect

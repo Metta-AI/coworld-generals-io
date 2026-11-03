@@ -7,6 +7,7 @@ import json
 import os
 from contextlib import ExitStack
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,11 +17,13 @@ from integrations.softmax.server import create_app
 
 
 @pytest.mark.parametrize("engine", ["jax", "polyworld"])
-def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monkeypatch, engine):
+def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monkeypatch, engine, inspect_native_replay):
     if "GENERALS_BASIC_WORKER" not in os.environ:
         pytest.skip("Build the native BASIC worker and set GENERALS_BASIC_WORKER")
     source = Path("integrations/softmax/players/baseline.bas").read_text()
     (tmp_path / "policy").write_text('print "PRIVATE", slot, turn\nprint "SKILL", playerSkill(1), playerRated(1), playerRated(3), playerSkill(3)\n' + source)
+    with ZipFile(tmp_path / "package", "w") as package:
+        package.writestr("main.bas", (tmp_path / "policy").read_bytes())
     seats = []
     for slot in range(4):
         if slot in (1, 2):
@@ -30,9 +33,9 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
                 {
                     "slot": slot,
                     "kind": "policy",
-                    "file_uri": (tmp_path / "policy").as_uri(),
+                    "file_uri": (tmp_path / ("policy" if slot == 0 else "package")).as_uri(),
                     "content_hash": "sha256:" + "a" * 64,
-                    "size_bytes": (tmp_path / "policy").stat().st_size,
+                    "size_bytes": (tmp_path / ("policy" if slot == 0 else "package")).stat().st_size,
                     "log_uri": (tmp_path / f"seat-{slot}.log").as_uri(),
                     "artifact_uri": (tmp_path / f"seat-{slot}.zip").as_uri(),
                 }
@@ -68,11 +71,14 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
                 ws.send_json({"type": "action", "turn": turn, "action": [1, 0, 0, 0, 0]})
         for ws in sockets:
             assert ws.receive_json()["type"] == "final"
-        assert client.get("/client/replay.json").status_code == 200
+        assert client.get("/client/replay.data").status_code == 200
+        replay = client.get("/replay.json").json()
     result = json.loads((tmp_path / "results.json").read_text())
     assert result["turns"] == 40 and result["timeouts"] == [0] * 4
-    replay = json.loads((tmp_path / "replay.json").read_text())
-    assert replay["engine"] == engine
+    if engine == "polyworld":
+        assert inspect_native_replay(tmp_path / "replay.json")["turns"] == 40
+    else:
+        assert json.loads((tmp_path / "replay.json").read_text())["engine"] == engine
     assert any(turn["actions"][0][0] == 0 for turn in replay["turns"])
     for slot in (0, 3):
         log = (tmp_path / f"seat-{slot}.log").read_text()
@@ -82,19 +88,23 @@ def test_basic_container_and_human_seats_complete_one_game(tmp_path: Path, monke
     assert not (tmp_path / "failure.json").exists()
 
 
-@pytest.mark.parametrize("source", ["this is not BASIC", "do\nloop"])
+@pytest.mark.parametrize("source", ["this is not BASIC", "do\nloop", "zip_escape"])
 @pytest.mark.parametrize("engine", ["jax", "polyworld"])
 def test_broken_basic_never_publishes_competitive_scores(tmp_path: Path, monkeypatch, source, engine):
     if "GENERALS_BASIC_WORKER" not in os.environ:
         pytest.skip("Build the native BASIC worker and set GENERALS_BASIC_WORKER")
-    (tmp_path / "policy").write_text(source)
+    if source == "zip_escape":
+        with ZipFile(tmp_path / "policy", "w") as package:
+            package.writestr("../main.bas", "pass()")
+    else:
+        (tmp_path / "policy").write_text(source)
     seats = [
         {
             "kind": "policy",
             "slot": s,
             "file_uri": (tmp_path / "policy").as_uri(),
             "content_hash": "sha256:" + "b" * 64,
-            "size_bytes": len(source),
+            "size_bytes": (tmp_path / "policy").stat().st_size,
             "log_uri": (tmp_path / f"seat-{s}.log").as_uri(),
             "artifact_uri": (tmp_path / f"seat-{s}.zip").as_uri(),
         }
