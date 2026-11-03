@@ -16,7 +16,7 @@ when defined(softmaxReplay) and defined(emscripten):
   {.emit: "#include <emscripten.h>".}
 
 const
-  SidebarWidth = 350.0'f
+  SidebarWidth = 406.0'f
   ChatLineHeight = 24.0'f
   ChatInputHeight = 36.0'f
   MaxChatLines = 12
@@ -251,6 +251,12 @@ proc contentHeight(view: View): float32 =
 proc rankWidth(view: View): float32 =
   ## Accommodates supplied MMR values without overlapping adjacent columns.
   result = 50
+  when defined(softmaxReplay):
+    if view.replaying:
+      result = 78
+      for score in view.replay.data.header.setup.skillScores:
+        result = max(result, view.sk.getTextSize("Score", score).x + 40)
+      return
   for player in 0 ..< view.world.config.players:
     let rank = view.roster.playerMmr(player)
     if rank >= 0:
@@ -280,7 +286,7 @@ proc layout(view: View) =
     available.y / rows
   )))
   let mapSize = vec2(columns, rows) * view.cellSize
-  view.boardOrigin = vec2(17, 54) + (available - mapSize) / 2
+  view.boardOrigin = floor(vec2(17, 54) + (available - mapSize) / 2)
 
 proc start(view: View, newSeed = false) =
   ## Resets match state and gives the selected human seat its own general.
@@ -397,7 +403,7 @@ proc resetReplay(view: View) =
   view.replay.syncCursor(0)
   view.log.resetLog()
   when defined(softmaxReplay):
-    view.log.entries[0].text = view.replay.data.header.setup.outcome
+    view.log.entries[0].text = view.replay.data.header.setup.skillLabel
   else:
     view.log.entries[0].text = "Replay events."
   view.replayChatIndex = 0
@@ -566,7 +572,7 @@ proc drawBoard(view: View, preview = false) =
     let
       shown = preview or view.visible[i]
       origin = view.tileOrigin(i)
-      size = view.cellSize - 1
+      size = view.cellSize - 2
     var color = Fog
     if shown:
       color =
@@ -692,7 +698,7 @@ proc drawPov(view: View, player: int, origin: Vec2) =
 proc drawScoreboard(view: View) =
   ## Ranks public scores and adds original POV controls for recorded games.
   let
-    widths = [50.0'f, view.rankWidth(), 184.0'f, 54.0'f, 52.0'f]
+    widths = [50.0'f, view.rankWidth(), 240.0'f, 54.0'f, 52.0'f]
     sidebar = view.sidebarWidth()
     origin = vec2(view.size.x - sidebar, 0)
     players = view.world.config.players
@@ -735,8 +741,16 @@ proc drawScoreboard(view: View) =
       if column == 0 and player >= 0:
         view.drawPov(player, at)
       elif column == 1:
-        view.drawStar(at + vec2(7, 9))
-        if player >= 0:
+        when defined(softmaxReplay):
+          if view.replaying:
+            if player < 0:
+              view.centered("Skill", at + vec2(0, 6), width, Black, "Score")
+            else:
+              view.drawStar(at + vec2(7, 9))
+              view.label(view.replay.data.header.setup.skillScores[player], at + vec2(28, 6), Black, "Score")
+        if not view.replaying or not defined(softmaxReplay):
+          view.drawStar(at + vec2(7, 9))
+        if player >= 0 and (not view.replaying or not defined(softmaxReplay)):
           let rank = view.roster.playerMmr(player)
           view.label(
             if rank < 0: "?" else: $rank,
@@ -847,6 +861,11 @@ proc rebuildChat(view: View) =
       addText("The game ended in a draw.")
     if entry.kind != Notice:
       addText("  " & turnText(entry.turn), "Timestamp")
+  when defined(softmaxReplay):
+    if view.replaying and view.world.turn == view.replay.data.hashes.len:
+      currentFont = "Event"
+      newLine(marker = true)
+      addText(view.replay.data.header.setup.outcome)
   view.chatDirty = false
 
 proc chatBounds(view: View): Rect =
@@ -1433,12 +1452,22 @@ proc frame(view: View) =
       let
         playing = view.transport.player.playing.int
         repeating = view.transport.player.repeating.int
+        skillScores = view.replay.data.header.setup.skillScores.join("|")
+        skillScoresCString = skillScores.cstring
+      var messages: string
+      for line in view.chatLines:
+        for part in line.parts:
+          messages.add(part.text)
+        messages.add('\n')
+      let messagesCString = messages.cstring
       {.emit: """
       EM_ASM({
         Module.replayFrameCount = (Module.replayFrameCount || 0) + 1;
         Module.replayPlaying = !!$0;
         Module.replayRepeating = !!$1;
-      }, `playing`, `repeating`);
+        Module.replaySkillScores = UTF8ToString($2).split('|');
+        Module.replayMessages = UTF8ToString($3);
+      }, `playing`, `repeating`, `skillScoresCString`, `messagesCString`);
       """.}
 
 proc runWindow(

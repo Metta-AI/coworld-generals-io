@@ -57,7 +57,7 @@ proc addTheme*(builder: AtlasBuilder, assets: string) =
     ("Close", "Quicksand-Regular.ttf", 32.0'f),
     ("Default", "Quicksand-Regular.ttf", 18.0'f),
     ("Turn", "Quicksand-Regular.ttf", 18.0'f),
-    ("Timestamp", "Quicksand-Regular.ttf", 10.0'f),
+    ("Timestamp", "Quicksand-Regular.ttf", 12.0'f),
     ("Bold", "Quicksand-Bold.ttf", 18.0'f),
     ("Hud", "Quicksand-Regular.ttf", 15.0'f),
     ("Small", "Quicksand-Regular.ttf", 12.0'f),
@@ -72,9 +72,9 @@ proc addTheme*(builder: AtlasBuilder, assets: string) =
     if typeface.hasGlyph(rune):
       glyphs.add(rune.toUTF8())
   for (name, file, size) in [
-    ("Chat", "Quicksand-Regular.ttf", 14.0'f),
-    ("Event", "Quicksand-Bold.ttf", 14.0'f),
-    ("Score", "Quicksand-Regular.ttf", 16.0'f),
+    ("Chat", "Quicksand-Regular.ttf", 16.0'f),
+    ("Event", "Quicksand-Bold.ttf", 16.0'f),
+    ("Score", "Quicksand-Regular.ttf", 18.0'f),
     ("OutcomeName", "Quicksand-Bold.ttf", 28.0'f)
   ]:
     builder.addFont(assets / "fonts" / file, name, size, glyphs)
