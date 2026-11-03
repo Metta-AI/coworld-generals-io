@@ -20,6 +20,11 @@ jobs:
           nim c -d:release -d:headless -o:out/generals-sim src/generals.nim
           ./out/generals-sim --headless --seed=7 --players=4
           python3 tools/check_cli.py --executable out/generals-sim
+      - name: Check hosted CoWorld contracts
+        run: |
+          nim check --skipParentCfg:on -d:coworld src/generals.nim
+          nim c --skipParentCfg:on -d:release -d:coworld -o:out/generals-coworld src/generals.nim
+          python3 tools/check_coworld.py --executable out/generals-coworld
 
   reference:
     runs-on: ubuntu-latest

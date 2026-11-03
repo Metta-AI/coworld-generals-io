@@ -7,6 +7,9 @@ import
 when not defined(headless):
   import vmath, generals/views
 
+when defined(coworld):
+  import polyworld/coworld, generals/hosts
+
 proc assetDirectory(): string =
   ## Finds bundled graphics beside the project or an installed executable.
   for directory in [
@@ -60,7 +63,12 @@ proc simulate(
     if hub == nil:
       hub = newMessageHub(roster, config.players)
       log.resetLog()
-    brains[player] = newBrain(readSource(botFiles[player]), player, hub)
+    let source =
+      when defined(coworld):
+        hostedSource(botFiles[player], player)
+      else:
+        readSource(botFiles[player])
+    brains[player] = newBrain(source, player, hub)
   if recordPath.len > 0:
     recorder = newReplayRecorder(world, roster)
   let started = cpuTime()
@@ -108,6 +116,8 @@ proc simulate(
   if recorder != nil:
     saveReplay(recordPath, recorder.data)
     echo "Saved replay: ", recordPath
+  when defined(coworld):
+    finishHosted(world)
 
 proc replay(path: string, tickRate: int32) =
   ## Reconstructs and verifies every recorded tick without invoking any bots.
@@ -159,13 +169,21 @@ proc usage() =
 
 proc main() =
   ## Starts a configured local match or standard Polyworld replay session.
-  let parsed = parseOptions(commandLineParams())
+  let parsed =
+    when defined(coworld):
+      hostedOptions()
+    else:
+      parseOptions(commandLineParams())
   if parsed.showHelp:
     usage()
     return
   let
     config = parsed.settings.config
-    roster = parsed.settings.resolvedRoster()
+    roster =
+      when defined(coworld):
+        parsed.settings.roster
+      else:
+        parsed.settings.resolvedRoster()
   if parsed.headless:
     if parsed.game.replayPath.len > 0:
       replay(parsed.game.replayPath, parsed.game.headlessTickRate)
@@ -205,7 +223,15 @@ proc main() =
         vsync = parsed.game.vsync
       )
 
-try:
-  main()
-except GeneralsError as error:
-  quit("Generals: " & error.msg, 1)
+when defined(coworld):
+  try:
+    main()
+  except GeneralsError, CoworldError:
+    let message = getCurrentExceptionMsg()
+    closePlayerOutputs()
+    quit("Generals: " & message, 1)
+else:
+  try:
+    main()
+  except GeneralsError as error:
+    quit("Generals: " & error.msg, 1)

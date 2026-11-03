@@ -1,0 +1,13 @@
+services:
+  game:
+    image: polyworld-generals:latest
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      secrets:
+        - github_token
+
+secrets:
+  github_token:
+    file: ${COWORLD_GITHUB_TOKEN_FILE:-/dev/null}

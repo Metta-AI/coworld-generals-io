@@ -56,6 +56,6 @@ or silently enlarges explicitly requested dimensions. If 256 terrain
 attempts cannot produce a valid layout, creation raises `GeneralsError`.
 
 Replays store concrete dimensions, the seed, and a generator version.
-Old version 1 and 2 recordings retain the previous reflected generator.
-New recordings use the asymmetric generator and standard Polyworld
-lockstep action replay.
+Current recordings use the asymmetric generator and standard Polyworld
+lockstep action replay. Older recordings use the archived game build that
+created them.

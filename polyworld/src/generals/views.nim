@@ -4,6 +4,7 @@ import
   silky/widgets as widgets,
   silky/contexts as silkyContexts,
   silky/internal/inputs as textInputs,
+  polyworld/viewers,
   profiles as gameProfiles,
   common, controls, worlds, visions, bots, events, chats, themes, arrows,
   replays, transports, povs, players, brains, messages
@@ -1288,9 +1289,10 @@ proc handleInput(view: View) =
     return
   if view.screen == GameScreen and not view.replaying and view.handleChat():
     return
-  if window.buttonPressed[KeyEscape]:
-    view.screen = MenuScreen
-    view.elapsed = 0
+  when not defined(replayViewer):
+    if window.buttonPressed[KeyEscape]:
+      view.screen = MenuScreen
+      view.elapsed = 0
   if view.screen != GameScreen:
     return
   if view.replaying:
@@ -1415,6 +1417,8 @@ proc frame(view: View) =
   if view.screenshot.len > 0 and view.frames >= 3:
     view.capture()
   view.window.swapBuffers()
+  if view.replaying:
+    reportReplayFrame(view.world.turn.int32, 0)
 
 proc runWindow(
     config: Config,
@@ -1514,6 +1518,7 @@ proc runWindow(
     view.frame()
   while not window.closeRequested and not view.closing:
     pollEvents()
+    waitForDisplay()
 
 proc runGraphics*(
     config: Config,

@@ -10,6 +10,7 @@ requires "https://github.com/Metta-AI/polyworld"
 requires "silky", "pixie", "windy", "vmath", "chroma", "opengl", "flatty"
 requires "fluffy >= 1.0.0", "benchy >= 0.1.0"
 requires "jsony"
+requires "mummy", "webby", "curly", "libcurl"
 requires "https://github.com/treeform/bassy"
 
 task test, "Check the game and test rules, fog, controls, and bots":

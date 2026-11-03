@@ -2,10 +2,20 @@
 
 The `polyworld/` tree imports all tracked files from
 [Metta-AI/polyworld-generals](https://github.com/Metta-AI/polyworld-generals)
-revision `9bae777c9ec36ba59f68160dcfb5f7ed10f8bc36`. Its MIT license,
+from its floating `main` branch. Its MIT license,
 asset notices, native Silky application, experiments and original checks remain
 beside the code. `polyworld/dependencies.lock` pins native application dependencies.
 Private official reference sources are not part of this import.
+
+Run `python -m integrations.softmax.tools.sync_polyworld` before preparing an
+upstream update. It fetches the current `main`, imports its changes and preserves
+our simulation receipts and trade switch. Overlapping edits fail before applying;
+resolve those edits before building. Commit and validate the resulting source.
+`polyworld-upstream.txt` records the last imported revision for incremental sync
+and release provenance; it does not constrain the next upstream revision.
+Release builds use the reviewed repository tree, so their source URL identifies
+the exact code tested. The standalone package under `polyworld/` currently
+accepts file players; our hosted adapter continues to support mixed seats.
 
 ## Ownership and execution
 

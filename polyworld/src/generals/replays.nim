@@ -7,19 +7,20 @@ export tapes
 
 const
   ReplayGame* = "generals"
-  ReplayFormatVersion* = 3'u16
-  ReplayGameVersion* = 3'u16
-  LegacyMapVersion* = 1'u16
+  ReplayFormatVersion* = 4'u16
+  ReplayGameVersion* = 4'u16
   ReplayMapVersion* = 2'u16
   MaxReplayTicks* = 100_000
   MaxReplayActions* = MaxReplayTicks * MaxPlayers
   MaxReplayChats* = 16_384
   MaxReplayBytes* = 64 * 1024 * 1024
-  RosterReplayBytes = 32 * 1024 * 1024
-  LegacyReplayBytes = 16 * 1024 * 1024
   ChatHeaderBytes = 16
   HalfFlag = 1'u32
   RawFlag = 2'u32
+  SourceMask = 0xfff'u32
+  MaximumTickDelta = 0x1fff'u32
+  ExtendedAction = uint32.high
+  ExtendedWords = 9
 
 type
   ReplaySetup* = object
@@ -43,18 +44,7 @@ type
   ReplayPlayer* = TapePlayer[
     ReplaySetup, ReplayAction, ReplayMessages, Config
   ]
-  LegacySetup = object
-    mapHash: uint64
-    maximumTicks: uint32
-  LegacyData = ActionTape[LegacySetup, ReplayAction, void, Config]
-  LegacyRoster = object
-    players: array[4, PlayerInfo]
-    exposePlayerInfo: bool
-  RosterSetup = object
-    mapHash: uint64
-    maximumTicks: uint32
-    roster: LegacyRoster
-  RosterData = ActionTape[RosterSetup, ReplayAction, ReplayMessages, Config]
+  PackedData = ActionTape[ReplaySetup, uint32, ReplayMessages, Config]
 
 proc fail(message: string) {.noreturn, raises: [GeneralsError].} =
   ## Raises an error at the Generals replay boundary.
@@ -97,13 +87,9 @@ proc initialWorld(
   ## Rebuilds the recorded generator with portable native integer fields.
   if config.seed > int32.high.int:
     fail("map seed exceeds the portable signed 32-bit range")
-  case mapVersion
-  of LegacyMapVersion:
-    newWorldLegacy(config)
-  of ReplayMapVersion:
-    newWorld(config)
-  else:
+  if mapVersion != ReplayMapVersion:
     fail("unsupported map generation version " & $mapVersion)
+  newWorld(config)
 
 proc recordedRoster(roster: Roster, count: int): Roster {.
     raises: [GeneralsError].} =
@@ -192,6 +178,8 @@ proc validateChat(chat: ReplayChat, count, duration: int) {.
 
 proc validate(data: ReplayData): World {.raises: [GeneralsError].} =
   ## Validates the versioned setup and bounded, ordered action stream.
+  if data.config.width notin 13 .. 61 or data.config.height notin 13 .. 61:
+    fail("recording requires explicit generated board dimensions")
   try:
     data.header.requireTapeVersion(ReplayFormatVersion, ReplayGameVersion)
   except ReplayError as error:
@@ -359,99 +347,182 @@ proc replayTick*(
       fail("simulation diverged at tick " & $tick)
   true
 
+proc packedAction(
+    action: ReplayAction,
+    previous: uint32,
+    config: Config
+): uint32 {.raises: [].} =
+  ## Packs ordinary cardinal commands into one word or requests an escape.
+  if action.flags > HalfFlag or action.row != 0 or
+    action.column != 0 or action.direction != 0 or
+    action.tick < previous or action.tick - previous > MaximumTickDelta or
+    action.source < 0 or action.target < 0 or
+    action.source >= int32(config.width * config.height) or
+    action.target >= int32(config.width * config.height):
+      return ExtendedAction
+  let
+    source = action.source.int
+    target = action.target.int
+    width = config.width
+  var direction: uint32
+  if target == source - width:
+    direction = 0
+  elif target == source + width:
+    direction = 1
+  elif target == source - 1 and source mod width > 0:
+    direction = 2
+  elif target == source + 1 and source mod width < width - 1:
+    direction = 3
+  else:
+    return ExtendedAction
+  uint32(source) or (direction shl 12) or (action.flags shl 14) or
+    (action.player shl 15) or ((action.tick - previous) shl 19)
+
+proc packActions(data: ReplayData): seq[uint32] {.raises: [].} =
+  ## Stores four-byte common orders and exact escapes for unusual commands.
+  result = newSeqOfCap[uint32](data.actions.len)
+  var previous = 0'u32
+  for action in data.actions:
+    let packed = packedAction(action, previous, data.config)
+    result.add(packed)
+    if packed == ExtendedAction:
+      result.add([
+        action.tick, action.player, action.flags,
+        cast[uint32](action.source), cast[uint32](action.target),
+        cast[uint32](action.row), cast[uint32](action.column),
+        cast[uint32](action.direction)
+      ])
+    previous = action.tick
+
+proc unpackActions(
+    words: seq[uint32],
+    config: Config,
+    ticks: int
+): seq[ReplayAction] {.raises: [GeneralsError].} =
+  ## Bounds decoded command storage before expanding the packed word stream.
+  if config.width notin 13 .. 61 or config.height notin 13 .. 61 or
+    config.players notin 2 .. MaxPlayers or
+    config.maxTurns notin 1 .. MaxReplayTicks or ticks > config.maxTurns:
+      fail("packed commands require bounded board dimensions and duration")
+  let limit = ticks * config.players
+  if words.len > limit * ExtendedWords:
+    fail("packed action words exceed the recorded duration")
+  var
+    position = 0
+    count = 0
+  while position < words.len:
+    let span = if words[position] == ExtendedAction: ExtendedWords else: 1
+    if words.len - position < span:
+      fail("extended command is truncated")
+    inc count
+    if count > limit:
+      fail("decoded action count exceeds the recorded duration")
+    position += span
+  result = newSeq[ReplayAction](count)
+  position = 0
+  var previous = 0'u32
+  for action in result.mitems:
+    let packed = words[position]
+    inc position
+    if packed == ExtendedAction:
+      action = ReplayAction(
+        tick: words[position],
+        player: words[position + 1],
+        flags: words[position + 2],
+        source: cast[int32](words[position + 3]),
+        target: cast[int32](words[position + 4]),
+        row: cast[int32](words[position + 5]),
+        column: cast[int32](words[position + 6]),
+        direction: cast[int32](words[position + 7])
+      )
+      position += ExtendedWords - 1
+    else:
+      let
+        tick = previous.uint64 + (packed shr 19).uint64
+        source = int(packed and SourceMask)
+        direction = (packed shr 12) and 3
+        width = config.width
+      if tick > ticks.uint64:
+        fail("packed command exceeds the recorded duration")
+      if source >= width * config.height:
+        fail("packed command source is outside the board")
+      let target =
+        case direction
+        of 0:
+          source - width
+        of 1:
+          source + width
+        of 2:
+          source - 1
+        else:
+          source + 1
+      if target < 0 or target >= width * config.height or
+        (direction == 2 and source mod width == 0) or
+        (direction == 3 and source mod width == width - 1):
+          fail("packed command target is outside the board")
+      action = ReplayAction(
+        tick: tick.uint32,
+        player: (packed shr 15) and 15,
+        flags: (packed shr 14) and HalfFlag,
+        source: source.int32,
+        target: target.int32
+      )
+    if action.tick == 0 or action.tick < previous or
+      action.tick > ticks.uint32:
+        fail("packed command tick is outside the ordered recording")
+    action.validateAction(config.players)
+    previous = action.tick
+
 proc encodeReplay*(data: ReplayData): string {.raises: [GeneralsError].} =
-  ## Encodes the standard Polyworld envelope and validated action tape.
+  ## Encodes the current Polyworld tape with compact command words.
   discard data.validate()
+  let packed = PackedData(
+    header: data.header,
+    config: data.config,
+    actions: data.packActions(),
+    hashes: data.hashes,
+    metrics: data.metrics
+  )
   try:
     result = encodeReplayFile(
       ReplayGame,
       ReplayGameVersion,
-      data,
+      packed,
       MaxReplayBytes
     )
   except ReplayError as error:
     fail(error.msg)
 
 proc decodeReplay*(bytes: string): ReplayData {.raises: [GeneralsError].} =
-  ## Reads exact historical layouts and preserves their map generation.
+  ## Reads only this game's replay version with bounded command expansion.
   try:
-    if bytes.len > MaxReplayBytes:
-      fail("recording exceeds the file size limit")
-    let header = bytes.replayFileHeader()
-    case header.gameVersion
-    of 1:
-      let legacy = decodeReplayFile(
-        ReplayGame,
-        1,
-        bytes,
-        LegacyData,
-        LegacyReplayBytes
-      )
-      legacy.header.requireTapeVersion(1, 1)
-      if encodeReplayFile(ReplayGame, 1, legacy, LegacyReplayBytes) != bytes:
-        fail("legacy recording has trailing or noncanonical bytes")
-      result.header = TapeHeader[ReplaySetup](
-        formatVersion: ReplayFormatVersion,
-        gameVersion: ReplayGameVersion,
-        setup: ReplaySetup(
-          mapVersion: LegacyMapVersion,
-          mapHash: legacy.header.setup.mapHash,
-          maximumTicks: legacy.header.setup.maximumTicks,
-          roster: recordedRoster(defaultRoster(), legacy.config.players)
-        )
-      )
-      result.config = legacy.config
-      result.actions = legacy.actions
-      result.hashes = legacy.hashes
-    of 2:
-      let legacy = decodeReplayFile(
-        ReplayGame,
-        2,
-        bytes,
-        RosterData,
-        RosterReplayBytes
-      )
-      legacy.header.requireTapeVersion(2, 2)
-      if encodeReplayFile(ReplayGame, 2, legacy, RosterReplayBytes) != bytes:
-        fail("legacy recording has trailing or noncanonical bytes")
-      var roster = defaultRoster()
-      roster.exposePlayerInfo = legacy.header.setup.roster.exposePlayerInfo
-      for i, player in legacy.header.setup.roster.players:
-        roster.players[i] = player
-      result.header = TapeHeader[ReplaySetup](
-        formatVersion: ReplayFormatVersion,
-        gameVersion: ReplayGameVersion,
-        setup: ReplaySetup(
-          mapVersion: LegacyMapVersion,
-          mapHash: legacy.header.setup.mapHash,
-          maximumTicks: legacy.header.setup.maximumTicks,
-          roster: roster
-        )
-      )
-      result.config = legacy.config
-      result.actions = legacy.actions
-      result.hashes = legacy.hashes
-      result.metrics = legacy.metrics
-    of ReplayGameVersion:
-      result = decodeReplayFile(
-        ReplayGame,
-        ReplayGameVersion,
-        bytes,
-        ReplayData,
-        MaxReplayBytes
-      )
-      if encodeReplayFile(
-        ReplayGame,
-        ReplayGameVersion,
-        result,
-        MaxReplayBytes
-      ) != bytes:
-        fail("recording has trailing or noncanonical bytes")
-    else:
-      fail("unsupported gameplay version " & $header.gameVersion)
+    let packed = decodeReplayFile(
+      ReplayGame,
+      ReplayGameVersion,
+      bytes,
+      PackedData,
+      MaxReplayBytes
+    )
+    packed.header.requireTapeVersion(ReplayFormatVersion, ReplayGameVersion)
+    result = ReplayData(
+      header: packed.header,
+      config: packed.config,
+      actions: unpackActions(packed.actions, packed.config, packed.hashes.len),
+      hashes: packed.hashes,
+      metrics: packed.metrics
+    )
+    discard result.validate()
+    if result.packActions() != packed.actions:
+      fail("recording has noncanonical command words")
+    if encodeReplayFile(
+      ReplayGame,
+      ReplayGameVersion,
+      packed,
+      MaxReplayBytes
+    ) != bytes:
+      fail("recording has trailing or noncanonical bytes")
   except ReplayError, FlattyError, ValueError, IndexDefect, RangeDefect:
     fail("cannot decode recording: " & getCurrentExceptionMsg())
-  discard result.validate()
 
 proc saveReplay*(path: string, data: ReplayData) {.
     raises: [GeneralsError].} =

@@ -3,6 +3,9 @@ import
   polyworld/[mailboxes, policies, policyhosts],
   common, messages, players, visions
 
+when defined(coworld):
+  import polyworld/coworld
+
 type
   BrainState = ref object
     player: int
@@ -173,13 +176,20 @@ proc newBrain*(source: string, player: int, hub: MessageHub): Brain =
   try:
     let
       host = buildHost(state)
-      program = compile(source, host, limits)
+      program =
+        when defined(coworld):
+          compilePlayer(source, host, limits, player)
+        else:
+          compile(source, host, limits)
     result.runtime = initRuntime(program, host, limits)
   except BasicError as error:
-    raise newException(
-      GeneralsError,
-      "Cannot compile BASIC player " & $(player + 1) & ": " & error.msg
-    )
+    when defined(coworld):
+      rejectPlayer(player, error.msg)
+    else:
+      raise newException(
+        GeneralsError,
+        "Cannot compile BASIC player " & $(player + 1) & ": " & error.msg
+      )
 
 proc readSource*(path: string): string =
   ## Loads raw BASIC or a bounded Polyworld policy package from a local file.
@@ -206,9 +216,15 @@ proc decide*(brain: Brain, world: World): Move =
   brain.state.submitted = false
   try:
     brain.runtime.restart()
-    discard brain.runtime.run()
+    when defined(coworld):
+      discard brain.runtime.run(playerPrinter(brain.player))
+    else:
+      discard brain.runtime.run()
     result = brain.state.pending
   except BasicError as error:
     brain.failed = true
     brain.error = error.msg
-    stderr.writeLine("BASIC player " & $(brain.player + 1) & ": " & error.msg)
+    when defined(coworld):
+      playerError(brain.player, error.msg)
+    else:
+      stderr.writeLine("BASIC player " & $(brain.player + 1) & ": " & error.msg)

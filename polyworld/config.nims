@@ -23,3 +23,10 @@ switch("outdir", Root / "out")
 switch("nimcache", Root / "out/cache")
 switch("mm", "arc")
 switch("define", "flatty64")
+
+when defined(coworld):
+  switch("define", "headless")
+  switch("threads", "on")
+
+when defined(emscripten):
+  include "web.nims"

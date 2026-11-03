@@ -63,17 +63,38 @@ looping. Up to 16,384 public messages fit in a recording; later messages
 still reach the UI and mailboxes without stopping simulation recording.
 Direct messages, BASIC source, and bot file paths are not saved.
 
-Version 3 supports 2 through 10 FFA players and records the map generator
-version. The same seed, dimensions, player count, and generator version
-always reconstruct the same starting board. Versions 1 and 2 retain their
-original generator and four-seat file layouts, so existing recordings
-still play and verify without changing their maps. Saving an older tape
-uses the current file layout while retaining its original generator.
+The current game reads and writes replay version 4 only. Earlier replay
+versions belong to the archived game builds that created them. There is
+no conversion or older-format reader in this build.
 
-Version 2 added public roster and chat metadata. Version 1 recordings
-load with `Player N` names and unknown ranks. The bot identity-query flag
-is retained with the public roster. See [BASIC bots](BOTS.md) for player
-settings, rank values, and the mailbox interface.
+Version 4 stores ordinary commands as one 32-bit word, instead of eight
+32-bit fields. The action tape contains a Flatty sequence of these words:
+
+| Bits | Value |
+| --- | --- |
+| 0 through 11 | Source tile index. |
+| 12 through 13 | Direction: up, down, left, right. |
+| 14 | Send half the army. |
+| 15 through 18 | Player index, from 0 through 9. |
+| 19 through 31 | Tick delta from the preceding recorded command. |
+
+The target is derived from the source, direction, and board width.
+Commands in the same tick have a zero delta. Passes are omitted. A normal
+move costs exactly four bytes, including its tick and player. Every tick
+still has an eight-byte state hash for deterministic verification.
+
+The reserved word `0xffffffff` introduces an extended command containing
+the absolute tick, player, flags, source, target, row, column, and
+direction as eight 32-bit words. This 36-byte form preserves raw reference
+commands, rejected commands, unusual fields, and gaps over 8,191 ticks
+without changing their meaning. Ordinary valid army moves use the compact
+form. Decoding bounds the expanded action count before allocating it and
+rejects noncanonical encodings, invalid geometry, and truncated records.
+
+The same seed, dimensions, player count, and generator version always
+reconstruct the same starting board for this game build. The public
+roster retains names, MMR, and the bot identity-query flag. See
+[BASIC bots](BOTS.md) for player settings and the mailbox interface.
 
 Graphical `--record` saves the latest local match on completion and again
 when the window closes, including an unfinished match. The default viewer
@@ -81,7 +102,6 @@ keeps the current match tape in memory without writing a file.
 
 New matches allow up to 4,000 half-second ticks, or 2,000 displayed
 turns, and end earlier when only one player remains. Each replay retains
-its recorded turn limit, so older recordings still end at their original
-endpoint. Use `--ticks COUNT` or `--turns=COUNT` when recording to choose
+its recorded turn limit. Use `--ticks COUNT` or `--turns=COUNT` to choose
 a different limit. `--seconds N` and `--minutes N` convert at two ticks
 per second. See [command-line flags](CLI.md) for the full shared interface.

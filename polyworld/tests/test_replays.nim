@@ -3,23 +3,9 @@ import
   flatty,
   ../src/generals/[bots, common, players, replays, worlds]
 
-type
-  LegacyTestSetup = object
-    mapHash: uint64
-    maximumTicks: uint32
-  LegacyTestData = ActionTape[
-    LegacyTestSetup, ReplayAction, void, Config
-  ]
-  RosterTestRoster = object
-    players: array[4, PlayerInfo]
-    exposePlayerInfo: bool
-  RosterTestSetup = object
-    mapHash: uint64
-    maximumTicks: uint32
-    roster: RosterTestRoster
-  RosterTestData = ActionTape[
-    RosterTestSetup, ReplayAction, ReplayMessages, Config
-  ]
+type CompactTestData = ActionTape[
+  ReplaySetup, uint32, ReplayMessages, Config
+]
 
 template expectReplayError(body: untyped) =
   ## Requires malformed input to fail at the Generals error boundary.
@@ -30,6 +16,26 @@ template expectReplayError(body: untyped) =
     except GeneralsError:
       failed = true
     doAssert failed, "Expected a Generals replay error"
+
+proc fixture(players, ticks: int): ReplayData =
+  ## Creates bounded codec metadata with placeholder hashes, not a game run.
+  var config = defaultConfig(7, players)
+  config.maxTurns = max(1, ticks)
+  result = newReplayRecorder(newWorld(config)).data
+  result.hashes = newSeq[uint64](ticks)
+
+proc compact(data: ReplayData): CompactTestData =
+  ## Reads the serialized action words independently of the runtime decoder.
+  decodeReplayFile(
+    ReplayGame,
+    ReplayGameVersion,
+    data.encodeReplay(),
+    CompactTestData
+  )
+
+proc encoded(data: CompactTestData): string =
+  ## Encodes wire fixtures without validating their intentionally bad words.
+  encodeReplayFile(ReplayGame, ReplayGameVersion, data)
 
 proc snapshot(world: World): World =
   ## Copies every sequence so expected states cannot share live mutations.
@@ -166,6 +172,156 @@ for players in [2, 4]:
   if players == 2:
     sample = data
 doAssert conquests > 0, "Replays must cover actual general captures"
+
+echo "Testing four-byte commands for every seat, direction, and half flag"
+block:
+  var data = fixture(MaxPlayers, 8)
+  let
+    source = data.config.width + 1
+    offsets = [-data.config.width, data.config.width, -1, 1]
+  for direction in 0 .. 3:
+    for half in 0 .. 1:
+      for player in 0 ..< MaxPlayers:
+        data.actions.add(ReplayAction(
+          tick: uint32(direction * 2 + half + 1),
+          player: uint32(player),
+          flags: uint32(half),
+          source: int32(source),
+          target: int32(source + offsets[direction])
+        ))
+  let wire = data.compact()
+  doAssert wire.actions.len == 80
+  doAssert wire.actions.toFlatty().len == 8 + 80 * 4
+  doAssert wire.actions[0] == (uint32(source) or (1'u32 shl 19))
+  doAssert wire.actions[9] == (uint32(source) or (9'u32 shl 15))
+  doAssert wire.actions[^1] == (uint32(source) or
+    (3'u32 shl 12) or (1'u32 shl 14) or (9'u32 shl 15))
+  doAssert wire.encoded().decodeReplay() == data
+  doAssert data.encodeReplay().len ==
+    encodeReplayFile(ReplayGame, ReplayGameVersion, data).len - 80 * 28
+
+echo "Testing the largest supported source cell and idle tick gaps"
+block:
+  var config = defaultConfig(9, MaxPlayers)
+  config.width = 61
+  config.height = 61
+  config.maxTurns = 1
+  var data = newReplayRecorder(newWorld(config)).data
+  data.hashes = @[0'u64]
+  data.actions = @[
+    ReplayAction(tick: 1, player: 9, flags: 1, source: 3720, target: 3719)
+  ]
+  doAssert data.compact().actions.len == 1
+  doAssert data.encodeReplay().decodeReplay() == data
+  data = fixture(2, 16_384)
+  let source = int32(data.config.width + 1)
+  for tick in [1'u32, 8192'u32, 16_384'u32]:
+    data.actions.add(ReplayAction(
+      tick: tick,
+      player: 0,
+      source: source,
+      target: source + 1
+    ))
+  let wire = data.compact()
+  doAssert wire.actions.len == 11
+  doAssert wire.actions[1] shr 19 == 8191
+  doAssert wire.actions[2] == uint32.high
+  doAssert wire.actions[3] == 16_384
+  doAssert data.encodeReplay().decodeReplay() == data
+
+echo "Testing exact escape records for raw and rejected commands"
+block:
+  var data = fixture(2, 4)
+  let width = int32(data.config.width)
+  data.actions = @[
+    ReplayAction(
+      tick: 1, player: 0, flags: 3,
+      source: int32.low, target: int32.high,
+      row: int32.low, column: int32.high, direction: 9
+    ),
+    ReplayAction(
+      tick: 2, player: 1, source: width - 1, target: width
+    ),
+    ReplayAction(
+      tick: 3, player: 0, source: width + 1, target: width + 2,
+      row: 123, column: -123, direction: -1
+    ),
+    ReplayAction(tick: 4, player: 1, source: -1, target: -1, flags: 1)
+  ]
+  let wire = data.compact()
+  doAssert wire.actions.len == 4 * 9
+  for i in 0 ..< 4:
+    doAssert wire.actions[i * 9] == uint32.high
+  doAssert wire.actions[4] == cast[uint32](int32.low)
+  doAssert wire.actions[5] == cast[uint32](int32.high)
+  doAssert wire.encoded().decodeReplay() == data
+
+echo "Testing malformed compact commands before action expansion"
+block:
+  var data = fixture(2, 2)
+  let source = uint32(data.config.width + 1)
+  data.actions = @[
+    ReplayAction(tick: 1, player: 0, source: int32(source),
+      target: int32(source + 1)),
+    ReplayAction(tick: 2, player: 1, source: int32(source),
+      target: int32(source + 1))
+  ]
+  let original = data.compact()
+  for maximum in [0, MaxReplayTicks + 1, 1]:
+    var bounded = original
+    bounded.config.maxTurns = maximum
+    bounded.header.setup.maximumTicks = uint32(maximum)
+    var failure: string
+    try:
+      discard bounded.encoded().decodeReplay()
+    except GeneralsError as error:
+      failure = error.msg
+    doAssert failure.contains(
+      "packed commands require bounded board dimensions and duration"
+    )
+  for count in 1 .. 8:
+    var malformed = original
+    malformed.actions = @[uint32.high]
+    malformed.actions.setLen(count)
+    expectReplayError:
+      discard malformed.encoded().decodeReplay()
+  for word in [
+    source or (3'u32 shl 12),
+    source or (3'u32 shl 12) or (2'u32 shl 15) or (1'u32 shl 19),
+    4095'u32 or (3'u32 shl 12) or (1'u32 shl 19),
+    0'u32 or (1'u32 shl 19),
+    uint32(data.config.width - 1) or (3'u32 shl 12) or (1'u32 shl 19)
+  ]:
+    var malformed = original
+    malformed.actions = @[word]
+    expectReplayError:
+      discard malformed.encoded().decodeReplay()
+  var malformed = original
+  malformed.actions = @[
+    original.actions[0], original.actions[0] and 0x7ffff'u32
+  ]
+  expectReplayError:
+    discard malformed.encoded().decodeReplay()
+  malformed = original
+  malformed.actions = newSeq[uint32](5)
+  expectReplayError:
+    discard malformed.encoded().decodeReplay()
+  # An otherwise ordinary command must not use a longer escape encoding.
+  malformed = original
+  malformed.actions = @[
+    uint32.high, 1'u32, 0'u32, 0'u32,
+    source, source + 1, 0'u32, 0'u32, 0'u32
+  ]
+  expectReplayError:
+    discard malformed.encoded().decodeReplay()
+  # An escaped absolute tick cannot evade the configured duration bound.
+  malformed = original
+  malformed.actions = @[
+    uint32.high, uint32.high, 0'u32, 2'u32,
+    0'u32, 0'u32, 0'u32, 0'u32, 9'u32
+  ]
+  expectReplayError:
+    discard malformed.encoded().decodeReplay()
 
 echo "Testing empty recordings and initial map isolation"
 block:
@@ -582,128 +738,17 @@ for count in 2 .. MaxPlayers:
     discard
   doAssert replay == world
   var invalid = data
-  invalid.header.setup.mapVersion = LegacyMapVersion
+  invalid.header.setup.mapVersion = 1
   expectReplayError:
     discard newReplayWorld(invalid)
 
-echo "Testing exact legacy v1 and v2 layouts with their original maps"
+echo "Testing old replay versions require their archived game build"
 block:
-  let config = Config(
-    width: 23,
-    height: 19,
-    players: 4,
-    seed: 7,
-    maxTurns: 4000
-  )
-  var
-    original = newWorldLegacy(config)
-    legacy = LegacyTestData(
-      header: TapeHeader[LegacyTestSetup](
-        formatVersion: 1,
-        gameVersion: 1,
-        setup: LegacyTestSetup(
-          mapHash: original.stateHash(),
-          maximumTicks: uint32(config.maxTurns)
-        )
-      ),
-      config: config
-    )
-    scratch: BotScratch
-    commands: array[4, Move]
-  # This fingerprint comes from an unchanged version 1 recording.
-  doAssert legacy.header.setup.mapHash == 3432510669'u64
-  for tick in 1 .. 128:
-    for i in 0 ..< 4:
-      commands[i] = chooseMove(original, i, scratch)
-      if commands[i] != noMove():
-        legacy.actions.add(ReplayAction(
-          tick: uint32(tick),
-          player: uint32(i),
-          flags: uint32(commands[i].half),
-          source: int32(commands[i].source),
-          target: int32(commands[i].target)
-        ))
-    original.tick(commands)
-    legacy.hashes.add(original.stateHash())
-  let
-    bytes = encodeReplayFile(ReplayGame, 1, legacy)
-    data = bytes.decodeReplay()
-    player = newReplayPlayer(data)
-  doAssert bytes.replayFileHeader().gameVersion == 1
-  doAssert data.header.gameVersion == ReplayGameVersion
-  doAssert data.header.formatVersion == ReplayFormatVersion
-  doAssert data.header.setup.mapVersion == LegacyMapVersion
-  doAssert data.config == legacy.config
-  doAssert data.actions == legacy.actions
-  doAssert data.hashes == legacy.hashes
-  doAssert data.header.setup.roster.players[0] ==
-    PlayerInfo(name: "Player 1", mmr: -1)
-  doAssert data.header.setup.roster.exposePlayerInfo
-  doAssert data.metrics.chats.len == 0
-  let upgraded = data.encodeReplay().decodeReplay()
-  doAssert upgraded == data
-  doAssert data.encodeReplay().replayFileHeader().gameVersion ==
-    ReplayGameVersion
-  var
-    world = newReplayWorld(upgraded)
-    moves: array[MaxPlayers, Move]
-  while player.replayTick(world, moves):
-    doAssert world.stateHash() == legacy.hashes[world.turn - 1]
-  doAssert world == original
-  expectReplayError:
-    discard decodeReplay(bytes & "trailing")
-  expectReplayError:
-    discard decodeReplay(bytes[0 ..< bytes.len - 1])
-  legacy.header.formatVersion = 2
-  expectReplayError:
-    discard decodeReplay(encodeReplayFile(ReplayGame, 1, legacy))
-  legacy.header.formatVersion = 1
-  legacy.header.gameVersion = 2
-  expectReplayError:
-    discard decodeReplay(encodeReplayFile(ReplayGame, 1, legacy))
-  var versionTwo = RosterTestData(
-    header: TapeHeader[RosterTestSetup](
-      formatVersion: 2,
-      gameVersion: 2,
-      setup: RosterTestSetup(
-        mapHash: legacy.header.setup.mapHash,
-        maximumTicks: legacy.header.setup.maximumTicks
-      )
-    ),
-    config: config,
-    actions: legacy.actions,
-    hashes: legacy.hashes,
-    metrics: ReplayMessages(chats: @[
-      ReplayChat(tick: 0, player: 3, text: "Original roster"),
-      ReplayChat(tick: 128, player: 0, text: "End of recording")
-    ])
-  )
-  for i in 0 ..< 4:
-    versionTwo.header.setup.roster.players[i] =
-      PlayerInfo(name: "Legacy " & $(i + 1), mmr: int32(i * 10))
-  let
-    rosterBytes = encodeReplayFile(ReplayGame, 2, versionTwo)
-    rosterData = rosterBytes.decodeReplay()
-    rosterPlayer = newReplayPlayer(rosterData)
-  doAssert rosterData.header.setup.mapVersion == LegacyMapVersion
-  doAssert rosterData.header.setup.roster.players[3] ==
-    PlayerInfo(name: "Legacy 4", mmr: 30)
-  doAssert not rosterData.header.setup.roster.exposePlayerInfo
-  for i in 4 ..< MaxPlayers:
-    doAssert rosterData.header.setup.roster.players[i] ==
-      PlayerInfo(name: "", mmr: -1)
-  doAssert rosterData.metrics == versionTwo.metrics
-  doAssert rosterData.encodeReplay().decodeReplay() == rosterData
-  world = newReplayWorld(rosterData)
-  while rosterPlayer.replayTick(world, moves):
-    discard
-  doAssert world == original
-  expectReplayError:
-    discard decodeReplay(rosterBytes & "trailing")
-  expectReplayError:
-    discard decodeReplay(rosterBytes[0 ..< rosterBytes.len - 1])
-  versionTwo.header.gameVersion = 1
-  expectReplayError:
-    discard decodeReplay(encodeReplayFile(ReplayGame, 2, versionTwo))
+  for version in 1'u16 .. 3'u16:
+    var old = sample
+    old.header.formatVersion = version
+    old.header.gameVersion = version
+    expectReplayError:
+      discard decodeReplay(encodeReplayFile(ReplayGame, version, old))
 
 echo "All replay checks passed"
