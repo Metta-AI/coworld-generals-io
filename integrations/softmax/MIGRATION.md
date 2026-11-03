@@ -62,7 +62,7 @@ Run the imported version before changing rules. Validate complete local FFA,
 human play, standalone replay, container certification, and hosted operation.
 Record release-specific commands and outcomes here before publishing.
 
-### 0.7.0 preparation — November 3, 2026 (UTC)
+### 0.7.0 — November 3, 2026 (UTC)
 
 - Imported all 173 tracked files from Polyworld `main` at
   `500a98d66777f53e6dd1ca1f2127ebb826018f4a`. The sync command follows `main`;
@@ -83,7 +83,8 @@ Record release-specific commands and outcomes here before publishing.
 - ARM64 container certification passed 40/40 steps across Classic, mixed FFA4,
   FFA8 and Build. The qualification image config digest is
   `sha256:bd0324df81aab48e9164b908152fdb3287a847cf2913737cc89728b3dd7e2749`.
-  Production still requires native AMD64 and hosted certification.
+  The release workflow subsequently passed all 90 native AMD64 checks and
+  all ten hosted certification checks; see [the release record](VARIANTS.md#070--november-3-2026-utc).
 - The isolated full local platform built its coordinator/certifier and passed
   API/certifier health checks. AMD64 emulation fails Rosetta allocation under the
   BASIC worker's existing address-space sandbox; that limit remains unchanged.
