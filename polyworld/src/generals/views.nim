@@ -275,18 +275,19 @@ proc layout(view: View) =
   )
   view.size = view.window.size.vec2 / view.sk.uiScale
   let
+    inset = vec2(12, 44)
     available = vec2(
-      view.size.x - view.sidebarWidth() - 42,
-      view.contentHeight() - 73
+      view.size.x - view.sidebarWidth() - inset.x * 2,
+      view.contentHeight() - inset.y - 12
     )
     columns = view.world.config.width.float32
     rows = view.world.config.height.float32
-  view.cellSize = max(8.0'f, floor(min(
+  view.cellSize = min(
     available.x / columns,
     available.y / rows
-  )))
+  )
   let mapSize = vec2(columns, rows) * view.cellSize
-  view.boardOrigin = floor(vec2(17, 54) + (available - mapSize) / 2)
+  view.boardOrigin = inset + (available - mapSize) / 2
 
 proc start(view: View, newSeed = false) =
   ## Resets match state and gives the selected human seat its own general.
