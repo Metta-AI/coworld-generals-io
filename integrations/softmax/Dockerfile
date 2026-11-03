@@ -38,3 +38,31 @@ FROM game AS hunter
 COPY integrations/softmax/hunter_player.py /app/integrations/softmax/
 USER 10001:10001
 CMD ["python", "-m", "integrations.softmax.hunter_player"]
+
+# The hosted Polyworld engine needs only Nim's standard library. Native desktop
+# graphics and their private dependencies remain available in polyworld/.
+FROM nimlang/nim:2.2.10 AS polyworld-build
+WORKDIR /build
+COPY polyworld/src/generals/common.nim polyworld/src/generals/maps.nim polyworld/src/generals/profiles.nim polyworld/src/generals/worlds.nim /build/generals/
+COPY integrations/softmax/polyworld_bridge.nim /build/polyworld_bridge.nim
+RUN nim c -d:release --mm:arc --path:/build -o:/build/generals-polyworld /build/polyworld_bridge.nim
+
+FROM python:3.12-slim AS polyworld-game
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 GENERALS_ENGINE=polyworld
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends util-linux && rm -rf /var/lib/apt/lists/*
+COPY --from=basic-build /build/generals-basic /usr/local/bin/generals-basic
+COPY --from=basic-build /build/bassy/LICENSE /usr/share/doc/generals-basic/BASSY-LICENSE
+COPY --from=basic-build /build/fixxy/LICENSE /usr/share/doc/generals-basic/FIXXY-LICENSE
+COPY --from=polyworld-build /build/generals-polyworld /usr/local/bin/generals-polyworld
+COPY polyworld/LICENSE /usr/share/doc/generals-polyworld/LICENSE
+COPY integrations/softmax/requirements-polyworld.lock /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY generals/assets /app/generals/assets
+COPY LICENSE /usr/share/doc/generals-coworld/LICENSE
+COPY integrations/__init__.py /app/integrations/__init__.py
+COPY integrations/softmax/__init__.py integrations/softmax/config.py integrations/softmax/protocol.py integrations/softmax/polyworld_engine.py integrations/softmax/artifacts.py integrations/softmax/replay.py integrations/softmax/server.py integrations/softmax/file_players.py /app/integrations/softmax/
+COPY integrations/softmax/static /app/integrations/softmax/static
+RUN chmod -R a+rX /app
+EXPOSE 8080
+CMD ["python", "-m", "integrations.softmax.server"]

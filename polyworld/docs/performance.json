@@ -1,0 +1,241 @@
+{
+  "machine": "Apple M4 Pro",
+  "nimVersion": "2.2.10",
+  "compiler": "Apple clang 16.0.0",
+  "build": "release, ARC, checks enabled",
+  "baselineRevision": "21692e4b5867c67665711701e44fcf8c09f28ec0",
+  "order": [
+    "before",
+    "after",
+    "after",
+    "before"
+  ],
+  "games": [
+    {
+      "width": 23,
+      "height": 19,
+      "players": 2,
+      "seed": 7,
+      "ticks": 2000,
+      "winner": -1
+    },
+    {
+      "width": 23,
+      "height": 19,
+      "players": 2,
+      "seed": 23,
+      "ticks": 1826,
+      "winner": 0
+    },
+    {
+      "width": 23,
+      "height": 19,
+      "players": 4,
+      "seed": 7,
+      "ticks": 2000,
+      "winner": -1
+    },
+    {
+      "width": 23,
+      "height": 19,
+      "players": 4,
+      "seed": 23,
+      "ticks": 2000,
+      "winner": -1
+    }
+  ],
+  "results": {
+    "bots": {
+      "before": {
+        "samplesSeconds": [
+          4.892179542,
+          4.940300959,
+          4.869612042,
+          4.967150125,
+          4.924636084,
+          4.843729042
+        ],
+        "medianSeconds": 4.908407813,
+        "ticksPerSample": 7826,
+        "ticksPerSecond": 1594.4070456559677,
+        "matchesPerSecond": 0.8149282114265105,
+        "checksum": "51A0A1081FD26478"
+      },
+      "after": {
+        "samplesSeconds": [
+          1.788811958,
+          1.682959167,
+          1.735409667,
+          1.764886333,
+          1.796039125,
+          1.820426541
+        ],
+        "medianSeconds": 1.7768491455,
+        "ticksPerSample": 7826,
+        "ticksPerSecond": 4404.425676664739,
+        "matchesPerSecond": 2.2511759144721384,
+        "checksum": "51A0A1081FD26478"
+      },
+      "speedup": 2.762422361758116
+    },
+    "rules": {
+      "before": {
+        "samplesSeconds": [
+          1.314431125,
+          1.342123167,
+          1.320896,
+          1.35010425,
+          1.312920375,
+          1.314370833
+        ],
+        "medianSeconds": 1.3176635625,
+        "ticksPerSample": 782600,
+        "ticksPerSecond": 593930.0609596997,
+        "matchesPerSecond": 303.5676263530282,
+        "checksum": "34A27D79491A8B0D"
+      },
+      "after": {
+        "samplesSeconds": [
+          0.32604425,
+          0.322496458,
+          0.323874375,
+          0.329565041,
+          0.327875541,
+          0.3083685
+        ],
+        "medianSeconds": 0.3249593125,
+        "ticksPerSample": 782600,
+        "ticksPerSecond": 2408301.500822507,
+        "matchesPerSecond": 1230.9233329018691,
+        "checksum": "34A27D79491A8B0D"
+      },
+      "speedup": 4.054857059989626
+    }
+  },
+  "fluffy": {
+    "players": 4,
+    "seed": 7,
+    "firstTick": 0,
+    "ticks": 100,
+    "traces": {
+      "before": {
+        "eventCount": 3200,
+        "procedures": {
+          "visibility*": {
+            "calls": 400,
+            "totalMicroseconds": 273.02899999999994,
+            "maxMicroseconds": 1.416,
+            "averageMicroseconds": 0.6825724999999998
+          },
+          "observe": {
+            "calls": 400,
+            "totalMicroseconds": 615.7079999999999,
+            "maxMicroseconds": 18.125,
+            "averageMicroseconds": 1.5392699999999997
+          },
+          "front distances": {
+            "calls": 400,
+            "totalMicroseconds": 2166.630999999999,
+            "maxMicroseconds": 19.541,
+            "averageMicroseconds": 5.416577499999997
+          },
+          "immediate moves": {
+            "calls": 400,
+            "totalMicroseconds": 327.6999999999999,
+            "maxMicroseconds": 8.542,
+            "averageMicroseconds": 0.8192499999999997
+          },
+          "route searches": {
+            "calls": 400,
+            "totalMicroseconds": 36076.465000000004,
+            "maxMicroseconds": 245.334,
+            "averageMicroseconds": 90.1911625
+          },
+          "chooseMove*": {
+            "calls": 400,
+            "totalMicroseconds": 40011.49299999998,
+            "maxMicroseconds": 256.458,
+            "averageMicroseconds": 100.02873249999995
+          },
+          "order": {
+            "calls": 100,
+            "totalMicroseconds": 44.75300000000001,
+            "maxMicroseconds": 1.042,
+            "averageMicroseconds": 0.4475300000000001
+          },
+          "trade": {
+            "calls": 600,
+            "totalMicroseconds": 178.294,
+            "maxMicroseconds": 4.417,
+            "averageMicroseconds": 0.2971566666666667
+          },
+          "step*": {
+            "calls": 100,
+            "totalMicroseconds": 349.133,
+            "maxMicroseconds": 20.625,
+            "averageMicroseconds": 3.4913299999999996
+          }
+        }
+      },
+      "after": {
+        "eventCount": 3200,
+        "procedures": {
+          "visibility*": {
+            "calls": 400,
+            "totalMicroseconds": 321.1649999999997,
+            "maxMicroseconds": 5.708,
+            "averageMicroseconds": 0.8029124999999993
+          },
+          "observe": {
+            "calls": 400,
+            "totalMicroseconds": 879.2020000000001,
+            "maxMicroseconds": 14.166,
+            "averageMicroseconds": 2.198005
+          },
+          "front distances": {
+            "calls": 400,
+            "totalMicroseconds": 593.0029999999998,
+            "maxMicroseconds": 8.708,
+            "averageMicroseconds": 1.4825074999999996
+          },
+          "immediate moves": {
+            "calls": 400,
+            "totalMicroseconds": 193.46900000000005,
+            "maxMicroseconds": 1.542,
+            "averageMicroseconds": 0.4836725000000001
+          },
+          "route searches": {
+            "calls": 400,
+            "totalMicroseconds": 1047.328999999999,
+            "maxMicroseconds": 11.834,
+            "averageMicroseconds": 2.6183224999999974
+          },
+          "chooseMove*": {
+            "calls": 400,
+            "totalMicroseconds": 3182.331999999998,
+            "maxMicroseconds": 21.333,
+            "averageMicroseconds": 7.955829999999995
+          },
+          "order": {
+            "calls": 100,
+            "totalMicroseconds": 23.504999999999995,
+            "maxMicroseconds": 0.584,
+            "averageMicroseconds": 0.23504999999999995
+          },
+          "trade": {
+            "calls": 600,
+            "totalMicroseconds": 17.295000000000034,
+            "maxMicroseconds": 0.125,
+            "averageMicroseconds": 0.028825000000000055
+          },
+          "step*": {
+            "calls": 100,
+            "totalMicroseconds": 94.87199999999999,
+            "maxMicroseconds": 4.709,
+            "averageMicroseconds": 0.9487199999999999
+          }
+        }
+      }
+    }
+  }
+}

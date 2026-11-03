@@ -184,3 +184,5 @@ tmp/coworld-*/
 
 # kept locally, not published (competition/ stays tracked on this branch: the Softmax image bundles Expander)
 paper/validation/replays/
+polyworld/out/
+polyworld/.deps/

@@ -10,6 +10,7 @@ import os
 import secrets
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import parse_qs, urlsplit
 
 import uvicorn
@@ -20,10 +21,13 @@ from fastapi.staticfiles import StaticFiles
 
 from .artifacts import read_json, write_json
 from .config import GameConfig
-from .engine import Match
 from .file_players import PolicyFault, load_file_players
 from .protocol import PASS, VERSION, parse_action
 from .replay import REPLAY_VERSION, ReplayFrames
+
+if TYPE_CHECKING:
+    from .engine import Match
+    from .polyworld_engine import Match as PolyworldMatch
 
 STATIC = Path(__file__).parent / "static"
 LOG = logging.getLogger("generals.softmax")
@@ -37,7 +41,7 @@ def enqueue(queue: asyncio.Queue, message: dict):
 
 
 class Episode:
-    def __init__(self, config: GameConfig, match: Match, artifacts: dict, shutdown=None):
+    def __init__(self, config: GameConfig, match: "Match | PolyworldMatch", artifacts: dict, shutdown=None):
         self.config, self.match = config, match
         self.artifacts, self.shutdown = artifacts, shutdown
         self.names = [p.name for p in config.players]
@@ -262,6 +266,7 @@ class Episode:
         replay = {
             "format": "generals-coworld",
             "version": REPLAY_VERSION,
+            "engine": self.match.engine_name,
             "ruleset": self.config.ruleset,
             "seed": self.config.seed,
             "height": self.match.height,
@@ -337,7 +342,8 @@ async def socket_session(ws, queue, receive, episode):
         episode.senders.discard(sender)
 
 
-def create_app(config: GameConfig | None = None, artifacts: dict | None = None, shutdown=None):
+def create_app(config: GameConfig | None = None, artifacts: dict | None = None, shutdown=None,
+               engine: Literal["jax", "polyworld"] | None = None):
     @asynccontextmanager
     async def lifespan(app):
         try:
@@ -360,16 +366,31 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                 "failure_method": os.environ.get("COGAME_PLAYER_FAILURE_METHOD", "PUT"),
             }
         )
-        match = await asyncio.to_thread(Match, cfg.seed, num_players=len(cfg.players), ruleset=cfg.ruleset)
-        episode = Episode(cfg, match, destinations, shutdown)
-        app.state.episode = episode
-        task = asyncio.create_task(episode.run())
+        engine_name = engine or os.environ.get("GENERALS_ENGINE", "jax")
+        if engine_name == "polyworld":
+            from .polyworld_engine import Match as PolyworldMatch
+
+            match_class = PolyworldMatch
+        elif engine_name == "jax":
+            from .engine import Match
+
+            match_class = Match
+        else:
+            raise ValueError("GENERALS_ENGINE must be jax or polyworld")
+        match = await asyncio.to_thread(match_class, cfg.seed, num_players=len(cfg.players), ruleset=cfg.ruleset)
         try:
-            yield
+            episode = Episode(cfg, match, destinations, shutdown)
+            app.state.episode = episode
+            task = asyncio.create_task(episode.run())
+            try:
+                yield
+            finally:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
         finally:
-            task.cancel()
-            with suppress(asyncio.CancelledError):
-                await task
+            if engine_name == "polyworld":
+                await asyncio.to_thread(match.close)
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     # Use the engine's original sprites; the replay build copies the same files.

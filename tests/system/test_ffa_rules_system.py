@@ -22,12 +22,12 @@ DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
 
 @contextmanager
-def four_players(tmp_path, max_turns):
+def four_players(tmp_path, max_turns, engine="jax", seed=7):
     config = GameConfig(tokens=[f"seat-{slot}" for slot in range(4)],
                         players=[{"name": f"Player {slot}"} for slot in range(4)],
-                        seed=7, max_turns=max_turns, turn_timeout_seconds=1)
+                        seed=seed, max_turns=max_turns, turn_timeout_seconds=1)
     destinations = {key: (tmp_path / f"{key}.json").as_uri() for key in ("results", "replay", "failure")}
-    with TestClient(create_app(config, destinations)) as client, ExitStack() as stack:
+    with TestClient(create_app(config, destinations, engine=engine)) as client, ExitStack() as stack:
         sockets = [stack.enter_context(client.websocket_connect(f"/player?slot={slot}&token=seat-{slot}"))
                    for slot in range(4)]
         yield client, sockets
@@ -77,9 +77,10 @@ def expand(observation):
     return PASS
 
 
-def test_idle_ffa_runs_past_old_cap_and_saved_replay_seeks_without_full_boards(tmp_path, viewer):
+@pytest.mark.parametrize("engine", ["jax", "polyworld"])
+def test_idle_ffa_runs_past_old_cap_and_saved_replay_seeks_without_full_boards(tmp_path, viewer, engine):
     observation_at_512 = None
-    with four_players(tmp_path, 6000) as (client, sockets):
+    with four_players(tmp_path, 6000, engine=engine) as (client, sockets):
         while True:
             observations = [receive(ws) for ws in sockets]
             if observations[0]["type"] == "final":
@@ -112,8 +113,10 @@ def test_idle_ffa_runs_past_old_cap_and_saved_replay_seeks_without_full_boards(t
     expect(tile).to_contain_text(str(observation_at_512["army_grid"][general[0]][general[1]]))
 
 
-def test_surrendered_general_stays_capturable_and_killer_outranks_later_non_killer(tmp_path):
-    with four_players(tmp_path, 400) as (client, sockets):
+@pytest.mark.parametrize("engine,seed", [("jax", 7), ("polyworld", 1)])
+def test_surrendered_general_stays_capturable_and_killer_outranks_later_non_killer(tmp_path, engine, seed):
+    # Each generator's fixed map must permit this capture before neutralization.
+    with four_players(tmp_path, 400, engine=engine, seed=seed) as (client, sockets):
         generals = []
         attacker = victim = -1
         position = None

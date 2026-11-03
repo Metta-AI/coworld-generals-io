@@ -42,6 +42,8 @@ _build_cost_grid = jax.jit(build_castles.build_cost_grid)
 
 
 class Match:
+    engine_name = "jax"
+
     def __init__(self, seed: int, num_players: int = 2, ruleset: str = RULESET):
         if not 2 <= num_players <= 8:
             raise ValueError("two to eight players are required")

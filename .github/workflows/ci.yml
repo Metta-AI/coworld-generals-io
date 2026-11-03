@@ -10,11 +10,28 @@ jobs:
     env:
       # headless CI: pygame (GUI extra) must never try to open a display
       SDL_VIDEODRIVER: dummy
+      GENERALS_POLYWORLD_ENGINE: /tmp/generals-polyworld
+      GENERALS_BASIC_WORKER: /tmp/generals-basic
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - name: Build hosted engines and check imported Polyworld rules
+        run: |
+          nim c -d:release --mm:arc --path:polyworld/src -o:/tmp/generals-polyworld integrations/softmax/polyworld_bridge.nim
+          git clone https://github.com/treeform/bassy.git /tmp/generals-bassy
+          git -C /tmp/generals-bassy checkout a9effcaab13abc9dfe42d7658cf87ee4783b0e14
+          git clone https://github.com/treeform/fixxy.git /tmp/generals-fixxy
+          git -C /tmp/generals-fixxy checkout 05e5446dffb70093056cebb0c57721a60deaf52a
+          nim c -d:release --path:/tmp/generals-bassy/src --path:/tmp/generals-fixxy/src -o:/tmp/generals-basic integrations/softmax/basic_worker.nim
+          cd polyworld
+          nim r -d:release tests/test_rules.nim
+          nim r -d:release tests/test_bots.nim
+          nim r -d:release tests/test_povs.nim
       - name: Install engine + test deps
         run: |
           pip install -r integrations/softmax/requirements.lock
@@ -22,6 +39,17 @@ jobs:
           pip install pytest playwright
           python -m playwright install --with-deps chromium
       - run: python -m integrations.softmax.tools.manifest --check
-      - run: python -m pytest -q
+      - name: Check each module with a fresh JAX compilation cache
+        run: |
+          for module in tests/test_*.py tests/system/test_*.py; do
+            # This file is a benchmark entrypoint and collects no tests.
+            if [ "$module" = tests/test_performance.py ]; then continue; fi
+            python -m pytest -q "$module"
+          done
         env:
           GENERALS_BROWSER_TESTS: "1"
+      - name: Check the published Polyworld browser path
+        run: python -m pytest -q tests/test_softmax_browser.py tests/system/test_live_replay_system.py
+        env:
+          GENERALS_BROWSER_TESTS: "1"
+          GENERALS_ENGINE: polyworld

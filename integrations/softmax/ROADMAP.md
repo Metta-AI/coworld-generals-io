@@ -11,7 +11,9 @@ The latest recorded hosted release is [0.6.2](VARIANTS.md#062--october-31-2026-u
 
 - **Three modes:** classic 1v1, FFA with three through eight seats, and
   build-your-own-castles 1v1. Each has paced human variants.
-- **Ranked FFA maps and outcomes:** player-count-dependent sampling, Survival
+- **Polyworld hosted engine:** imported Nim simulation alongside the retained JAX
+  runtime; Compose and uploaded manifests select Polyworld. See [integration](POLYWORLD.md).
+- **FFA maps and outcomes:** Polyworld player-count-dependent sampling, Survival
   placements, kill credit, surrender capture windows, inactivity, and idle/long-game adjudication.
 - **Player runtimes:** BASIC files run in bounded game-owned workers;
   container players and humans use authenticated WebSockets. The manifest

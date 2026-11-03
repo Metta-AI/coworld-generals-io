@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--engine", choices=("polyworld", "jax"), default="polyworld")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--max-turns", type=int, help="default: 50002 for FFA, 2000 for 1v1, 1200 with --human")
@@ -68,6 +69,7 @@ def main():
     env = {
         **os.environ,
         "JAX_PLATFORMS": "cpu",
+        "GENERALS_ENGINE": args.engine,
         "COGAME_CONFIG_URI": config_file.as_uri(),
         "COGAME_HOST": "127.0.0.1",
         "COGAME_PORT": str(args.port),
