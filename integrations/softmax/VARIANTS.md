@@ -87,6 +87,34 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.7.3 — November 3, 2026 (UTC)
+
+- Released `59e5d87d03132a670f696ece51b62a764507ad98` from `main` after
+  [PR 27](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/27).
+  BASIC Frontier evaluates at most 128 movable tiles per decision and preserves
+  its scan cursor. Worker limits and policy-failure behavior remain unchanged.
+- [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41705720872)
+  passed all nine native AMD64 fixtures (90 checks) and ten hosted checks.
+  Canonical Coworld: `cow_5f94983e-d47c-4f3c-8737-7d159a2f83e7`, certified
+  under `main-a98aacd5bfdb`, job `e4630607-960e-4ddf-840f-1b3af40e0c42`.
+  Hosted certification completed at 20:01:04 UTC.
+- [Source CI](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41703412815)
+  passed 235 tests, skipped one private-reference check, and passed the additional
+  published-viewer browser check. Polyworld `main` was rechecked at
+  `872774b9f593e7f771b215f0d5c1dd65031f05e7` before dispatch.
+- Public package readback verifies the exact merged BASIC bytes. Classic, FFA,
+  and Build participation guides all resolve to this version. League settings
+  are unchanged; all three leagues are unpaused. Existing uploaded policy files
+  retain their contents; this release updates the bundled starter.
+- Artifact digests (SHA-256): game
+  `bcd5ede2f14821b44cdfe42dae606c27f06270be86c9009cec7befb0a11b8132`;
+  container baselines
+  `136de2cb03cda4de8f6bb5cadfd7915c591db7e8848966ea62a3ff62e3ab2c66`;
+  BASIC `3111ee777f1192f3ee54aea823ec79fc2921b21f1eab96b0ca440c52e8fd4bd1`;
+  viewer `ed605fa1b0027eaf5eea289d733105e796dec8cb0fe7fd6c9acebab147e847b3`;
+  manifest `c27a0e8617d25db32701c9667bf97e98e372d8b2711b3f82aa52b2b815ce1431`.
+  [Readback proof, verification script, and check summaries](https://softmax.nexus/artifacts/428edf20-9e8f-4e1d-bbf1-067193cbe9a5).
+
 ### 0.7.2 — November 3, 2026 (UTC)
 
 - Released source `98eb024c47814c0c16dd3006387d0472ad9f9821` after
