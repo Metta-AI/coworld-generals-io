@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from .artifacts import file_path, read_json, write_json
+from .messages import ChatOrder
 
 
 class FileSeat(BaseModel):
@@ -49,6 +50,8 @@ class WorkerAction(BaseModel):
 
     kind: Literal["action"]
     action: list[int] = Field(min_length=5, max_length=5)
+    mailbox_pulled: int = Field(ge=0, le=101)
+    chat: ChatOrder | None
 
 
 class PolicyFault(BaseModel):

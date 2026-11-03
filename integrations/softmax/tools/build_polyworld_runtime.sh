@@ -6,7 +6,7 @@ export POLYWORLD_DEPS="${POLYWORLD_DEPS:-$root/polyworld/.deps}"
 sh "$root/polyworld/tools/fetch_deps.sh"
 mkdir -p "$output"
 paths=(--path:"$root/integrations/softmax" --path:"$root/polyworld/src")
-for dependency in polyworld flatty bassy fixxy zippy; do
+for dependency in polyworld flatty bassy fixxy zippy jsony; do
   paths+=(--path:"$POLYWORLD_DEPS/$dependency/src")
 done
 nim c --skipParentCfg:on -d:release -d:flatty64 -d:softmaxReplay --mm:arc \

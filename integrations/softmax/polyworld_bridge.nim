@@ -20,7 +20,7 @@ if paramCount() == 2 and paramStr(1) == "--inspect-replay":
     "players": names, "skill_scores": data.header.setup.skillScores,
     "final_hash": state.hostedHash(),
     "first_hash": (if data.hashes.len > 0: data.hashes[0] else: data.header.setup.mapHash).toHex(16),
-    "actions": data.actions.len}))
+    "actions": data.actions.len, "chats": data.metrics.chats}))
   quit(0)
 
 var world: World

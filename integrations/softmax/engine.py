@@ -148,6 +148,10 @@ class Match:
         return observation
 
     @property
+    def captured_by(self) -> list[int]:
+        return np.asarray(self.state.captured_by).tolist()
+
+    @property
     def kills(self) -> list[int]:
         return np.bincount(np.asarray(self.state.captured_by) + 1, minlength=self.num_players + 1)[1:].tolist()
 

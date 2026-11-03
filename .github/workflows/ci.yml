@@ -28,6 +28,8 @@ jobs:
           nim r -d:release tests/test_rules.nim
           nim r -d:release tests/test_bots.nim
           nim r -d:release tests/test_povs.nim
+          nim r -d:release tests/test_brains.nim
+          nim r -d:release tests/test_messages.nim
       - name: Build the Polyworld WebAssembly replay viewer
         run: |
           git clone --depth 1 --branch 5.0.7 https://github.com/emscripten-core/emsdk.git /tmp/generals-emsdk

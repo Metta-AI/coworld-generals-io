@@ -33,7 +33,19 @@ connection tokens, policy source or private player logs.
 browser sessions for both engines. `file_players.py` retains the isolated,
 budgeted BASIC workers. Container players keep the existing JSON/WebSocket and
 stdio contracts; existing BASIC policies keep the published BASIC contract.
-The standalone native app's BASIC/mailbox API remains its separate interface.
+Both standalone and hosted BASIC import `generals/policy_api.nim`, including
+`policyLimits()`, flat tile queries, names, skills, movement and mailbox functions.
+`policy_source.nim` binds existing uploaded row/column spellings to that same
+host without modifying their source files. The unchanged upstream Scout plays
+hosted socket opponents. No separate hosted VM API is maintained.
+
+`messages.py` owns an episode-scoped broker process (`generals-basic --messages`)
+that runs the actual upstream `MessageHub`. BASIC, container and human seats
+share deferred delivery, normalization, inbox bounds and public game notices.
+Only each seat's inbox enters its worker/socket. Public chat enters the existing
+binary `ReplayMessages` section; private mail never enters recordings or
+spectator updates. The broker closes with the episode. Hosted BASIC keeps its
+additional process sandbox, while containers keep platform-owned resources.
 
 The hosted game uses Polyworld's deterministic map generator. Hosted seeds use
 their low 31 bits for identical native and WebAssembly arithmetic. Map dimensions,

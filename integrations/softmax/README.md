@@ -37,7 +37,8 @@ All paths below are relative to `integrations/softmax/`.
 | [`polyworld_engine.py`](polyworld_engine.py), [`polyworld_bridge.nim`](polyworld_bridge.nim) | Active Nim simulation adapter, observations, castle building and hosted FFA rules |
 | [`engine.py`](engine.py), [`ffa_map.py`](ffa_map.py) | Retained Python/JAX engine and ranked-map implementation |
 | [`player.py`](player.py), [`builder_player.py`](builder_player.py) | Container WebSocket clients and competition stdio bridge |
-| [`file_players.py`](file_players.py), [`basic_worker.nim`](basic_worker.nim), [`players/baseline.bas`](players/baseline.bas) | Game-hosted BASIC policies, bounded worker execution, and the editable baseline |
+| [`file_players.py`](file_players.py), [`basic_worker.nim`](basic_worker.nim), [`players/baseline.bas`](players/baseline.bas) | Isolated BASIC transport around the shared Polyworld policy host and limits |
+| [`messages.py`](messages.py), [`policy_messages.nim`](policy_messages.nim) | Episode-owned shared MessageHub broker for BASIC, Docker and human mail/chat |
 | [`replay.py`](replay.py), [`artifacts.py`](artifacts.py) | Compact recording frames and artifact reads/writes |
 | [`static/`](static) | `app.js` live controls, `replay.js` playback, and shared `board.js` rendering/styles |
 | [`tools/manifest.py`](tools/manifest.py) | Generates the manifest template from configuration, variant definitions, and embedded docs |
