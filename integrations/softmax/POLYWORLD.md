@@ -35,18 +35,23 @@ budgeted BASIC workers. Container players keep the existing JSON/WebSocket and
 stdio contracts; existing BASIC policies keep the published BASIC contract.
 The standalone native app's BASIC/mailbox API remains its separate interface.
 
-The hosted game uses Polyworld's deterministic map generator. Map dimensions,
+The hosted game uses Polyworld's deterministic map generator. Hosted seeds use
+their low 31 bits for identical native and WebAssembly arithmetic. Map dimensions,
 layouts and seeds differ from the former JAX generator. This release does not
-claim official map parity. The existing browser client displays the new engine;
-the native Silky application remains available under `polyworld/`.
+claim official map parity. Human seats retain the browser player client. Completed
+matches use the actual Polyworld Silky viewer compiled to WebAssembly.
+The native desktop application remains available under `polyworld/`.
 Hosted variants still support two through eight seats, the same sixteen variant
 IDs, all three leagues, both player artifact kinds and human seats.
 
 ## Build and run
 
 The Coworld Compose game service targets Docker's `polyworld-game` stage.
-The native hosted binary needs only Nim's standard library; building or uploading
-the hosted game needs no private Polyworld dependency or graphics stack.
+The native hosted binary needs only Nim's standard library. The replay build
+fetches the public native dependencies and uses Emscripten 5.0.7. The image
+contains the compiled viewer and licenses; source dependency trees stay in its
+build stage. `replay-dependencies.lock` supplies two transitive viewer libraries
+omitted from the imported dependency list.
 The game image contains no JAX runtime. The former Docker `game` target and
 Python engine remain independently buildable.
 
@@ -66,8 +71,29 @@ coworld upload-coworld integrations/softmax/dist/coworld_manifest.json --wait-ce
 
 `GENERALS_ENGINE=polyworld` selects the new backend in the shared server.
 The generated manifest and new game image both set it. Completed replay files
-record `engine: polyworld`; their existing full-frame/delta browser format remains
-readable without resimulating historical games.
+record `engine: polyworld`, `format: polyworld-generals-hosted`, and `version: 1`.
+They contain commands and a portable state hash after each command. Playback
+rebuilds every tick through `polyworld_hosted.nim`, the same module used by the
+game process, including builds, surrenders and delayed neutralization.
+This hosted tape represents those additional operations separately from the
+standalone application's binary v4 recordings. The retained JAX runtime keeps
+its frame-based recordings and viewer; archived release bundles remain intact.
+
+The server preloads the native replay bundle before joining browser seats.
+After completion, it sends the saved tape over the established socket. The
+preloaded viewer receives it through a parent/origin-checked message, so replay
+controls and download keep working after the hosted HTTP proxy retires.
+`/client/replay.json` returns the saved tape; `/replay.json` exposes completed
+diagnostic frames. Neither endpoint reveals replay state during play.
+
+For source browser checks, first build a local viewer:
+
+```sh
+integrations/softmax/tools/build_polyworld_viewer.sh "$PWD/polyworld/out/replay-viewer"
+GENERALS_POLYWORLD_ENGINE=/tmp/generals-polyworld \
+GENERALS_POLYWORLD_VIEWER="$PWD/polyworld/out/replay-viewer" \
+GENERALS_BROWSER_TESTS=1 pytest tests/system/test_polyworld_system.py
+```
 
 For the imported native application's commands, run from `polyworld/` and follow
 its [README](../../polyworld/README.md). Use the pinned dependency fetcher before

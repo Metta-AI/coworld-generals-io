@@ -22,6 +22,7 @@ class EngineCommand(BaseModel):
 
 class EngineState(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+    hash: str
     turn: int
     winner: int
     width: int
@@ -34,6 +35,11 @@ class EngineState(BaseModel):
     captured_by: list[int]
     elimination_order: list[int]
     damage: list[list[int]]
+
+
+class EngineEvent(BaseModel):
+    command: EngineCommand
+    hash: str
 
 
 class Match:
@@ -55,6 +61,8 @@ class Match:
         self.end_reason = "general_capture"
         self.last_move_executed = [None] * num_players
         self.last_build_executed = [None] * num_players
+        self.commands: list[EngineEvent] = []
+        self.recording: list[list[EngineEvent]] = []
         self.process = subprocess.Popen(
             [os.environ.get("GENERALS_POLYWORLD_ENGINE", "/usr/local/bin/generals-polyworld")],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
@@ -66,10 +74,25 @@ class Match:
         self.process.stdin.write(command.model_dump_json() + "\n")
         self.process.stdin.flush()
         self.state = EngineState.model_validate_json(self.process.stdout.readline())
+        self.commands.append(EngineEvent(command=command, hash=self.state.hash))
         shape = (self.state.height, self.state.width)
         self.kinds = np.asarray(self.state.kinds).reshape(shape)
         self.owners = np.asarray(self.state.owners).reshape(shape)
         self.armies = np.asarray(self.state.armies).reshape(shape)
+
+    def record_frame(self):
+        if self.turn == len(self.recording):
+            self.recording.append(self.commands)
+        else:
+            assert self.turn == len(self.recording) - 1
+            self.recording[-1].extend(self.commands)
+        self.commands = []
+
+    def replay(self, metadata: dict) -> dict:
+        assert not self.commands
+        return {**{key: value for key, value in metadata.items() if key not in ("frames", "format", "version")},
+                "format": "polyworld-generals-hosted", "version": 1,
+                "ticks": [[event.model_dump() for event in tick] for tick in self.recording]}
 
     def close(self):
         self.process.stdin.close()

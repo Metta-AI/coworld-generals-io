@@ -23,6 +23,17 @@
 !polyworld/src/generals/maps.nim
 !polyworld/src/generals/profiles.nim
 !polyworld/src/generals/worlds.nim
+!polyworld/src/**
+!polyworld/config.nims
+!polyworld/web.nims
+!polyworld/dependencies.lock
+!polyworld/assets/
+!polyworld/assets/**
+!polyworld/tools/
+!polyworld/tools/fetch_deps.sh
+!integrations/softmax/replay-dependencies.lock
+!integrations/softmax/tools/
+!integrations/softmax/tools/build_polyworld_viewer.sh
 !LICENSE
 **/__pycache__/
 **/*.pyc

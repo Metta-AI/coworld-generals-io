@@ -12,6 +12,7 @@ jobs:
       SDL_VIDEODRIVER: dummy
       GENERALS_POLYWORLD_ENGINE: /tmp/generals-polyworld
       GENERALS_BASIC_WORKER: /tmp/generals-basic
+      GENERALS_POLYWORLD_VIEWER: /tmp/generals-polyworld-viewer
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,6 +33,13 @@ jobs:
           nim r -d:release tests/test_rules.nim
           nim r -d:release tests/test_bots.nim
           nim r -d:release tests/test_povs.nim
+      - name: Build the Polyworld WebAssembly replay viewer
+        run: |
+          git clone --depth 1 --branch 5.0.7 https://github.com/emscripten-core/emsdk.git /tmp/generals-emsdk
+          /tmp/generals-emsdk/emsdk install 5.0.7
+          /tmp/generals-emsdk/emsdk activate 5.0.7
+          export PATH="/tmp/generals-emsdk/upstream/emscripten:$PATH"
+          integrations/softmax/tools/build_polyworld_viewer.sh "$GENERALS_POLYWORLD_VIEWER"
       - name: Install engine + test deps
         run: |
           pip install -r integrations/softmax/requirements.lock
@@ -49,7 +57,7 @@ jobs:
         env:
           GENERALS_BROWSER_TESTS: "1"
       - name: Check the published Polyworld browser path
-        run: python -m pytest -q tests/test_softmax_browser.py tests/system/test_live_replay_system.py
+        run: python -m pytest -q tests/system/test_live_replay_system.py
         env:
           GENERALS_BROWSER_TESTS: "1"
           GENERALS_ENGINE: polyworld

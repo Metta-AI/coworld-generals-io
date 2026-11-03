@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 import uvicorn
 from anyio import CancelScope
 from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .artifacts import read_json, write_json
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from .polyworld_engine import Match as PolyworldMatch
 
 STATIC = Path(__file__).parent / "static"
+POLYWORLD_VIEWER = Path(os.environ.get("GENERALS_POLYWORLD_VIEWER", "/app/polyworld-viewer"))
 LOG = logging.getLogger("generals.softmax")
 
 
@@ -57,6 +58,8 @@ class Episode:
         self.timeouts = [0] * self.num_players
         self.consecutive_timeouts = [0] * self.num_players
         self.frames = ReplayFrames(match.frame())
+        if match.engine_name == "polyworld":
+            match.record_frame()
         self.surrenders: set[int] = set()
         self.turns = []
         self.result = None
@@ -237,12 +240,16 @@ class Episode:
                     reason = "forfeit" if winner >= 0 else "double_forfeit"
                     # Forfeits can change ownership without advancing the tick.
                     self.frames.append(await asyncio.to_thread(self.match.frame))
+                    if self.match.engine_name == "polyworld":
+                        self.match.record_frame()
                     break
             winner = await asyncio.to_thread(self.match.advance, actions)
             if self.match.is_ffa and winner < 0 and self.match.turn >= self.config.max_turns:
                 self.match.end_reason = "turn_limit"
                 winner = self.match.adjudicate(self.match.frame())
             self.frames.append(await asyncio.to_thread(self.match.frame))
+            if self.match.engine_name == "polyworld":
+                self.match.record_frame()
             if winner >= 0:
                 reason = ("forfeit" if forfeits else self.match.end_reason) if self.match.is_ffa else "general_capture"
                 break
@@ -277,15 +284,17 @@ class Episode:
             "result": result,
         }
         # Results are the completion marker. Never mark success without a replay.
-        await self.save("replay", replay)
+        saved_replay = self.match.replay(replay) if self.match.engine_name == "polyworld" else replay
+        await self.save("replay", saved_replay)
         if self.file_players:
             await self.file_players.close()
         await self.save("results", result)
         self.result, self.replay = result, replay
+        self.saved_replay = saved_replay
         self.browser_replay = await asyncio.to_thread(lambda: {
             "encoding": "gzip+base64",
             "data": base64.b64encode(gzip.compress(
-                json.dumps(replay, separators=(",", ":")).encode(), compresslevel=1
+                json.dumps(saved_replay, separators=(",", ":")).encode(), compresslevel=1
             )).decode(),
         })
         self.phase = "finished"
@@ -393,6 +402,12 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                 await asyncio.to_thread(match.close)
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.mount("/client/polyworld", StaticFiles(directory=POLYWORLD_VIEWER, check_dir=False))
+
+    def client_page():
+        return HTMLResponse((STATIC / "index.html").read_text().replace(
+            "<head>", f'<head><meta name="generals-engine" content="{app.state.episode.match.engine_name}">', 1
+        ))
     # Use the engine's original sprites; the replay build copies the same files.
     # Hosted play forwards /client/*, but does not forward arbitrary /static/*.
     for prefix in ("/static", "/client/static"):
@@ -429,21 +444,27 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                 raise HTTPException(403, "invalid player credentials") from None
         if app.state.episode.authorize(slot, token) is None:
             raise HTTPException(403, "invalid player credentials")
-        return FileResponse(STATIC / "index.html")
+        return client_page()
 
     @app.get("/client/launch")
     @app.get("/client/global")
     @app.get("/client/replay")
     async def global_client():
-        return FileResponse(STATIC / "index.html")
+        return client_page()
 
     @app.get("/replay.json")
+    async def replay_frames():
+        episode = app.state.episode
+        if episode.phase != "finished":
+            raise HTTPException(409, "replay is available when the episode completes")
+        return JSONResponse(episode.replay)
+
     @app.get("/client/replay.json")
     async def replay_data():
         episode = app.state.episode
         if episode.phase != "finished":
             raise HTTPException(409, "replay is available when the episode completes")
-        return JSONResponse(episode.replay)
+        return JSONResponse(episode.saved_replay)
 
     @app.websocket("/player")
     async def player(ws: WebSocket):

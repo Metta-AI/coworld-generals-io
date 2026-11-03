@@ -19,7 +19,8 @@ from playwright.sync_api import expect, sync_playwright
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_live_players_and_spectators_keep_replay_after_http_proxy_retires(tmp_path):
+def test_live_players_and_spectators_keep_replay_after_http_proxy_retires(tmp_path, native_controls):
+    native = os.environ.get("GENERALS_ENGINE") == "polyworld"
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
@@ -90,14 +91,34 @@ server.run()
                             env={**os.environ, "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{port}/player?slot=1&token=bot"},
                             stdout=log, stderr=subprocess.STDOUT)
                         for page in (player, spectator):
-                            expect(page.locator("#mode")).to_have_text("REPLAY", timeout=30000)
-                            expect(page.locator("#board .tile").first).to_be_visible()
+                            if native:
+                                expect(page.locator("#polyworld-replay")).to_be_visible(timeout=30000)
+                                frame = page.frames[1]
+                                frame.wait_for_function("() => typeof Module.replayTick === 'number' || failed")
+                                assert not frame.evaluate("failed"), frame.locator("#status-detail").inner_text()
+                            else:
+                                expect(page.locator("#mode")).to_have_text("REPLAY", timeout=30000)
+                                expect(page.locator("#board .tile").first).to_be_visible()
                         assert json.loads((tmp_path / "results.json").read_text())["timeouts"] == [0, 0]
                         bot.wait(timeout=10)
                         assert bot.returncode == 0
                         server.wait(timeout=10)
                         assert server.returncode == 0
                         for page in (player, spectator):
+                            if native:
+                                frame = page.frames[1]
+                                key, click = native_controls
+                                click(page, frame, 200, 200)
+                                click(page, frame, 336, 688)
+                                frame.wait_for_function("() => !Module.replayRepeating")
+                                key(page, frame, "End")
+                                frame.wait_for_function("() => Module.replayTick === 12")
+                                assert not frame.evaluate("failed")
+                                with page.expect_download() as saved:
+                                    frame.get_by_role("link", name="Download replay").click()
+                                assert json.loads(Path(saved.value.path()).read_text()) == json.loads(
+                                    (tmp_path / "replay.json").read_text())
+                                continue
                             page.get_by_role("button", name="Pause", exact=True).click()
                             page.locator("#seek").fill("12")
                             expect(page.locator("#turn")).to_have_text("6")

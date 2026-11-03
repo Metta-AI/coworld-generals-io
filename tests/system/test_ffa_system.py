@@ -23,7 +23,7 @@ def test_eight_bots_finish_and_replay_on_desktop_and_mobile(tmp_path, viewer):
         port = reservation.getsockname()[1]
     output = tmp_path / "episodes"
     subprocess.run(
-        [sys.executable, "-m", "integrations.softmax.local", "--variant", "ffa", "--players", "8",
+        [sys.executable, "-m", "integrations.softmax.local", "--engine", "jax", "--variant", "ffa", "--players", "8",
          "--seed", "42", "--max-turns", "80", "--port", str(port), "--output", str(output)],
         cwd=ROOT, check=True, capture_output=True, text=True, timeout=180,
     )

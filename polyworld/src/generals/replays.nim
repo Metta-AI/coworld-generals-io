@@ -3,6 +3,10 @@ import
   flatty, polyworld/[hashes, tapes],
   common, events, players, worlds
 
+when defined(softmaxReplay):
+  import std/[json, strutils]
+  import polyworld_hosted
+
 export tapes
 
 const
@@ -28,6 +32,9 @@ type
     mapHash*: uint64
     maximumTicks*: uint32
     roster*: Roster
+    when defined(softmaxReplay):
+      hostedTicks*: seq[seq[HostedEvent]]
+      outcome*: string
   ReplayAction* = object
     tick*, player*, flags*: uint32
     source*, target*, row*, column*, direction*: int32
@@ -299,21 +306,29 @@ proc recordChat*(
   recorder.data.metrics.chats.add(chat)
   true
 
-proc newReplayWorld*(data: ReplayData): World {.raises: [GeneralsError].} =
+proc newReplayWorld*(data: ReplayData): World =
   ## Regenerates and verifies the initial world without running any bots.
-  data.validate()
+  when defined(softmaxReplay):
+    for event in data.header.setup.hostedTicks[0]:
+      discard result.applyHosted(parseJson(event.command))
+      if result.hostedHash() != event.hash:
+        fail("hosted simulation diverged at tick 0")
+  else:
+    result = data.validate()
 
-proc newReplayPlayer*(data: ReplayData): ReplayPlayer {.
-    raises: [GeneralsError].} =
+proc newReplayPlayer*(data: ReplayData): ReplayPlayer =
   ## Creates a shared Polyworld cursor over a validated Generals tape.
-  discard data.validate()
+  when defined(softmaxReplay):
+    discard data.newReplayWorld()
+  else:
+    discard data.validate()
   initTapePlayer(data)
 
 proc replayTick*(
     player: ReplayPlayer,
     world: var World,
     moves: var array[MaxPlayers, Move]
-): bool {.raises: [GeneralsError].} =
+): bool =
   ## Applies the next recorded tick and rejects any simulation divergence.
   for move in moves.mitems:
     move = noMove()
@@ -325,27 +340,43 @@ proc replayTick*(
     fail("playback world is past the recorded duration")
   if world.turn == player.data.hashes.len:
     return false
-  if world.finished:
-    fail("simulation ended before the recorded duration")
+  when not defined(softmaxReplay):
+    if world.finished:
+      fail("simulation ended before the recorded duration")
   let tick = uint32(world.turn + 1)
-  var
-    action: ReplayAction
-    players = 0'u32
-  try:
-    while player.takeActionAt(tick, action):
-      action.validateAction(world.config.players)
-      let mask = 1'u32 shl action.player
-      if (players and mask) != 0:
-        fail("player has multiple commands in one tick")
-      players = players or mask
-      moves[int(action.player)] = action.actionMove()
-  except ReplayError as error:
-    fail(error.msg)
-  world.tick(moves.toOpenArray(0, world.config.players - 1))
-  if world.turn != int(tick) or
-    world.stateHash() != player.data.hashes[int(tick) - 1]:
-      fail("simulation diverged at tick " & $tick)
-  true
+  when defined(softmaxReplay):
+    for event in player.data.header.setup.hostedTicks[int(tick)]:
+      let command = parseJson(event.command)
+      if command["op"].getStr() == "step":
+        for slot, action in command["actions"].getElems():
+          if action[0].getInt() == 0:
+            moves[slot] = actionMove(action[1].getInt(), action[2].getInt(),
+              action[3].getInt(), action[4].getInt() == 1)
+      discard world.applyHosted(command)
+      if world.hostedHash() != event.hash:
+        fail("hosted simulation diverged at tick " & $tick)
+    if world.turn != int(tick):
+      fail("hosted recording did not advance to tick " & $tick)
+    result = true
+  else:
+    var
+      action: ReplayAction
+      players = 0'u32
+    try:
+      while player.takeActionAt(tick, action):
+        action.validateAction(world.config.players)
+        let mask = 1'u32 shl action.player
+        if (players and mask) != 0:
+          fail("player has multiple commands in one tick")
+        players = players or mask
+        moves[int(action.player)] = action.actionMove()
+    except ReplayError as error:
+      fail(error.msg)
+    world.tick(moves.toOpenArray(0, world.config.players - 1))
+    if world.turn != int(tick) or
+      world.stateHash() != player.data.hashes[int(tick) - 1]:
+        fail("simulation diverged at tick " & $tick)
+    true
 
 proc packedAction(
     action: ReplayAction,
@@ -538,13 +569,45 @@ proc saveReplay*(path: string, data: ReplayData) {.
   except IOError, OSError:
     fail("cannot save recording: " & getCurrentExceptionMsg())
 
-proc loadReplay*(path: string): ReplayData {.raises: [GeneralsError].} =
+proc loadReplay*(path: string): ReplayData =
   ## Checks the file size before reading and decoding the recording.
   if path.len == 0:
     fail("input path is empty")
   try:
     if getFileSize(path) > MaxReplayBytes:
       fail("recording exceeds the file size limit")
-    result = decodeReplay(readFile(path))
+    when defined(softmaxReplay):
+      let payload = parseJson(readFile(path))
+      if payload["format"].getStr() != "polyworld-generals-hosted" or
+          payload["version"].getInt() != 1 or payload["engine"].getStr() != "polyworld":
+        fail("expected a Polyworld hosted action tape")
+      let ticks = payload["ticks"]
+      if ticks.len notin 1 .. 50_003 or payload["players"].len notin 2 .. 8:
+        fail("hosted recording exceeds duration or player limits")
+      for tick, events in ticks.getElems():
+        if events.len notin 1 .. 40:
+          fail("hosted tick has an invalid command count")
+        var recorded: seq[HostedEvent]
+        for index, event in events.getElems():
+          let command = event["command"]
+          if (command["op"].getStr() == "new") != (tick == 0 and index == 0):
+            fail("hosted recording must initialize exactly once")
+          recorded.add HostedEvent(command: $command, hash: event["hash"].getStr())
+        result.header.setup.hostedTicks.add(recorded)
+      let world = result.newReplayWorld()
+      result.config = world.config
+      if result.config.players != payload["players"].len:
+        fail("hosted roster does not match the simulation")
+      result.header.setup.roster = defaultRoster()
+      for slot, name in payload["players"].getElems():
+        result.header.setup.roster.players[slot].name = name.getStr()
+      result.header.setup.roster.validateRoster(result.config.players)
+      let winner = payload["result"]["winner"].getInt()
+      result.header.setup.outcome = "Result: " &
+        (if winner < 0: "draw" else: result.header.setup.roster.displayName(winner) & " won") &
+        " (" & payload["result"]["reason"].getStr().replace('_', ' ') & ")."
+      result.hashes = newSeq[uint64](ticks.len - 1)
+    else:
+      result = decodeReplay(readFile(path))
   except IOError, OSError:
     fail("cannot load recording: " & getCurrentExceptionMsg())

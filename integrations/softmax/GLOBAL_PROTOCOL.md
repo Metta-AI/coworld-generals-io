@@ -15,7 +15,27 @@ Only `finished` reveals a board and result. `GET /replay.json` returns HTTP 409
 until then. The game server exits after completing the hosted episode; hosted
 replay viewing uses the static bundle, independent of the game container.
 
-The replay is JSON:
+The saved Polyworld replay is a JSON action tape:
+
+- `format: "polyworld-generals-hosted"`, `version: 1`, `engine: "polyworld"`.
+- `ruleset`, authored `seed`, `height`, `width`, public `players`, attempted
+  `turns`, and the final `result`.
+- `ticks`: one group per engine tick, including initialization at tick zero.
+  Each event has a typed `command` and the hexadecimal `hash` of the resulting
+  native state. Commands initialize the world, step, surrender or neutralize.
+  Groups preserve the exact ordering of builds, moves, growth, surrender and
+  delayed neutralization, including terminal adjudication.
+- No board frames, player source, private logs, credentials or upload URLs.
+
+The published WebAssembly viewer runs the same `polyworld_hosted.nim` transitions
+as the game process. It checks every command hash, including when seeking,
+and reports divergence instead of displaying an unverified match.
+`/client/replay.json` returns the saved tape. `/replay.json` returns completed
+diagnostic frames for inspecting observations and scoring.
+The standalone Polyworld application's binary v4 tape remains its separate
+format; hosted tapes additionally represent castle construction and surrenders.
+
+The retained JAX runtime saves its JSON frame recording:
 
 - `format: "generals-coworld"`, `version: 2`, `ruleset: "classic"` or `"build_castles"`.
   Archived release 0.1.0 replays use `ruleset: "competition"` instead.
@@ -52,7 +72,7 @@ Release 0.4.0 enables mutual general trades in classic mode. For resimulation,
 use the episode’s pinned source revision: older classic releases disabled this
 rule. Stored board frames remain the authoritative playback data.
 
-The shared viewer accepts local JSON/gzip files on its entry screen. During
+The browser player client accepts local JSON/gzip files on its entry screen. During
 replay, its perspective selector derives each player's 3×3 territory visibility
 from the recorded board frame. Hidden castles and mountains appear as obstacles;
 hidden generals, ownership, and armies remain concealed. This is a playback
@@ -64,7 +84,7 @@ forwarding. Their successful
 terminal update includes `replay: {encoding: "gzip+base64", data: "..."}`,
 the complete saved recording compressed once for bounded delivery. It is sent only
 after replay and result artifacts are saved. The browser renders those bytes
-without another HTTP request, because the hosted live proxy can retire immediately
+in its preloaded native viewer without another HTTP request, because the hosted live proxy can retire immediately
 after completion. Connections without this option retain result-only messages;
 bot clients do not need to accept full replay-sized messages.
 

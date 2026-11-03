@@ -261,17 +261,20 @@ an unauthenticated omniscient WebSocket would defeat fog of war. Player pages
 and `/player` require the slot's token. The public stream accepts no game-control
 commands, and `/replay.json` is unavailable until all success artifacts are saved.
 
-The completed replay preserves every board frame using keyframes and tile changes, plus the submitted/applied
-actions, seed, timeout flags, and result. The tile renderer and styles from `generals-competition` serve player views
-and replays. Crown, castle, and mountain sprites come directly from this repo's
-`generals/assets/images`, with the same assets copied into the static bundle. The static replay bundle needs no Python server, JAX, WASM,
-or network access beyond fetching its replay and local assets. It supports
-autoplay, looping, pause, seek, playback speed, resize, and gzip replay bytes.
+Polyworld replays preserve the hosted command tape, seed, timeout flags and
+result. A portable hash follows every command. The native Polyworld Silky viewer,
+compiled to WebAssembly, replays those commands through the same hosted engine
+module and rejects a state mismatch. It supports autoplay, looping, pause, seek,
+playback speed, perspectives, resize, download and gzip replay bytes.
+The static bundle needs no game server or JAX installation.
+Browser seats preload it before joining; completion delivers the tape over the
+existing socket, so playback survives retirement of the live HTTP proxy.
 Historical releases keep their own immutable viewer bundle.
 
 For a standalone replay, serve the generated bundle and a replay over HTTP:
 
 ```bash
+# After coworld build, extract the viewer from its game image:
 integrations/softmax/tools/build_replay_viewer.sh integrations/softmax/dist/replay-viewer
 # Copy only a completed replay into dist/replay-viewer/replay.json, then:
 python -m http.server 8090 --directory integrations/softmax/dist/replay-viewer
@@ -400,15 +403,22 @@ Deployment dependencies, including transitive packages, are pinned in
 --python-version 3.12 --output-file requirements.lock` from this directory when
 deliberately updating the runtime.
 
-Both this adapter and the local competition runner call `generals.core.match`.
-The adapter selects regular rules; the competition runner keeps its competition
-preset. Publish a new Coworld version for rules,
+The adapter uses the Polyworld engine. The retained JAX runtime and local
+competition runner use `generals.core.match`. Publish a new Coworld version for rules,
 protocol, rendering, or dependency changes. Preserve old replay fixtures when
 the format changes. Keep participant support and league balancing distinct from
 technical adapter maintenance. Hosting/resource allowances and ongoing support
 ownership need agreement with Softmax.
 
 ## Visual sources
+
+The published replay viewer uses `polyworld/src/generals/views.nim` and its
+Silky theme, transport, fonts and sprites. The Docker build includes their
+licenses. The `softmaxReplay` build flag loads hosted action tapes and reports
+verified playback progress. See [POLYWORLD.md](POLYWORLD.md) for ownership and
+source browser commands.
+
+Live human controls and the retained JAX replay viewer use the renderer below.
 
 `static/board.js` reuses the tile-rendering function from
 `generals-competition/board.js` at commit `83a9b23`. `static/board.css` retains
@@ -422,5 +432,5 @@ procedural game fallback or second game simulation in this renderer.
 
 Keep board and scorecard colors aligned with the official game when updating them.
 Sprites stay owned by `generals/assets/images`, and the Quicksand font comes
-from `generals/assets/fonts`, including its license in the replay bundle. No
+from `generals/assets/fonts`, including its license in the retained JAX replay bundle. No
 copied source assets need to be synchronized manually.

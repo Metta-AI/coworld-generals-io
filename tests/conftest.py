@@ -14,11 +14,36 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
-def viewer(tmp_path):
+def native_controls():
+    def present(frame):
+        before = frame.evaluate("Module.replayFrameCount")
+        frame.wait_for_function("before => Module.replayFrameCount >= before + 2", arg=before)
+
+    def key(page, frame, button):
+        page.keyboard.down(button)
+        present(frame)
+        page.keyboard.up(button)
+        present(frame)
+
+    def click(page, frame, x, y):
+        page.mouse.move(x, y)
+        present(frame)
+        page.mouse.down()
+        present(frame)
+        page.mouse.up()
+        present(frame)
+
+    return key, click
+
+
+@pytest.fixture
+def viewer(tmp_path, request):
     from playwright.sync_api import sync_playwright
 
     bundle = tmp_path / "viewer"
-    subprocess.run([str(ROOT / "integrations/softmax/tools/build_replay_viewer.sh"), str(bundle)], check=True)
+    native = getattr(request, "param", "jax") == "polyworld"
+    hook = "build_replay_viewer.sh" if native else "build_legacy_replay_viewer.sh"
+    subprocess.run([str(ROOT / "integrations/softmax/tools" / hook), str(bundle)], check=True)
 
     class Handler(SimpleHTTPRequestHandler):
         def log_message(self, *args):
@@ -31,6 +56,13 @@ def viewer(tmp_path):
                 self.path = self.path.removeprefix("/client/static")
             super().do_GET()
 
+        def end_headers(self):
+            if native:
+                from polyworld.tools.check_browser import CSP
+
+                self.send_header("Content-Security-Policy", CSP)
+            super().end_headers()
+
     http = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=bundle))
     threading.Thread(target=http.serve_forever, daemon=True).start()
     try:
@@ -40,8 +72,9 @@ def viewer(tmp_path):
                 args=["--no-sandbox"],
             )
             page = browser.new_page(viewport={"width": 1100, "height": 1000})
-            page.clock.install(time=0)
-            page.clock.pause_at(1)
+            if not native:
+                page.clock.install(time=0)
+                page.clock.pause_at(1)
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             yield page, f"http://127.0.0.1:{http.server_port}", bundle

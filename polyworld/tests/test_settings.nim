@@ -128,6 +128,62 @@ for bytes in [
   expectInvalid(bytes)
 
 block:
+  let invalidIntegers = [
+    "18446744073709551617", "18446744073709551615",
+    "-18446744073709551617", "9223372036854775808",
+    "-9223372036854775809", repeat('9', 10_000),
+    "+1", "01", "-01", "1_0", "1.0", "1e0", "--1", "- 1"
+  ]
+  for token in invalidIntegers:
+    for field in ["seed", "maxTicks", "max_ticks", "width", "height"]:
+      expectInvalid("{\"" & field & "\":" & token & "}")
+    expectInvalid("{\"players\":[{\"mmr\":" & token & "},{}]}")
+  let limits = parseSettings("""{
+    "seed": 2147483647, "max_ticks": 100000, "width": 61, "height": 61,
+    "players": [{"mmr": 2147483647}, {"mmr": -1}]
+  }""")
+  doAssert limits.config.seed == int32.high.int
+  doAssert limits.config.maxTurns == 100_000
+  doAssert limits.config.width == 61 and limits.config.height == 61
+  doAssert limits.resolvedRoster().playerMmr(0) == int32.high
+  doAssert limits.resolvedRoster().playerMmr(1) == -1
+  let zeroes = parseSettings("""{
+    "seed": 0, "max_ticks": 1, "width": 0, "height": 0,
+    "players": [{"mmr": 0}, {}], "ignored": 1e200
+  }""")
+  doAssert zeroes.config.seed == 0 and zeroes.config.maxTurns == 1
+  doAssert zeroes.autoWidth and zeroes.autoHeight
+  doAssert zeroes.resolvedRoster().playerMmr(0) == 0
+  doAssert zeroes.resolvedRoster().playerMmr(1) == -1
+
+block:
+  for (opening, closing) in [("[", "]"), ("{\"ignored\":", "}")]:
+    let
+      accepted = "{\"ignored\":" & repeat(opening, MaxSettingsDepth - 1) &
+        "0" & repeat(closing, MaxSettingsDepth - 1) & "}"
+      rejected = "{\"ignored\":" & repeat(opening, MaxSettingsDepth) &
+        "0" & repeat(closing, MaxSettingsDepth) & "}"
+    doAssert parseSettings(accepted).config == defaultConfig()
+    expectInvalid(rejected)
+  let hostile = "{\"ignored\":" & repeat('[', 200_000) & "0" &
+    repeat(']', 200_000) & "}"
+  doAssert hostile.len < MaxSettingsBytes
+  expectInvalid(hostile)
+  let quoted = "{\"ignored\":\"\\\"\\\\" &
+    repeat("[{]}", MaxSettingsDepth * 2) & "\\\"\",\"seed\":7}"
+  doAssert parseSettings(quoted).config.seed == 7
+  for prefix in ["x\" ", "x[\" ", "x{\" ", "x:\" ", "x\v\" ", "x\f\" "]:
+    let hidden = "{\"ignored\":[" & prefix & repeat('[', 200_000) &
+      "0" & repeat(']', 200_000) & "]}"
+    doAssert hidden.len < MaxSettingsBytes
+    expectInvalid(hidden)
+  for bytes in ["{\"ignored\":[}", "{\"ignored\":{]", "{\"ignored\":\"text}"]:
+    expectInvalid(bytes)
+  doAssert parseSettings("""{
+    "ignored": [null, true, false, -1, 1.5, 2e3, "text", {"more": []}]
+  }""").config == defaultConfig()
+
+block:
   for arguments in [
     ["--seed=27", "--players=10"],
     ["--players=10", "--seed=27"]

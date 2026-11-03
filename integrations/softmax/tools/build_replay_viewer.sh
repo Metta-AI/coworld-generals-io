@@ -1,23 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
-softmax_source="$(cd -- "$(dirname -- "$0")/.." && pwd)"
-python3 - "$softmax_source/static" "${1:?expected output bundle directory}" <<'PY'
+root="$(cd -- "$(dirname -- "$0")/../../.." && pwd)"
+output="${1:?expected output bundle directory}"
+source="${GENERALS_POLYWORLD_VIEWER:-}"
+if [[ -z "$source" ]]; then
+  scratch=$(mktemp -d)
+  container=$(docker create --platform "linux/${GENERALS_ARCH:-amd64}" --entrypoint /bin/true "generals-polyworld-game:${GENERALS_ARCH:-amd64}")
+  trap 'docker rm "$container" >/dev/null; rm -rf "$scratch"' EXIT
+  docker cp "$container:/app/polyworld-viewer" "$scratch/viewer"
+  source="$scratch/viewer"
+fi
+python3 - "$source" "$output" "$root" <<'PY'
 import shutil
 import sys
 from pathlib import Path
-source, output = (Path(arg).resolve() for arg in sys.argv[1:])
-# This hook owns only the generated output, never any source directory.
-if output == source or output in source.parents or source in output.parents:
+source, output, root = (Path(value).resolve() for value in sys.argv[1:])
+allowed = (root / 'polyworld/out', root / 'integrations/softmax/dist')
+if (source == output or source in output.parents or output in source.parents or
+        output == root or output in root.parents or
+        root in output.parents and not any(path in output.parents for path in allowed)):
     raise SystemExit('refusing to overwrite replay sources')
 if output.exists():
     shutil.rmtree(output)
 shutil.copytree(source, output)
-assets = source.parents[2] / 'generals/assets/images'
-(output / 'assets').mkdir()
-for name in ('crownie.png', 'citie.png', 'mountainie.png'):
-    shutil.copyfile(assets / name, output / 'assets' / name)
-fonts = source.parents[2] / 'generals/assets/fonts'
-(output / 'fonts').mkdir()
-for name in ('Quicksand-VariableFont_wght.ttf', 'OFL.txt'):
-    shutil.copyfile(fonts / name, output / 'fonts' / name)
 PY

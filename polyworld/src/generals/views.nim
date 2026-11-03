@@ -12,6 +12,9 @@ import
 when gameProfiles.ProfileTracePath.len > 0:
   import silky/profiles as silkyProfiles
 
+when defined(softmaxReplay) and defined(emscripten):
+  {.emit: "#include <emscripten.h>".}
+
 const
   SidebarWidth = 350.0'f
   ChatLineHeight = 24.0'f
@@ -393,7 +396,10 @@ proc resetReplay(view: View) =
   view.world = newReplayWorld(view.replay.data)
   view.replay.syncCursor(0)
   view.log.resetLog()
-  view.log.entries[0].text = "Replay events."
+  when defined(softmaxReplay):
+    view.log.entries[0].text = view.replay.data.header.setup.outcome
+  else:
+    view.log.entries[0].text = "Replay events."
   view.replayChatIndex = 0
   view.replayChats()
   view.deathTurns = default(array[MaxPlayers, int])
@@ -822,14 +828,18 @@ proc rebuildChat(view: View) =
       addPlayer(entry.player)
       addText(": " & entry.text)
     of Capture:
-      if entry.player >= 0:
-        addPlayer(entry.player)
-        addText(" captured ")
+      when defined(softmaxReplay):
         addPlayer(entry.target)
-        addText(".")
+        addText(" was eliminated.")
       else:
-        addPlayer(entry.target)
-        addText(" was captured.")
+        if entry.player >= 0:
+          addPlayer(entry.player)
+          addText(" captured ")
+          addPlayer(entry.target)
+          addText(".")
+        else:
+          addPlayer(entry.target)
+          addText(" was captured.")
     of Victory:
       addPlayer(entry.player)
       addText(" wins!")
@@ -1419,6 +1429,17 @@ proc frame(view: View) =
   view.window.swapBuffers()
   if view.replaying:
     reportReplayFrame(view.world.turn.int32, 0)
+    when defined(softmaxReplay) and defined(emscripten):
+      let
+        playing = view.transport.player.playing.int
+        repeating = view.transport.player.repeating.int
+      {.emit: """
+      EM_ASM({
+        Module.replayFrameCount = (Module.replayFrameCount || 0) + 1;
+        Module.replayPlaying = !!$0;
+        Module.replayRepeating = !!$1;
+      }, `playing`, `repeating`);
+      """.}
 
 proc runWindow(
     config: Config,

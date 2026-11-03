@@ -253,6 +253,24 @@
   $('seek').oninput = () => { frameIndex = Number($('seek').value); showReplayFrame(); };
   $('speed').onchange = resetReplayTimer;
   $('perspective').onchange = showReplayFrame;
+  let nativeReplay, nativeReplayReady, nativeReplayVisible = false;
+  function prepareNativeReplay() {
+    if (nativeReplayReady) return nativeReplayReady;
+    nativeReplay = document.createElement('iframe');
+    nativeReplay.id = 'polyworld-replay'; nativeReplay.title = 'Polyworld Generals replay';
+    nativeReplay.style.cssText = 'display:none;position:fixed;inset:0;width:100%;height:100%;border:0;z-index:100';
+    nativeReplayReady = new Promise(resolve => {
+      window.addEventListener('message', event => {
+        if (event.source !== nativeReplay.contentWindow || event.origin !== location.origin || event.data?.src !== 'coworld-replay') return;
+        if (event.data.type === 'phase' && event.data.phase === 'bundle_ready') resolve();
+        if (event.data.type === 'error') fail(event.data.message);
+        if (nativeReplayVisible) post(event.data);
+      });
+    });
+    nativeReplay.src = livePrefix + '/client/polyworld/index.html#replay=coworld-live';
+    document.body.append(nativeReplay);
+    return nativeReplayReady;
+  }
   async function loadReplay(source) {
     document.body.classList.add('replay');
     $('replay-controls').prepend(document.querySelector('.clock'));
@@ -290,6 +308,13 @@
       data = JSON.parse(new TextDecoder().decode(bytes));
     }
     if (load !== replayLoad) return;
+    if (data.format === 'polyworld-generals-hosted') {
+      await prepareNativeReplay();
+      nativeReplayVisible = true;
+      nativeReplay.style.display = 'block';
+      nativeReplay.contentWindow.postMessage({type:'polyworld-replay-data', replay:JSON.stringify(data)}, location.origin);
+      return;
+    }
     decodeReplayFrame = GeneralsReplay(data);
     replay = data; ruleset = data.ruleset || 'competition'; slot = null; selected = null; clearTimeout(passTimer);
     names(data.players); $('mode').textContent = 'REPLAY';
@@ -346,7 +371,8 @@
     for (const route of obstructedRoutes) stopRoute(route, 'an obstacle blocks the route');
     dispatchQueue();
   }
-  function connectLive() {
+  async function connectLive() {
+    if (document.querySelector('meta[name="generals-engine"]')?.content === 'polyworld') await prepareNativeReplay();
     const isPlayer = location.pathname.endsWith('/client/player');
     const route = livePrefix + (isPlayer ? '/player' : '/global');
     const address = params.get('address');

@@ -182,6 +182,17 @@ def check_playback(browser, base, args, report):
         assert frame.evaluate("Module.replayTick") == args.end_tick
         assert_healthy(frame)
         page.screenshot(path=str(args.output / "last-frame.png"))
+        # A paused final step must stay paused even when looping is enabled.
+        key(page, "ArrowLeft")
+        wait_tick(frame, f"Module.replayTick === {args.end_tick - 1}", args.timeout)
+        transport_click(page, 420)
+        key(page, "ArrowRight")
+        wait_tick(frame, f"Module.replayTick === {args.end_tick}", args.timeout)
+        page.wait_for_timeout(800)
+        assert frame.evaluate("Module.replayTick") == args.end_tick, (
+            "Paused final step unexpectedly restarted the replay"
+        )
+        transport_click(page, 420)
         # Seeking to the end resimulates and checks every recorded state hash.
         key(page, "Home")
         wait_tick(frame, "Module.replayTick < 5", args.timeout)
@@ -218,6 +229,7 @@ def check_playback(browser, base, args, report):
             "autoplay": True,
             "default_loop": True,
             "pause_and_step": True,
+            "paused_loop_endpoint": True,
             "full_replay_hashes": True,
             "speed_16x": True,
             "resize": [960, 640],

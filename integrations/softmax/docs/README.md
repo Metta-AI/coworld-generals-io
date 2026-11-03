@@ -32,8 +32,9 @@ queue moves. Each tick executes one action. Mountains block movement.
 
 Queued actions stay in your browser and reset on disconnect or reload.
 Undo and clear cannot cancel an action already submitted to the server.
-Completed games offer a replay with full-map and per-player perspectives,
-seeking, playback speed, and download.
+Completed games open the Polyworld replay viewer with full-map and per-player
+perspectives, seeking, playback speed, and download. Space pauses playback;
+Left/Right step one tick, and Home/End seek to the start/end.
 
 ## Build or modify a bot
 

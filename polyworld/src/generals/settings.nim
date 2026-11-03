@@ -5,9 +5,11 @@ import
 
 const
   MaxSettingsBytes* = 1024 * 1024
+  MaxSettingsDepth* = 64
   MaxBotPathBytes = 4096
 
 type
+  EngineInteger = distinct int64
   Settings* = object
     config*: Config
     roster*: Roster
@@ -16,11 +18,28 @@ type
     changedSeats: set[0 .. MaxPlayers - 1]
   EnginePlayer = object
     name, bot: string
-    mmr: int64 = -1
+    mmr: EngineInteger = EngineInteger(-1)
   EngineConfig = object
     players: seq[EnginePlayer]
-    seed, maxTicks, width, height: int64
+    seed, maxTicks, width, height: EngineInteger
     exposePlayerInfo: bool
+
+proc parseHook(bytes: string, index: var int, value: var EngineInteger) =
+  ## Parses JSON integer tokens with checked signed 64-bit accumulation.
+  let
+    token = parseSymbol(bytes, index)
+    first = if token.len > 0 and token[0] == '-': 1 else: 0
+  if first == token.len:
+    raise newException(JsonError, "Expected a JSON integer.")
+  if token[first] == '0' and token.len - first > 1:
+    raise newException(JsonError, "Leading zero in JSON integer.")
+  for i in first ..< token.len:
+    if token[i] notin {'0' .. '9'}:
+      raise newException(JsonError, "Expected a JSON integer.")
+  try:
+    value = EngineInteger(parseBiggestInt(token))
+  except ValueError:
+    raise newException(JsonError, "JSON integer exceeds signed 64-bit range.")
 
 proc defaultSettings*(): Settings =
   ## Creates the same unnamed roster and board settings as a local match.
@@ -33,16 +52,14 @@ proc defaultSettings*(): Settings =
 
 proc newHook(player: var EnginePlayer) =
   ## Preserves unknown MMR when a JSON player record omits that field.
-  player = EnginePlayer(mmr: -1)
+  player = EnginePlayer(mmr: EngineInteger(-1))
 
 proc newHook(config: var EngineConfig) =
   ## Fills omitted JSON fields from the native game defaults.
   config = EngineConfig(
     players: newSeq[EnginePlayer](DefaultPlayers),
-    seed: 1,
-    maxTicks: DefaultTurns,
-    width: 0,
-    height: 0,
+    seed: EngineInteger(1),
+    maxTicks: EngineInteger(DefaultTurns),
     exposePlayerInfo: true
   )
 
@@ -74,14 +91,15 @@ proc boundedNumber*(
       name & " must be between " & $minimum & " and " & $maximum & "."
     )
 
-proc checked(value: int64, name: string, minimum, maximum: int): int =
+proc checked(value: EngineInteger, name: string, minimum, maximum: int): int =
   ## Rejects out-of-range JSON numbers before converting to native integers.
-  if value < minimum.int64 or value > maximum.int64:
+  let number = value.int64
+  if number < minimum.int64 or number > maximum.int64:
     raise newException(
       GeneralsError,
       name & " must be between " & $minimum & " and " & $maximum & "."
     )
-  value.int
+  number.int
 
 proc botPath(path, directory: string): string =
   ## Resolves a bounded bot path relative to its configuration source.
@@ -114,10 +132,62 @@ proc resolvedRoster*(settings: Settings): Roster =
       )
   resolveRoster(settings.roster, settings.botFiles, settings.config.players)
 
+proc validateDepth(bytes: string) {.raises: [GeneralsError].} =
+  ## Bounds nested containers before Jsony recursively skips unknown fields.
+  var
+    depth = 0
+    closings: array[MaxSettingsDepth, char]
+    quoted = false
+    escaped = false
+    scalar = false
+  proc invalidStructure() {.noreturn, raises: [GeneralsError].} =
+    ## Rejects malformed token boundaries before the permissive JSON parser.
+    raise newException(GeneralsError, "Invalid config JSON structure.")
+  for character in bytes:
+    if quoted:
+      if escaped:
+        escaped = false
+      elif character == '\\':
+        escaped = true
+      elif character == '"':
+        quoted = false
+    else:
+      case character
+      of '"':
+        if scalar:
+          invalidStructure()
+        quoted = true
+      of '{', '[':
+        if scalar:
+          invalidStructure()
+        if depth == MaxSettingsDepth:
+          raise newException(
+            GeneralsError,
+            "Config exceeds the " & $MaxSettingsDepth &
+              " level nesting limit."
+          )
+        closings[depth] = if character == '{': '}' else: ']'
+        inc depth
+      of '}', ']':
+        if depth == 0 or closings[depth - 1] != character:
+          invalidStructure()
+        dec depth
+        scalar = false
+      of ':':
+        if scalar:
+          invalidStructure()
+      of ',', ' ', '\n', '\t', '\r':
+        scalar = false
+      else:
+        scalar = true
+  if quoted or depth != 0:
+    invalidStructure()
+
 proc parseSettings*(bytes: string, directory = getCurrentDir()): Settings =
   ## Reads bounded engine JSON while retaining names for later CLI overrides.
   if bytes.len > MaxSettingsBytes:
     raise newException(GeneralsError, "Config exceeds the 1 MiB size limit.")
+  validateDepth(bytes)
   var config: EngineConfig
   try:
     config = bytes.fromJson(EngineConfig)
@@ -136,8 +206,8 @@ proc parseSettings*(bytes: string, directory = getCurrentDir()): Settings =
     height: checked(config.height, "Map height", 0, 61),
     players: config.players.len
   )
-  result.autoWidth = config.width == 0
-  result.autoHeight = config.height == 0
+  result.autoWidth = config.width.int64 == 0
+  result.autoHeight = config.height.int64 == 0
   if not result.autoWidth:
     discard checked(config.width, "Map width", 13, 61)
   if not result.autoHeight:
