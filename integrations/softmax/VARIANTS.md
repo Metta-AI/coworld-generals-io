@@ -87,6 +87,39 @@ drains terminal messages before shutting down the game server.
 Ignored deployment logs, manifests, replay artifacts and exact API responses are
 kept in `local-output/release-<version>/`.
 
+### 0.7.2 — November 3, 2026 (UTC)
+
+- Released source `98eb024c47814c0c16dd3006387d0472ad9f9821` after
+  [PR 25](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/25) and the upstream refresh in
+  [PR 26](https://app.graphite.dev/github/pr/Metta-AI/coworld-generals-io/26).
+  Polyworld floating `main` resolved to `872774b9f593e7f771b215f0d5c1dd65031f05e7`.
+  Later source changes on `main` are separate from this immutable release.
+- [Release workflow](https://github.com/Metta-AI/coworld-generals-io/actions/runs/41702523681) passed all nine
+  native AMD64 fixtures (90 checks) and all ten hosted checks. Canonical Coworld:
+  `cow_6352c5a2-927e-483e-af46-4fa2826e2ca8`; certification request
+  `f6de8515-b482-43ac-8225-5a014646ce26`, job `4f208a0d-f8fc-4ba9-a210-c4de0f243d6f`.
+  Game image SHA-256: `2a7f61b6341f447bad7e812fb6c00272f2cf1de81a48801e5c9c2d6756557c76`.
+  Release manifest SHA-256: `55eff24b71a727c74ba377dba20b2d981477405fbfef160a865231bf495341b6`.
+- Live matches enable `COWORLD_PLAYER_RATINGS=true`. Public leaderboard scores reach browser cards, socket
+  observations, BASIC queries, and saved native replays. Launch snapshots are labeled separately from the
+  replay viewer's current standings. Unrated players display —.
+- [Platform PR 30441](https://app.graphite.dev/github/pr/Metta-AI/metta/30441) deployed as
+  `f52548967adf87ade8a7ee0cde34ebd430dd717c`. The API, dispatcher, and orchestrator were ready on that revision.
+  The dispatcher and a real round worker used coordinator SHA-256
+  `960120cf023534fc788c00eab6c61a6814fefe0c61e45a8f9b53a736d3c4166e`.
+  The mixed-roster fix preserves file-player failure attribution without looking up a nonexistent container pod.
+- Resumed the existing FFA league through `rounds-paused` at 19:42:35 UTC after certification and deployment.
+  Normal scheduling created **round 4765** (`round_da917e09-0bf1-4620-a5e9-6952c69236c4`) at 19:43:13 UTC.
+  It completed at 19:46:28 UTC: all **16/16 episodes** used 0.7.2 and completed without job errors.
+  The nine-player roster used the existing partitioning rules. Scoring excluded no episodes and applied the
+  ladder update; all seven previously rated players advanced by one round. Existing cadence, policy budgets,
+  retry limits, and OpenSkill settings were preserved.
+- [Production replay](https://softmax.com/generals/episodes/afe7ee03-a02d-408d-9c64-d16db53eb98d) uses the new
+  Polyworld viewer and real skill scores. At 1440×1000, the result appeared at tick 3446 and disappeared after
+  rewinding to tick one; all replay state hashes validated. The saved tape retains its match-start score array.
+  [Round and standings screenshot](https://softmax.nexus/artifacts/61212441-f6bf-48a5-af89-2305556712ff) and
+  [native replay screenshot](https://softmax.nexus/artifacts/f1198701-5846-409b-a1a9-b464ce882be6) show production data.
+
 ### 0.7.1 — November 3, 2026 (UTC)
 
 - Released `94714fea76247bcb60779237952cac71d7793f11` from `main` after
