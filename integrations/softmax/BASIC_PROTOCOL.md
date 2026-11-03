@@ -91,3 +91,8 @@ GENERALS_BASIC_WORKER=/absolute/path/to/generals-basic \
   python -m integrations.softmax.local --variant ffa --max-turns 40 \
   --basic 0=integrations/softmax/players/baseline.bas
 ```
+
+Live skill queries use the public leaderboard snapshot taken at match start.
+`playerRated(slot)` returns 1 for a rated seat, otherwise 0. `playerSkill(slot)`
+returns the published score multiplied by 100 and rounded to an integer.
+For example, −2.34 returns −234. Check `playerRated` to distinguish unrated from zero.

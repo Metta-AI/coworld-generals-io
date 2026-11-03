@@ -219,6 +219,7 @@ def test_live_public_routes_do_not_reveal_hidden_state(tmp_path):
                 "turn",
                 "max_turns",
                 "players",
+                "player_ratings",
                 "ruleset",
                 "army",
                 "land",

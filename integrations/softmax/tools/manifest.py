@@ -71,7 +71,7 @@ def template():
                 "type": "game",
                 "image": "{{GENERALS_GAME_IMAGE}}",
                 "run": ["python", "-m", "integrations.softmax.server"],
-                "env": {"GENERALS_ENGINE": "polyworld", "COWORLD_REPLAY_PLAYER_RATINGS": "true"},
+                "env": {"GENERALS_ENGINE": "polyworld", "COWORLD_PLAYER_RATINGS": "true"},
                 "source_url": SOURCE,
             },
             "config_schema": GameConfig.model_json_schema(),

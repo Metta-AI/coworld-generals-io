@@ -37,6 +37,12 @@ perspectives, seeking, playback speed, and download. Space pauses playback;
 Left/Right step one tick, and Home/End seek to the start/end.
 
 The final winner and reason appear only at the end; seeking backward hides them.
+Live player and spectator cards show each seat’s published skill at match start.
+Container observations include `player_ratings`; BASIC exposes `playerRated(slot)`
+and `playerSkill(slot)` (score × 100, rounded). Missing ratings display —.
+Offline replays preserve that launch snapshot; platform replay pages show current
+standings when available.
+
 Skill shows the current public leaderboard rating beside each name, with — for
 unrated seats. Ranked replays use their league; unranked replays use the game's
 default public league. FFA publishes OpenSkill's conservative mu − 3σ score;

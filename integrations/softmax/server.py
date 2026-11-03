@@ -47,6 +47,12 @@ class Episode:
         self.artifacts, self.shutdown = artifacts, shutdown
         self.names = [p.name for p in config.players]
         self.num_players = len(self.names)
+        self.player_ratings = (config.player_ratings.model_dump(mode="json")
+                               if config.player_ratings is not None else None)
+        self.skill_scores = [None] * self.num_players
+        if config.player_ratings is not None:
+            for player in config.player_ratings.players:
+                self.skill_scores[player.slot] = player.score
         self.phase = "waiting"
         self.players: dict[int, asyncio.Queue] = {}
         self.reserved_slots: set[int] = set()
@@ -87,6 +93,7 @@ class Episode:
             "turn": frame["turn"],
             "max_turns": self.config.max_turns,
             "players": self.names,
+            "player_ratings": self.player_ratings,
             "ruleset": self.config.ruleset,
             "army": frame["army"],
             "land": frame["land"],
@@ -114,6 +121,7 @@ class Episode:
         return {
             **observation,
             "players": self.names,
+            "player_ratings": self.player_ratings,
             "max_turns": self.config.max_turns,
             "turn_timeout_seconds": self.turn_timeout,
             "public_scores": {key: self.frames[-1][key]
@@ -279,10 +287,15 @@ class Episode:
             "height": self.match.height,
             "width": self.match.width,
             "players": self.names,
+            "player_ratings": self.player_ratings,
             "frames": self.frames.records,
             "turns": self.turns,
             "result": result,
         }
+        replay["skill_scores"] = self.skill_scores
+        replay["skill_label"] = (f"At match start: {self.config.player_ratings.league} "
+                                 f"{self.config.player_ratings.label}. — = unrated."
+                                 if self.config.player_ratings is not None else "Skill: unavailable for this replay.")
         # Results are the completion marker. Never mark success without a replay.
         saved_replay = self.match.replay(replay) if self.match.engine_name == "polyworld" else replay
         await self.save("replay", saved_replay)
@@ -490,6 +503,7 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                 "height": episode.match.height,
                 "width": episode.match.width,
                 "players": episode.names,
+                "player_ratings": episode.player_ratings,
                 "ruleset": episode.config.ruleset,
             },
         )
