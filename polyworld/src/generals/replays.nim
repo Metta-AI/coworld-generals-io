@@ -35,6 +35,8 @@ type
     when defined(softmaxReplay):
       hostedTicks*: seq[seq[HostedEvent]]
       outcome*: string
+      skillScores*: seq[string]
+      skillLabel*: string
   ReplayAction* = object
     tick*, player*, flags*: uint32
     source*, target*, row*, column*, direction*: int32
@@ -601,6 +603,15 @@ proc loadReplay*(path: string): ReplayData =
       result.header.setup.roster = defaultRoster()
       for slot, name in payload["players"].getElems():
         result.header.setup.roster.players[slot].name = name.getStr()
+        result.header.setup.skillScores.add("—")
+      result.header.setup.skillLabel = "Skill: unavailable for this replay."
+      if payload.hasKey("skill_scores"):
+        if payload["skill_scores"].len != result.config.players:
+          fail("skill scores must match the recorded seats")
+        for slot, score in payload["skill_scores"].getElems():
+          if score.kind != JNull:
+            result.header.setup.skillScores[slot] = formatFloat(score.getFloat(), ffDecimal, 1)
+        result.header.setup.skillLabel = payload["skill_label"].getStr()
       result.header.setup.roster.validateRoster(result.config.players)
       let winner = payload["result"]["winner"].getInt()
       result.header.setup.outcome = "Result: " &

@@ -36,6 +36,12 @@ Completed games open the Polyworld replay viewer with full-map and per-player
 perspectives, seeking, playback speed, and download. Space pauses playback;
 Left/Right step one tick, and Home/End seek to the start/end.
 
+The final winner and reason appear only at the end; seeking backward hides them.
+Skill shows the current public leaderboard rating beside each name, with — for
+unrated seats. Ranked replays use their league; unranked replays use the game's
+default public league. FFA publishes OpenSkill's conservative mu − 3σ score;
+Classic and Build use Elo. These are current standings, not historical pre-match ratings.
+
 ## Build or modify a bot
 
 The game supports **BASIC source files** and **container players** in the same

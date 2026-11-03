@@ -89,6 +89,7 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     import subprocess
     import sys
     from pathlib import Path
+    from urllib.parse import urlencode
 
     key, click = native_controls
 
@@ -109,9 +110,14 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     assert tape["format"] == "polyworld-generals-hosted" and "frames" not in tape
     assert tape["result"]["timeouts"] == [0] * count
     (bundle / "replay.gz").write_bytes(gzip.compress(recording.read_bytes()))
-    page.goto(base + "/#replay=replay.gz")
+    scores = [-2.34, *([27.38] * (count - 2)), None]
+    ratings = {"league": "Fixture standings", "label": "MMR",
+               "players": [{"slot": slot, "score": score} for slot, score in enumerate(scores)]}
+    page.goto(base + "/#" + urlencode({"replay": "replay.gz", "player_ratings": json.dumps(ratings)}))
     page.wait_for_function("() => failed || typeof Module.replayTick === 'number'", timeout=60000)
     assert not page.evaluate("failed"), page.locator("#status-detail").inner_text()
+    assert page.evaluate("Module.replaySkillScores") == ["—" if score is None else f"{score:.1f}" for score in scores]
+    assert "Result:" not in page.evaluate("Module.replayMessages"), "opening the replay must not spoil its outcome"
     page.wait_for_function("() => failed || Module.replayTick >= 1", timeout=60000)
     assert not page.evaluate("failed"), page.locator("#status-detail").inner_text()
     click(page, page, 200, 200)
@@ -120,6 +126,7 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     key(page, page, "End")
     page.wait_for_function(f"() => failed || Module.replayTick === {tape['result']['turns']}")
     assert not page.evaluate("failed"), page.locator("#status-detail").inner_text()
+    assert "Result:" in page.evaluate("Module.replayMessages")
     page.screenshot(path=str(tmp_path / f"native-{variant}-desktop.png"))
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_function("() => Module.canvas.width === 390 && Module.canvas.height === 844")
@@ -128,6 +135,7 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     key(page, page, "ArrowRight")
     page.wait_for_function("() => Module.replayTick === 1")
     assert not page.evaluate("failed")
+    assert "Result:" not in page.evaluate("Module.replayMessages"), "rewinding must hide the final result again"
     tape["ticks"][1][0]["hash"] = "0000000000000000"
     (bundle / "divergent.json").write_text(json.dumps(tape))
     page.goto(base + "/?divergent=1#replay=divergent.json")

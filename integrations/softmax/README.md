@@ -271,6 +271,13 @@ Browser seats preload it before joining; completion delivers the tape over the
 existing socket, so playback survives retirement of the live HTTP proxy.
 Historical releases keep their own immutable viewer bundle.
 
+`COWORLD_REPLAY_PLAYER_RATINGS=true` in the game manifest requests public
+leaderboard metadata when the platform opens a saved replay. The platform matches
+job seats through policy versions and player IDs, then passes current published
+MMR/Elo values in the viewer URL fragment. The viewer preserves decimal and
+negative scores and shows — for unrated or unavailable seats. No bot observation
+or recording simulation changes. Historical viewers remain pinned to their releases.
+
 For a standalone replay, serve the generated bundle and a replay over HTTP:
 
 ```bash
