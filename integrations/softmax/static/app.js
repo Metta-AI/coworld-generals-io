@@ -11,6 +11,8 @@
   let decodeReplayFrame;
   let playing = true, replayTimer = null, readySent = false, replayLoad = 0;
   let reconnectTimer = null, reconnectAttempt = 0, terminal = false, replayDownload = null;
+  let winnerTimer = null, replayEndAt = null;
+  const winnerPauseMs = 5000;
   let ruleset = 'classic', playerCount = 2, eliminated = false;
   let chatTurn = -1;
   const privateMessages = [];
@@ -152,7 +154,7 @@
     renderer.draw(board, selected, queue.map(item => item.action), inFlight?.action);
     $('queue-count').textContent = `${queue.length} queued`;
     updateBuildControl();
-    $('cover').hidden = true; ready();
+    $('cover').hidden = !$('cover').classList.contains('winner'); ready();
   }
   function send(action, automatic = false) {
     if (!ws || ws.readyState !== WebSocket.OPEN || sent || currentTurn < 0) return false;
@@ -259,6 +261,22 @@
     const reasons = {general_capture:'general captured', turn_limit:'turn limit reached', forfeit:'surrender', idle_limit:'inactivity adjudication', double_forfeit:'remaining players timed out'};
     return `${text} · ${reasons[result.reason] || result.reason}`;
   }
+  function showWinner(result) {
+    const text = result.winner < 0 ? 'The game is a draw.' : `${$('name'+result.winner).textContent} wins the game!`;
+    $('cover').hidden = false; $('cover').classList.add('winner');
+    $('cover-title').textContent = text; $('cover-text').textContent = '';
+  }
+  function finishMatch(result, recording) {
+    if (winnerTimer !== null || terminal) return;
+    terminal = true; sent = true;
+    clearTimeout(reconnectTimer); clearTimeout(passTimer);
+    $('mode').textContent = 'FINISHED'; $('play-controls').hidden = true;
+    status(outcome(result)); showWinner(result);
+    winnerTimer = setTimeout(() => {
+      winnerTimer = null;
+      loadReplay(recording).catch(err => fail(err.message));
+    }, winnerPauseMs);
+  }
   function showReplayFrame() {
     const frame = decodeReplayFrame(frameIndex), perspective = $('perspective').value;
     board = frame;
@@ -279,11 +297,22 @@
     scoreboard(board.turn, board.army, board.land, board.eliminated, board.kills); draw();
     $('seek').value = frameIndex;
     status(`${outcome(replay.result)} · Frame ${frameIndex+1} of ${replay.frames.length}`);
+    if (frameIndex === replay.frames.length - 1) {
+      if (replayEndAt === null) replayEndAt = performance.now();
+      showWinner(replay.result);
+    } else {
+      replayEndAt = null;
+      $('cover').hidden = true; $('cover').classList.remove('winner');
+    }
   }
   function resetReplayTimer() {
     clearInterval(replayTimer);
     replayTimer = setInterval(() => {
-      if (playing && replay) { frameIndex = (frameIndex+1) % replay.frames.length; showReplayFrame(); }
+      if (playing && replay) {
+        if (frameIndex === replay.frames.length - 1 &&
+            performance.now() - replayEndAt < winnerPauseMs) return;
+        frameIndex = (frameIndex+1) % replay.frames.length; showReplayFrame();
+      }
     }, 1000 / Number($('speed').value));
   }
   $('pause').onclick = () => { playing = !playing; $('pause').textContent = playing ? 'Pause' : 'Play'; };
@@ -310,6 +339,8 @@
     return nativeReplayReady;
   }
   async function loadReplay(source) {
+    clearTimeout(winnerTimer); winnerTimer = null; replayEndAt = null;
+    $('cover').classList.remove('winner');
     $('chat-panel').hidden = true;
     document.body.classList.add('replay');
     $('replay-controls').prepend(document.querySelector('.clock'));
@@ -449,7 +480,7 @@
           ruleset = message.ruleset || ruleset;
           names(message.players, message.player_ratings); scoreboard(message.turn, message.army, message.land, message.eliminated, message.has_kill);
           messages(message);
-          if (message.phase === 'finished') { loadReplay(message.replay).catch(err => fail(err.message)); }
+          if (message.phase === 'finished') { finishMatch(message.result, message.replay); }
           else {
             if (message.phase === 'failed') terminal = true;
             $('cover-title').textContent = message.phase === 'waiting' ? 'Waiting for the generals' : message.phase === 'failed' ? 'Match could not finish' : 'The battle is underway';
@@ -457,8 +488,7 @@
             status(message.phase === 'waiting' ? 'Waiting for all players.' : message.phase === 'failed' ? 'The episode failed. Check the game logs.' : 'Live score · Board revealed after the match.'); ready();
           }
         } else if (message.type === 'final') {
-          sent = true; clearTimeout(passTimer); status(outcome(message.result));
-          loadReplay(message.replay).catch(err => fail(err.message));
+          finishMatch(message.result, message.replay);
         } else if (message.type === 'error') {
           if (inFlight) stopRoute(inFlight.route, message.message);
           else status(message.message, true);
@@ -496,6 +526,7 @@
   });
   window.addEventListener('pagehide', () => {
     terminal = true; clearTimeout(reconnectTimer); clearTimeout(passTimer); clearInterval(replayTimer);
+    clearTimeout(winnerTimer);
     if (ws) ws.close();
     if (replayDownload) URL.revokeObjectURL(replayDownload);
   });
