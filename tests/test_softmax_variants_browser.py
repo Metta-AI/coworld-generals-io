@@ -30,7 +30,7 @@ def connect_player(page, base, players, ruleset="classic", slot=0):
 
 def observation(players, slot=0, ruleset="classic"):
     return {
-        "type": "observation", "turn": 1, "slot": slot, "players": players,
+        "type": "observation", "chats": [], "events": [], "turn": 1, "slot": slot, "players": players,
         "ruleset": ruleset, "eliminated": False, "turn_timeout_seconds": 3600,
         "type_grid": [[1] * 8 for _ in range(6)],
         "owner_grid": [[0] * 8 for _ in range(6)],

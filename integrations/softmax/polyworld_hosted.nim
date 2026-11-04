@@ -2,37 +2,47 @@
 import std/[json, sequtils, strutils]
 import generals/[common, worlds]
 
-type HostedEvent* = object
-  command*, hash*: string
+type
+  HostedAction* = array[5, int32]
+  HostedEventKind* = enum
+    StepEvent, SurrenderEvent, NeutralizeEvent
+  HostedEvent* = object
+    kind*: HostedEventKind
+    slots*: uint8
 
-proc applyHosted*(world: var World, request: JsonNode): StepReport =
-  case request["op"].getStr()
-  of "new":
-    # Keep the map seed portable to WebAssembly's signed native integer.
-    let seed = int(request["seed"].getBiggestInt() and 0x7fff_ffff'i64)
-    var config = defaultConfig(seed, request["players"].getInt())
-    config.maxTurns = 100_000
-    world = newWorld(config)
-    if request["ruleset"].getStr() == "build_castles":
-      for tile in world.tiles.mitems:
-        if tile.kind == City:
-          tile.kind = Plain
-          tile.army = 0
-  of "step":
+proc newHostedWorld*(seed, players: int, building: bool): World =
+  ## Creates the shared hosted map, including the castle-building preset.
+  var config = defaultConfig(seed and 0x7fff_ffff, players)
+  config.maxTurns = 100_000
+  result = newWorld(config)
+  if building:
+    for tile in result.tiles.mitems:
+      if tile.kind == City:
+        tile.kind = Plain
+        tile.army = 0
+
+proc applyHostedEvent*(
+    world: var World,
+    event: HostedEvent,
+    actions: openArray[HostedAction],
+    building: bool
+): StepReport =
+  ## Applies the same typed commands during authoritative play and replay.
+  case event.kind
+  of StepEvent:
     var moves: seq[Move]
-    let building = request["ruleset"].getStr() == "build_castles"
-    for player, action in request["actions"].getElems():
-      case action[0].getInt()
+    for player, action in actions:
+      case action[0]
       of 0:
-        moves.add actionMove(action[1].getInt(), action[2].getInt(),
-          action[3].getInt(), action[4].getInt() == 1)
+        moves.add actionMove(action[1].int, action[2].int,
+          action[3].int, action[4] == 1)
       of 1, 2:
         moves.add noMove()
       else:
         raise newException(GeneralsError, "Unknown action kind")
-      if action[0].getInt() == 2:
+      if action[0] == 2:
         doAssert building
-        let cell = world.index(action[2].getInt(), action[1].getInt())
+        let cell = world.index(action[2].int, action[1].int)
         var cost = 35
         for i, tile in world.tiles:
           if tile.owner == player and tile.kind in {City, General}:
@@ -44,21 +54,20 @@ proc applyHosted*(world: var World, request: JsonNode): StepReport =
           world.tiles[cell].army -= cost
           world.tiles[cell].kind = City
     doAssert moves.len == world.config.players
-    # A surrender can decide the winner before this tick's moves. Hosted turns
-    # still advance once; native post-win replay stepping has a different clock.
+    # Hosted turns still advance when a surrender has just decided the winner.
     world.winner = -1
     result = world.step(moves, generalTrades = not building)
-    # The hosted rules pay income on the terminal capture tick too.
+    # Hosted rules pay income on the terminal capture tick too.
     if world.winner >= 0 and world.turn mod 2 == 0:
       for tile in world.tiles.mitems:
         if tile.owner >= 0:
           if tile.kind in {City, General}: inc tile.army
           if world.turn mod 50 == 0: inc tile.army
-  of "surrender", "neutralize":
-    for entry in request["slots"]:
-      let player = entry.getInt()
-      doAssert player in 0 ..< world.config.players
-      if request["op"].getStr() == "surrender":
+  of SurrenderEvent, NeutralizeEvent:
+    for player in 0 ..< world.config.players:
+      if (event.slots and (1'u8 shl player)) == 0:
+        continue
+      if event.kind == SurrenderEvent:
         world.alive[player] = false
       else:
         for tile in world.tiles.mitems:
@@ -67,10 +76,36 @@ proc applyHosted*(world: var World, request: JsonNode): StepReport =
             if tile.kind == General: tile.kind = City
     let remaining = toSeq(0 ..< world.config.players).filterIt(world.alive[it])
     world.winner = if remaining.len == 1: remaining[0] else: -1
+
+proc applyHosted*(world: var World, request: JsonNode): StepReport =
+  ## Decodes only the private process boundary; recordings store typed commands.
+  let op = request["op"].getStr()
+  if op == "new":
+    world = newHostedWorld(
+      int(request["seed"].getBiggestInt() and 0x7fff_ffff'i64),
+      request["players"].getInt(), request["ruleset"].getStr() == "build_castles")
+    return
+  var event: HostedEvent
+  var actions: seq[HostedAction]
+  case op
+  of "step":
+    event.kind = StepEvent
+    for action in request["actions"].getElems():
+      var entry: HostedAction
+      for index in 0 ..< entry.len:
+        entry[index] = action[index].getInt().int32
+      actions.add(entry)
+  of "surrender", "neutralize":
+    event.kind = if op == "surrender": SurrenderEvent else: NeutralizeEvent
+    for entry in request["slots"]:
+      let player = entry.getInt()
+      doAssert player in 0 ..< world.config.players
+      event.slots = event.slots or (1'u8 shl player)
   else:
     raise newException(GeneralsError, "Unknown engine command")
+  world.applyHostedEvent(event, actions, request["ruleset"].getStr() == "build_castles")
 
-proc hostedHash*(world: World): string =
+proc hostedHashValue*(world: World): uint64 =
   ## Hash fixed-width values identically in native and WebAssembly builds.
   var hash = 14695981039346656037'u64
   template add(value: untyped) =
@@ -89,4 +124,7 @@ proc hostedHash*(world: World): string =
     add(tile.army)
   for general in world.generals: add(general)
   for alive in world.alive: add(alive.int)
-  hash.toHex(16)
+  hash
+
+proc hostedHash*(world: World): string =
+  world.hostedHashValue().toHex(16)

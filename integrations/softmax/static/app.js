@@ -12,6 +12,8 @@
   let playing = true, replayTimer = null, readySent = false, replayLoad = 0;
   let reconnectTimer = null, reconnectAttempt = 0, terminal = false, replayDownload = null;
   let ruleset = 'classic', playerCount = 2, eliminated = false;
+  let chatTurn = -1;
+  const privateMessages = [];
   const playerColors = ['red', 'blue', 'green', 'purple', 'orange', 'pink', 'teal', 'maroon'];
   const moves = [[-1,0],[1,0],[0,-1],[0,1]], queue = [];
   let inFlight = null, selectedRoute = null, nextRoute = 0;
@@ -67,9 +69,38 @@
       }
       if (replay) $(`replay-players-${i % 2 === 0 ? 'left' : 'right'}`).append(label.closest('.player'));
     });
+    if ($('chat-target').options.length !== players.length + 1) {
+      $('chat-target').replaceChildren(new Option('Everyone', '-2'),
+        ...players.map((name, i) => new Option(name, String(i))));
+    }
     const title = ruleset === 'build_castles' ? 'BUILD YOUR CASTLES' : playerCount > 2 ? `${playerCount}-PLAYER FFA` : 'CLASSIC 1v1';
     $('variant-title').textContent = title; document.title = `Generals · ${title}`;
   }
+  function messages(message) {
+    if (message.mailbox) {
+      privateMessages.push(...message.mailbox.messages.filter(entry => entry.id !== -2).map(entry => entry.text));
+      privateMessages.splice(0, Math.max(0, privateMessages.length - 100));
+      if (message.mailbox.messages.length && !message.eliminated && message.type === 'observation') {
+        ws.send(JSON.stringify({type:'mailbox', count:message.mailbox.messages.length}));
+      }
+    }
+    const publicMessages = [
+      ...message.chats.map(chat => ({tick:chat.tick, text:`${message.players[chat.player]}: ${chat.text}`})),
+      ...message.events,
+    ].sort((a, b) => a.tick - b.tick).slice(-128);
+    $('chat-messages').replaceChildren(...[...publicMessages.map(entry => entry.text),
+      ...privateMessages.map(text => `[Private] ${text}`)].map(text => {
+        const item = document.createElement('li'); item.textContent = text; return item;
+      }));
+    $('chat-panel').hidden = false;
+    $('chat-form').hidden = slot === null || eliminated;
+  }
+  $('chat-form').onsubmit = event => {
+    event.preventDefault();
+    if (!canQueue() || chatTurn === currentTurn || !$('chat-text').value.trim()) return;
+    ws.send(JSON.stringify({type:'chat', target:Number($('chat-target').value), text:$('chat-text').value}));
+    chatTurn = currentTurn; $('chat-text').value = ''; status('Message queued.');
+  };
   function displayTurn(tick) {
     return `${Math.floor(tick / 2)}${tick % 2 ? '.' : ''}`;
   }
@@ -279,6 +310,7 @@
     return nativeReplayReady;
   }
   async function loadReplay(source) {
+    $('chat-panel').hidden = true;
     document.body.classList.add('replay');
     $('replay-controls').prepend(document.querySelector('.clock'));
     $('replay-left').append($('replay-controls'));
@@ -304,7 +336,7 @@
     let data = source;
     if (source?.encoding === 'gzip+base64') {
       const bytes = Uint8Array.from(atob(source.data), value => value.charCodeAt(0));
-      data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+      data = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
     } else if (typeof source === 'string') {
       const response = await fetch(source, {credentials:'omit'});
       if (!response.ok) throw new Error(`Replay could not be loaded (${response.status}).`);
@@ -312,16 +344,17 @@
       const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
       post({type:'phase', phase:'replay_fetch_end', bytes:bytes.length, compressed});
       if (compressed) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-      data = JSON.parse(new TextDecoder().decode(bytes));
+      data = bytes;
     }
     if (load !== replayLoad) return;
-    if (data.format === 'polyworld-generals-hosted') {
+    if (data instanceof Uint8Array && new TextDecoder().decode(data.subarray(0, 'POLYWORLDREPLAY'.length)) === 'POLYWORLDREPLAY') {
       await prepareNativeReplay();
       nativeReplayVisible = true;
       nativeReplay.style.display = 'block';
-      nativeReplay.contentWindow.postMessage({type:'polyworld-replay-data', replay:JSON.stringify(data)}, location.origin);
+      nativeReplay.contentWindow.postMessage({type:'polyworld-replay-data', replay:data}, location.origin);
       return;
     }
+    if (data instanceof Uint8Array) data = JSON.parse(new TextDecoder().decode(data));
     decodeReplayFrame = GeneralsReplay(data);
     replay = data; ruleset = data.ruleset || 'competition'; slot = null; selected = null; clearTimeout(passTimer);
     names(data.players); $('mode').textContent = 'REPLAY';
@@ -344,6 +377,7 @@
     const previousMove = inFlight;
     slot = message.slot; currentTurn = message.turn; sent = false; inFlight = null;
     ruleset = message.ruleset || ruleset; eliminated = !!message.eliminated; names(message.players, message.player_ratings);
+    messages(message);
     if (playerCount > 2 && !message.visible_owner_grid) throw new Error('This multiplayer observation is missing visible owner identities.');
     const owners = message.visible_owner_grid || message.owner_grid.map(row => row.map(o => o === 0 ? 0 : o === 1 ? slot+1 : 2-slot));
     board = {...message, owner_grid: owners};
@@ -414,6 +448,7 @@
         else if (message.type === 'global') {
           ruleset = message.ruleset || ruleset;
           names(message.players, message.player_ratings); scoreboard(message.turn, message.army, message.land, message.eliminated, message.has_kill);
+          messages(message);
           if (message.phase === 'finished') { loadReplay(message.replay).catch(err => fail(err.message)); }
           else {
             if (message.phase === 'failed') terminal = true;
@@ -470,7 +505,7 @@
     if (url) loadReplay(url).catch(err => fail(err.message));
   });
   if (replayURL) loadReplay(replayURL).catch(err => fail(err.message));
-  else if (location.pathname.endsWith('/client/replay')) loadReplay(livePrefix+'/client/replay.json').catch(err => fail(err.message));
+  else if (location.pathname.endsWith('/client/replay')) loadReplay(livePrefix+'/client/replay.data').catch(err => fail(err.message));
   else if (['/client/player', '/client/global'].some(route => location.pathname.endsWith(route))) connectLive();
   else {
     $('launch').hidden = false;

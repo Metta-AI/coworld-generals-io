@@ -6,9 +6,9 @@ import
 const GlobalMailbox* = -2'i32
 
 type
-  PendingMessage = object
-    target: int
-    text: string
+  PendingMessage* = object
+    target*: int
+    text*: string
   MessageHub* = ref object
     roster*: Roster
     count*: int
@@ -83,13 +83,18 @@ proc mailboxName(hub: MessageHub, player: int): string {.raises: [].} =
   else:
     "Player " & $(player + 1)
 
+proc takeMessage*(hub: MessageHub, sender: int): PendingMessage =
+  ## Transfers an order to the local match or the hosted episode broker.
+  result = hub.pending[sender]
+  hub.pending[sender] = PendingMessage()
+
 proc deliverMessages*(hub: MessageHub, log: var MatchLog, turn: int) {.
     raises: [GeneralsError].} =
   ## Delivers queued traffic in seat order and logs only global messages.
   if hub == nil:
     return
   for sender in 0 ..< hub.count:
-    let pending = hub.pending[sender]
+    let pending = hub.takeMessage(sender)
     if pending.text.len == 0:
       continue
     let text = hub.mailboxName(sender) & ": " & pending.text
@@ -99,7 +104,6 @@ proc deliverMessages*(hub: MessageHub, log: var MatchLog, turn: int) {.
       discard log.addChat(sender, turn, pending.text)
     else:
       discard hub.inboxes[pending.target].push(sender.int32, text)
-    hub.pending[sender].text.setLen(0)
 
 proc eventText*(hub: MessageHub, entry: LogEntry): string {.raises: [].} =
   ## Formats shared capture and result events without exposing hidden names.

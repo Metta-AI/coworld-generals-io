@@ -24,9 +24,9 @@ cd coworld-generals-io
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r integrations/softmax/requirements-polyworld.lock
-nim c -d:release --mm:arc --path:polyworld/src \
-  -o:polyworld/out/generals-polyworld integrations/softmax/polyworld_bridge.nim
+integrations/softmax/tools/build_polyworld_runtime.sh "$PWD/polyworld/out"
 export GENERALS_POLYWORLD_ENGINE="$PWD/polyworld/out/generals-polyworld"
+export GENERALS_BASIC_WORKER="$PWD/polyworld/out/generals-basic"
 python -m integrations.softmax.local --variant ffa --human
 ```
 

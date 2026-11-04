@@ -1,7 +1,27 @@
 ## Private JSONL transport for the authoritative Polyworld simulation.
-import std/[json, sequtils]
-import generals/common
+import std/[json, sequtils, os, strutils]
+import generals/[common, replays, players]
 import polyworld_hosted
+
+if paramCount() == 1 and paramStr(1) == "--encode-replay":
+  stdout.write(encodeHostedReplay(parseJson(stdin.readAll())))
+  quit(0)
+if paramCount() == 2 and paramStr(1) == "--inspect-replay":
+  let data = loadReplay(paramStr(2))
+  let replay = newReplayPlayer(data)
+  var state = newReplayWorld(data)
+  var moves: array[MaxPlayers, Move]
+  while replay.replayTick(state, moves): discard
+  var names: seq[string]
+  for slot in 0 ..< data.config.players:
+    names.add(data.header.setup.roster.displayName(slot))
+  stdout.writeLine($(%*{"format": ReplayMagic, "game": ReplayGame,
+    "game_version": ReplayGameVersion, "turns": state.turn,
+    "players": names, "skill_scores": data.header.setup.skillScores,
+    "final_hash": state.hostedHash(),
+    "first_hash": (if data.hashes.len > 0: data.hashes[0] else: data.header.setup.mapHash).toHex(16),
+    "actions": data.actions.len, "chats": data.metrics.chats}))
+  quit(0)
 
 var world: World
 

@@ -7,7 +7,10 @@ the game. WebSocket ping receives a matching pong.
 
 Updates contain `type: "global"`, `protocol_version: 1`, `phase`, `turn`,
 `max_turns`, two to eight `players` display names, per-slot `army`, `land`, `eliminated`, `has_kill`, and `neutralize_in` arrays,
-`ruleset`, `player_ratings`, `result`, and `board`.
+`ruleset`, `player_ratings`, `result`, `board`, public `chats` and game `events`.
+Chat/event histories contain at most 128 entries. Private inboxes and pending
+messages are never exposed. Public chat uses `{tick,player,text}`; game events
+use `{tick,kind,player,target,text}`.
 `player_ratings` is the public match-start leaderboard snapshot, shared with player
 observations: `{league, label, players:[{slot, score}]}`, or null when unavailable. During the match, `board` and `result` are null. Phases
 are `waiting`, `playing`, `resolving`, `saving`, `finished`, and `failed`;
@@ -17,25 +20,31 @@ Only `finished` reveals a board and result. `GET /replay.json` returns HTTP 409
 until then. The game server exits after completing the hosted episode; hosted
 replay viewing uses the static bundle, independent of the game container.
 
-The saved Polyworld replay is a JSON action tape:
+The saved Polyworld replay uses upstream's `POLYWORLDREPLAY` binary container
+(file format version 2), Generals' packed move stream and 64-bit tick hashes.
+Ordinary moves occupy four bytes; passes need no action record. Extended words
+preserve construction and rejected commands without losing replay semantics.
 
-- `format: "polyworld-generals-hosted"`, `version: 1`, `engine: "polyworld"`.
-- `ruleset`, authored `seed`, `height`, `width`, public `players`, attempted
-  `turns`, and the final `result`.
-- `ticks`: one group per engine tick, including initialization at tick zero.
-  Each event has a typed `command` and the hexadecimal `hash` of the resulting
-  native state. Commands initialize the world, step, surrender or neutralize.
-  Groups preserve the exact ordering of builds, moves, growth, surrender and
-  delayed neutralization, including terminal adjudication.
-- No board frames, player source, private logs, credentials or upload URLs.
+The versioned game identifier is `generals_hosted`, game version 1. Its typed
+setup records the effective seed, generated dimensions, castle preset, public
+roster, match-start skill labels and final outcome. Small per-tick markers retain
+the order of steps, surrenders and delayed neutralization. Accepted public chat is stored in the tape's existing bounded ReplayMessages section.
+No JSON command objects, board frames, private messages, policy source, private logs, credentials or upload URLs
+are persisted in the binary tape. Timeout counts and scoring remain in the
+separate authoritative results artifact.
 
-The published WebAssembly viewer runs the same `polyworld_hosted.nim` transitions
-as the game process. It checks every command hash, including when seeking,
-and reports divergence instead of displaying an unverified match.
-`/client/replay.json` returns the saved tape. `/replay.json` returns completed
-diagnostic frames for inspecting observations and scoring.
-The standalone Polyworld application's binary v4 tape remains its separate
-format; hosted tapes additionally represent castle construction and surrenders.
+The WebAssembly viewer runs the same `polyworld_hosted.nim` transitions as the
+game process. It checks the initial fingerprint and every completed tick,
+including seeks, and rejects divergence. It reveals the result only at the end;
+rewinding hides it again. Current standings supplied by the platform are loaded
+as separate viewer metadata, leaving the downloaded replay bytes unchanged.
+`/client/replay.data` returns the saved bytes with `application/octet-stream`.
+`/replay.json` retains completed diagnostic frames for observation/scoring tools.
+Both return HTTP 409 during play.
+
+The standalone upstream `generals` version 4 and older published JSON recordings
+keep their own readers in their pinned releases. Hosted binary tapes add the
+castle/surrender rules without reinterpreting those historical formats.
 
 The retained JAX runtime saves its JSON frame recording:
 
@@ -65,7 +74,7 @@ browser playback without resimulating JAX. Seed and action history additionally
 allow deterministic resimulation against the recorded ruleset release.
 
 The static viewer loads a replay URL from `#replay=`, falling back to `?replay=`.
-It accepts raw JSON or gzip identified by magic bytes. Internal assets use
+The native viewer accepts binary tapes or gzip identified by magic bytes. Internal assets use
 relative URLs and replay fetching needs CORS when hosted on a different origin.
 The viewer sends `coworld-replay` loading/phase/ready/error messages to its
 embedding parent, autoplays, loops, and exposes pause, seek, speed and restart.
@@ -74,7 +83,7 @@ Release 0.4.0 enables mutual general trades in classic mode. For resimulation,
 use the episode’s pinned source revision: older classic releases disabled this
 rule. Stored board frames remain the authoritative playback data.
 
-The browser player client accepts local JSON/gzip files on its entry screen. During
+The browser player client accepts local binary/gzip tapes and retained JAX JSON files on its entry screen. During
 replay, its perspective selector derives each player's 3×3 territory visibility
 from the recorded board frame. Hidden castles and mountains appear as obstacles;
 hidden generals, ownership, and armies remain concealed. This is a playback

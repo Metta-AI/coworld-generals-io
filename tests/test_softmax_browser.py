@@ -138,7 +138,7 @@ def test_browser_premove_controls(tmp_path, hosted):
             actions.clear()
             sockets[0].send(json.dumps({"type": "hello", "slot": 0, "players": ["Human", "Bot"]}))
             obs = {
-                "type": "observation", "slot": 0, "players": ["Human", "Bot"],
+                "type": "observation", "chats": [], "events": [], "slot": 0, "players": ["Human", "Bot"],
                 "height": 6, "width": 8, "my_army": 10, "opp_army": 10,
                 "my_land": 1, "opp_land": 1, "turn_timeout_seconds": 3600,
                 "type_grid": [[1] * 8 for _ in range(6)],

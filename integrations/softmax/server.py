@@ -16,12 +16,13 @@ from urllib.parse import parse_qs, urlsplit
 import uvicorn
 from anyio import CancelScope
 from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .artifacts import read_json, write_json
+from .artifacts import read_json, write_bytes, write_json
 from .config import GameConfig
 from .file_players import PolicyFault, load_file_players
+from .messages import ChatMessage, MailboxRead, MessageCommand, PolicyMessages
 from .protocol import PASS, VERSION, parse_action
 from .replay import REPLAY_VERSION, ReplayFrames
 
@@ -73,6 +74,7 @@ class Episode:
         self.failed = False
         self.file_players = load_file_players(self.num_players)
         self.file_slots = set(self.file_players.files) if self.file_players else set()
+        self.messages = PolicyMessages(self.names)
 
     def authorize(self, slot: str | None, token: str | None) -> int | None:
         if slot not in tuple(str(s) for s in range(self.num_players)) or token is None:
@@ -102,6 +104,8 @@ class Episode:
             "eliminated": frame["eliminated"],
             "result": self.result,
             "board": frame if self.phase == "finished" else None,
+            "chats": [chat.model_dump() for chat in self.messages.recent_chats],
+            "events": [event.model_dump() for event in self.messages.events],
         }
 
     def publish(self):
@@ -124,6 +128,9 @@ class Episode:
             "player_ratings": self.player_ratings,
             "max_turns": self.config.max_turns,
             "turn_timeout_seconds": self.turn_timeout,
+            "mailbox": self.messages.mailboxes[observation["slot"]].model_dump(),
+            "chats": [chat.model_dump() for chat in self.messages.recent_chats],
+            "events": [event.model_dump() for event in self.messages.events],
             "public_scores": {key: self.frames[-1][key]
                               for key in ("army", "land", "eliminated", "neutralize_in")}
                              | {"has_kill": [count > 0 for count in self.frames[-1]["kills"]]},
@@ -134,10 +141,24 @@ class Episode:
                 and self.phase in ("playing", "resolving") and slot in self.match.active_slots):
             self.request_surrender(slot)
             return
-        if self.phase != "playing":
-            raise ValueError("game is not accepting actions")
+        if self.phase not in ("playing", "resolving"):
+            raise ValueError("game is not accepting commands")
         if slot not in self.match.active_slots:
             raise ValueError("eliminated players cannot act")
+        match message:
+            case {"type": "chat"}:
+                chat = ChatMessage.model_validate(message)
+                if not self.messages.command(MessageCommand(
+                    op="queue", slot=slot, target=chat.target, text=chat.text,
+                )).accepted:
+                    raise ValueError("chat target, text, or per-turn limit rejected")
+                return
+            case {"type": "mailbox"}:
+                request = MailboxRead.model_validate(message)
+                self.messages.command(MessageCommand(op="consume", slot=slot, count=request.count))
+                return
+        if self.phase != "playing":
+            raise ValueError("game is not accepting actions")
         action = parse_action(message, self.match.turn, self.match.height, self.match.width, self.config.ruleset)
         if slot in self.pending:
             raise ValueError("only the first valid action per turn is accepted")
@@ -155,7 +176,7 @@ class Episode:
         if not uri:
             raise RuntimeError(f"missing {name} artifact destination")
         method = self.artifacts.get(f"{name}_method", "PUT")
-        await asyncio.to_thread(write_json, uri, payload, method)
+        await asyncio.to_thread(write_bytes if isinstance(payload, bytes) else write_json, uri, payload, method)
 
     async def run(self):
         try:
@@ -171,9 +192,12 @@ class Episode:
         finally:
             if self.file_players:
                 await self.file_players.close()
+            await asyncio.to_thread(self.messages.close)
             if self.phase in ("finished", "failed"):
-                for queue in self.players.values():
-                    enqueue(queue, {"type": "final" if not self.failed else "failure", "result": self.result})
+                for slot, queue in self.players.items():
+                    enqueue(queue, {"type": "final" if not self.failed else "failure", "result": self.result,
+                        "mailbox": self.messages.mailboxes[slot].model_dump(),
+                        "events": [event.model_dump() for event in self.messages.events]})
                 if self.shutdown:
                     # Drain the final messages before retiring the live server.
                     await asyncio.gather(*self.senders, return_exceptions=True)
@@ -218,6 +242,9 @@ class Episode:
                     if isinstance(reply, PolicyFault):
                         await self.fail_policy(reply)
                         return
+                    self.messages.command(MessageCommand(op="consume", slot=slot, count=reply.mailbox_pulled))
+                    if reply.chat is not None:
+                        self.accept(slot, {"type": "chat", **reply.chat.model_dump()})
                     self.accept(slot, {"type": "action", "turn": self.match.turn, "action": reply.action})
             for slot, queue in self.players.items():
                 enqueue(queue, observations[slot])
@@ -229,6 +256,7 @@ class Episode:
                 pass
             self.phase = "resolving"
             actions = [self.pending.get(slot, PASS.copy()) for slot in range(self.num_players)]
+            previous = self.frames[-1]
             missing = [slot in active and slot not in self.pending and slot not in self.surrenders
                        for slot in range(self.num_players)]
             for slot in active:
@@ -248,6 +276,7 @@ class Episode:
                     reason = "forfeit" if winner >= 0 else "double_forfeit"
                     # Forfeits can change ownership without advancing the tick.
                     self.frames.append(await asyncio.to_thread(self.match.frame))
+                    self.messages.command(MessageCommand(op="flush", turn=self.match.turn))
                     if self.match.engine_name == "polyworld":
                         self.match.record_frame()
                     break
@@ -256,6 +285,20 @@ class Episode:
                 self.match.end_reason = "turn_limit"
                 winner = self.match.adjudicate(self.match.frame())
             self.frames.append(await asyncio.to_thread(self.match.frame))
+            self.messages.command(MessageCommand(op="flush", turn=self.match.turn))
+            current = self.frames[-1]
+            for victim in range(self.num_players):
+                if (not previous["eliminated"][victim] and current["eliminated"][victim]
+                        and victim not in forfeits):
+                    captured = any(
+                        kind == 4 and previous["owner_grid"][row][column] == victim + 1
+                        and current["owner_grid"][row][column] != victim + 1
+                        for row, kinds in enumerate(previous["type_grid"])
+                        for column, kind in enumerate(kinds)
+                    )
+                    if captured:
+                        self.messages.command(MessageCommand(op="event", kind="capture", turn=self.match.turn,
+                            slot=int(self.match.captured_by[victim]), target=victim))
             if self.match.engine_name == "polyworld":
                 self.match.record_frame()
             if winner >= 0:
@@ -266,6 +309,8 @@ class Episode:
                 await asyncio.sleep(remaining)
 
         self.phase = "saving"
+        self.messages.command(MessageCommand(op="event", kind="victory" if winner >= 0 else "draw",
+            turn=self.match.turn, slot=winner))
         result = {
             "scores": ([0] * self.num_players if winner == -1 else
                        [1 if s == winner else -1 for s in range(self.num_players)]),
@@ -293,6 +338,7 @@ class Episode:
             "result": result,
         }
         replay["skill_scores"] = self.skill_scores
+        replay["chats"] = [chat.model_dump() for chat in self.messages.chats]
         replay["skill_label"] = (f"At match start: {self.config.player_ratings.league} "
                                  f"{self.config.player_ratings.label}. — = unrated."
                                  if self.config.player_ratings is not None else "Skill: unavailable for this replay.")
@@ -307,7 +353,8 @@ class Episode:
         self.browser_replay = await asyncio.to_thread(lambda: {
             "encoding": "gzip+base64",
             "data": base64.b64encode(gzip.compress(
-                json.dumps(saved_replay, separators=(",", ":")).encode(), compresslevel=1
+                (saved_replay if isinstance(saved_replay, bytes) else
+                 json.dumps(saved_replay, separators=(",", ":")).encode()), compresslevel=1
             )).decode(),
         })
         self.phase = "finished"
@@ -472,11 +519,13 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
             raise HTTPException(409, "replay is available when the episode completes")
         return JSONResponse(episode.replay)
 
-    @app.get("/client/replay.json")
+    @app.get("/client/replay.data")
     async def replay_data():
         episode = app.state.episode
         if episode.phase != "finished":
             raise HTTPException(409, "replay is available when the episode completes")
+        if isinstance(episode.saved_replay, bytes):
+            return Response(episode.saved_replay, media_type="application/octet-stream")
         return JSONResponse(episode.saved_replay)
 
     @app.websocket("/player")

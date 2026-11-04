@@ -10,9 +10,9 @@ when defined(softmaxReplay):
 export tapes
 
 const
-  ReplayGame* = "generals"
+  ReplayGame* = (when defined(softmaxReplay): "generals_hosted" else: "generals")
   ReplayFormatVersion* = 4'u16
-  ReplayGameVersion* = 4'u16
+  ReplayGameVersion* = (when defined(softmaxReplay): 1'u16 else: 4'u16)
   ReplayMapVersion* = 2'u16
   MaxReplayTicks* = 100_000
   MaxReplayActions* = MaxReplayTicks * MaxPlayers
@@ -21,6 +21,7 @@ const
   ChatHeaderBytes = 16
   HalfFlag = 1'u32
   RawFlag = 2'u32
+  BuildFlag = 4'u32
   SourceMask = 0xfff'u32
   MaximumTickDelta = 0x1fff'u32
   ExtendedAction = uint32.high
@@ -34,6 +35,7 @@ type
     roster*: Roster
     when defined(softmaxReplay):
       hostedTicks*: seq[seq[HostedEvent]]
+      building*: bool
       outcome*: string
       skillScores*: seq[string]
       skillLabel*: string
@@ -117,7 +119,8 @@ proc validateAction(action: ReplayAction, players: int) {.
   ## Checks command metadata without rejecting ordinary illegal moves.
   if action.player >= uint32(players):
     fail("action references an unknown player")
-  if action.flags > HalfFlag + RawFlag:
+  if action.flags > HalfFlag + RawFlag and
+      not (defined(softmaxReplay) and action.flags == BuildFlag):
     fail("action contains unsupported move flags")
   if (action.flags and RawFlag) != 0 and action.direction in 0 .. 3:
     if action.row in [int32.low, int32.high] or
@@ -193,11 +196,40 @@ proc validate(data: ReplayData): World {.raises: [GeneralsError].} =
     data.header.requireTapeVersion(ReplayFormatVersion, ReplayGameVersion)
   except ReplayError as error:
     fail(error.msg)
-  result = initialWorld(data.config, data.header.setup.mapVersion)
+  when defined(softmaxReplay):
+    let setup = data.header.setup
+    if data.config.players notin 2 .. 8 or data.hashes.len > 50_002 or
+        setup.hostedTicks.len != data.hashes.len + 1 or
+        setup.skillScores.len != data.config.players or
+        (setup.building and data.config.players != 2):
+      fail("hosted recording exceeds duration or player limits")
+    result = newHostedWorld(data.config.seed, data.config.players, setup.building)
+    if result.config != data.config:
+      fail("hosted configuration does not match its generated map")
+    for tick, commands in setup.hostedTicks:
+      if commands.len > 40:
+        fail("hosted tick has an invalid command count")
+      var steps = 0
+      for command in commands:
+        if command.kind == StepEvent:
+          inc steps
+          if command.slots != 0:
+            fail("step command contains player flags")
+        elif command.slots == 0 or int(command.slots) shr data.config.players != 0:
+          fail("hosted command references an unknown player")
+      if steps != (if tick == 0: 0 else: 1):
+        fail("hosted recording requires exactly one step per tick")
+    for command in setup.hostedTicks[0]:
+      discard result.applyHostedEvent(command, [], setup.building)
+  else:
+    result = initialWorld(data.config, data.header.setup.mapVersion)
   data.header.setup.roster.validateRoster(data.config.players)
   if data.header.setup.maximumTicks != uint32(data.config.maxTurns):
     fail("configuration and setup have different turn limits")
-  if data.header.setup.mapHash != result.stateHash():
+  let fingerprint =
+    when defined(softmaxReplay): result.hostedHashValue()
+    else: result.stateHash()
+  if data.header.setup.mapHash != fingerprint:
     fail("generated map does not match its recorded fingerprint")
   if data.hashes.len > data.config.maxTurns:
     fail("hashes exceed the configured duration")
@@ -209,6 +241,10 @@ proc validate(data: ReplayData): World {.raises: [GeneralsError].} =
     players = 0'u32
   for action in data.actions:
     action.validateAction(data.config.players)
+    when defined(softmaxReplay):
+      if action.flags == BuildFlag and (not data.header.setup.building or
+          action.row notin 0 ..< data.config.height or action.column notin 0 ..< data.config.width):
+        fail("construction command is outside the building game")
     if action.tick == 0 or action.tick > uint32(data.hashes.len):
       fail("action is outside the recorded duration")
     if action.tick < lastTick:
@@ -310,13 +346,7 @@ proc recordChat*(
 
 proc newReplayWorld*(data: ReplayData): World =
   ## Regenerates and verifies the initial world without running any bots.
-  when defined(softmaxReplay):
-    for event in data.header.setup.hostedTicks[0]:
-      discard result.applyHosted(parseJson(event.command))
-      if result.hostedHash() != event.hash:
-        fail("hosted simulation diverged at tick 0")
-  else:
-    result = data.validate()
+  result = data.validate()
 
 proc newReplayPlayer*(data: ReplayData): ReplayPlayer =
   ## Creates a shared Polyworld cursor over a validated Generals tape.
@@ -347,18 +377,34 @@ proc replayTick*(
       fail("simulation ended before the recorded duration")
   let tick = uint32(world.turn + 1)
   when defined(softmaxReplay):
+    var actions = newSeq[HostedAction](world.config.players)
+    for action in actions.mitems:
+      action[0] = 1
+    var recorded: ReplayAction
+    while player.takeActionAt(tick, recorded):
+      let slot = int(recorded.player)
+      if recorded.flags == BuildFlag:
+        actions[slot] = [2'i32, recorded.row, recorded.column, 0, 0]
+      else:
+        let move = recorded.actionMove()
+        moves[slot] = move
+        var row, column, direction: int
+        if move.raw:
+          row = move.row
+          column = move.column
+          direction = move.direction
+        else:
+          row = move.source div world.config.width
+          column = move.source mod world.config.width
+          let delta = move.target - move.source
+          direction = if delta == -world.config.width: 0
+            elif delta == world.config.width: 1
+            elif delta == -1: 2 else: 3
+        actions[slot] = [0'i32, row.int32, column.int32, direction.int32, move.half.int32]
     for event in player.data.header.setup.hostedTicks[int(tick)]:
-      let command = parseJson(event.command)
-      if command["op"].getStr() == "step":
-        for slot, action in command["actions"].getElems():
-          if action[0].getInt() == 0:
-            moves[slot] = actionMove(action[1].getInt(), action[2].getInt(),
-              action[3].getInt(), action[4].getInt() == 1)
-      discard world.applyHosted(command)
-      if world.hostedHash() != event.hash:
-        fail("hosted simulation diverged at tick " & $tick)
-    if world.turn != int(tick):
-      fail("hosted recording did not advance to tick " & $tick)
+      discard world.applyHostedEvent(event, actions, player.data.header.setup.building)
+    if world.turn != int(tick) or world.hostedHashValue() != player.data.hashes[int(tick) - 1]:
+      fail("hosted simulation diverged at tick " & $tick)
     result = true
   else:
     var
@@ -578,47 +624,97 @@ proc loadReplay*(path: string): ReplayData =
   try:
     if getFileSize(path) > MaxReplayBytes:
       fail("recording exceeds the file size limit")
+    result = decodeReplay(readFile(path))
     when defined(softmaxReplay):
-      let payload = parseJson(readFile(path))
-      if payload["format"].getStr() != "polyworld-generals-hosted" or
-          payload["version"].getInt() != 1 or payload["engine"].getStr() != "polyworld":
-        fail("expected a Polyworld hosted action tape")
-      let ticks = payload["ticks"]
-      if ticks.len notin 1 .. 50_003 or payload["players"].len notin 2 .. 8:
-        fail("hosted recording exceeds duration or player limits")
-      for tick, events in ticks.getElems():
-        if events.len notin 1 .. 40:
-          fail("hosted tick has an invalid command count")
-        var recorded: seq[HostedEvent]
-        for index, event in events.getElems():
-          let command = event["command"]
-          if (command["op"].getStr() == "new") != (tick == 0 and index == 0):
-            fail("hosted recording must initialize exactly once")
-          recorded.add HostedEvent(command: $command, hash: event["hash"].getStr())
-        result.header.setup.hostedTicks.add(recorded)
-      let world = result.newReplayWorld()
-      result.config = world.config
-      if result.config.players != payload["players"].len:
-        fail("hosted roster does not match the simulation")
-      result.header.setup.roster = defaultRoster()
-      for slot, name in payload["players"].getElems():
-        result.header.setup.roster.players[slot].name = name.getStr()
-        result.header.setup.skillScores.add("—")
-      result.header.setup.skillLabel = "Skill: unavailable for this replay."
-      if payload.hasKey("skill_scores"):
-        if payload["skill_scores"].len != result.config.players:
-          fail("skill scores must match the recorded seats")
-        for slot, score in payload["skill_scores"].getElems():
-          if score.kind != JNull:
-            result.header.setup.skillScores[slot] = formatFloat(score.getFloat(), ffDecimal, 1)
-        result.header.setup.skillLabel = payload["skill_label"].getStr()
-      result.header.setup.roster.validateRoster(result.config.players)
-      let winner = payload["result"]["winner"].getInt()
-      result.header.setup.outcome = "Result: " &
-        (if winner < 0: "draw" else: result.header.setup.roster.displayName(winner) & " won") &
-        " (" & payload["result"]["reason"].getStr().replace('_', ' ') & ")."
-      result.hashes = newSeq[uint64](ticks.len - 1)
-    else:
-      result = decodeReplay(readFile(path))
+      if fileExists("/player-ratings.json"):
+        let metadata = parseJson(readFile("/player-ratings.json"))
+        result.header.setup.skillLabel = "Current " & metadata["league"].getStr() &
+          " " & metadata["label"].getStr() & ". — = unrated."
+        var seen: set[0 .. 7]
+        for player in metadata["players"].getElems():
+          let slot = player["slot"].getInt()
+          if slot notin 0 ..< result.config.players or slot in seen:
+            fail("invalid leaderboard player slot")
+          seen.incl(slot)
+          result.header.setup.skillScores[slot] =
+            if player["score"].kind == JNull: "—"
+            else: formatFloat(player["score"].getFloat(), ffDecimal, 1)
   except IOError, OSError:
     fail("cannot load recording: " & getCurrentExceptionMsg())
+
+when defined(softmaxReplay):
+  proc encodeHostedReplay*(payload: JsonNode): string =
+    ## Converts the process command log into upstream's packed action tape.
+    let ticks = payload["ticks"]
+    let initial = ticks[0][0]["command"]
+    var data: ReplayData
+    data.header = TapeHeader[ReplaySetup](
+      formatVersion: ReplayFormatVersion, gameVersion: ReplayGameVersion,
+      setup: ReplaySetup(mapVersion: ReplayMapVersion,
+        maximumTicks: 100_000, roster: defaultRoster(),
+        building: initial["ruleset"].getStr() == "build_castles"))
+    let world = newHostedWorld(
+      int(initial["seed"].getBiggestInt() and 0x7fff_ffff'i64),
+      initial["players"].getInt(), data.header.setup.building)
+    data.config = world.config
+    for slot, name in payload["players"].getElems():
+      data.header.setup.roster.players[slot].name = name.getStr()
+      let score = payload["skill_scores"][slot]
+      data.header.setup.skillScores.add(
+        if score.kind == JNull: "—" else: formatFloat(score.getFloat(), ffDecimal, 1))
+    data.header.setup.skillLabel = payload["skill_label"].getStr()
+    # Existing downloaded JSON tapes predate hosted chat.
+    if payload.hasKey("chats"):
+      for chat in payload["chats"].getElems():
+        data.metrics.chats.add ReplayChat(tick: chat["tick"].getInt().uint32,
+          player: chat["player"].getInt().int32, text: chat["text"].getStr())
+    let winner = payload["result"]["winner"].getInt()
+    data.header.setup.outcome = "Result: " &
+      (if winner < 0: "draw" else: data.header.setup.roster.displayName(winner) & " won") &
+      " (" & payload["result"]["reason"].getStr().replace('_', ' ') & ")."
+    for tick, events in ticks.getElems():
+      var commands: seq[HostedEvent]
+      for index, event in events.getElems():
+        let command = event["command"]
+        case command["op"].getStr()
+        of "new":
+          if tick != 0 or index != 0:
+            fail("hosted recording must initialize exactly once")
+        of "step":
+          commands.add HostedEvent(kind: StepEvent)
+          for slot, fields in command["actions"].getElems():
+            case fields[0].getInt()
+            of 0:
+              var move = actionMove(fields[1].getInt(), fields[2].getInt(),
+                fields[3].getInt(), fields[4].getInt() == 1)
+              let source = move.row * data.config.width + move.column
+              let delta = [-data.config.width, data.config.width, -1, 1][move.direction]
+              let target = source + delta
+              if move.row in 0 ..< data.config.height and
+                  move.column in 0 ..< data.config.width and
+                  target in 0 ..< data.config.width * data.config.height and
+                  (move.direction != 2 or move.column > 0) and
+                  (move.direction != 3 or move.column < data.config.width - 1):
+                move = Move(source: source, target: target, half: move.half)
+              data.actions.add replayAction(move, tick, slot)
+            of 2:
+              data.actions.add ReplayAction(tick: tick.uint32, player: slot.uint32,
+                flags: BuildFlag, row: fields[1].getInt().int32,
+                column: fields[2].getInt().int32)
+            else:
+              discard
+        of "surrender", "neutralize":
+          var recorded = HostedEvent(kind:
+            if command["op"].getStr() == "surrender": SurrenderEvent else: NeutralizeEvent)
+          for slot in command["slots"]:
+            recorded.slots = recorded.slots or (1'u8 shl slot.getInt())
+          commands.add(recorded)
+        else:
+          fail("unknown hosted recording command")
+      data.header.setup.hostedTicks.add(commands)
+      let fingerprint = cast[uint64](events[^1]["hash"].getStr().parseHexInt())
+      if tick == 0:
+        data.header.setup.mapHash = fingerprint
+      else:
+        data.hashes.add(fingerprint)
+    data.encodeReplay()

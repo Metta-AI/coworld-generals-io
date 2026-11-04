@@ -75,7 +75,7 @@ def main():
         "COGAME_PORT": str(args.port),
         "GENERALS_KEEP_OPEN": "1",
         "COGAME_RESULTS_URI": (run_dir / "results.json").as_uri(),
-        "COGAME_SAVE_REPLAY_URI": (run_dir / "replay.json").as_uri(),
+        "COGAME_SAVE_REPLAY_URI": (run_dir / ("game.replay" if args.engine == "polyworld" else "replay.json")).as_uri(),
         "COGAME_PLAYER_FAILURE_URI": (run_dir / "failure.json").as_uri(),
     }
     if basic:
