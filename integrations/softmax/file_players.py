@@ -83,8 +83,8 @@ class FilePlayers:
         for seat in self.files.values():
             proc = await asyncio.create_subprocess_exec(
                 "prlimit",
-                "--as=268435456",
-                "--cpu=120",
+                "--as=536870912",
+                "--cpu=1200",
                 "--core=0",
                 "--",
                 os.environ.get("GENERALS_BASIC_WORKER", "/usr/local/bin/generals-basic"),
