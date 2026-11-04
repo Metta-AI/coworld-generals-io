@@ -4,7 +4,7 @@ import
   ../src/generals/[bots, common, worlds]
 
 const
-  ReplayVersion = 1
+  ReplayVersion = 2
   FingerprintBasis = 14695981039346656037'u64
   FingerprintPrime = 1099511628211'u64
 
@@ -24,16 +24,25 @@ type
     samples: seq[float64]
     minimum, median, mean: float64
 
-proc mix(value: var uint64, item: int) =
+proc mix(value: var uint64, item: SomeInteger) =
   ## Mixes a platform-independent integer into a deterministic state digest.
-  value = (value xor cast[uint64](item.int64)) * FingerprintPrime
+  let bits =
+    when item is SomeUnsignedInt:
+      uint64(item)
+    else:
+      cast[uint64](int64(item))
+  value = (value xor bits) * FingerprintPrime
 
 proc fingerprint(world: World): string =
   ## Digests every gameplay field outside the measured simulation loops.
   var value = FingerprintBasis
   for item in [
-    world.config.width, world.config.height, world.config.players,
-    world.config.seed, world.config.maxTurns, world.turn, world.winner,
+    world.config.width, world.config.height, world.config.players
+  ]:
+    value.mix(item)
+  value.mix(world.config.seed)
+  for item in [
+    world.config.maxTurns, world.turn, world.winner,
     world.finished.ord
   ]:
     value.mix(item)
@@ -90,7 +99,7 @@ proc writeReplays(path: string, replays: seq[Replay]) =
       "width": replay.config.width,
       "height": replay.config.height,
       "players": replay.config.players,
-      "seed": replay.config.seed,
+      "seed": $replay.config.seed,
       "maxTurns": replay.config.maxTurns,
       "initial": replay.initial,
       "frames": frames,
@@ -112,7 +121,7 @@ proc readReplays(path: string): seq[Replay] =
         width: game["width"].getInt(),
         height: game["height"].getInt(),
         players: game["players"].getInt(),
-        seed: game["seed"].getInt(),
+        seed: parseSeed(game["seed"].getStr()),
         maxTurns: game["maxTurns"].getInt()
       ),
       initial: game["initial"].getStr(),
@@ -343,7 +352,7 @@ proc main() =
       "width": replay.config.width,
       "height": replay.config.height,
       "players": replay.config.players,
-      "seed": replay.config.seed,
+      "seed": $replay.config.seed,
       "ticks": replay.frames.len,
       "winner": replay.winner
     }

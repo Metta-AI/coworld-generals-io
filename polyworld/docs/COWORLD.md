@@ -5,6 +5,12 @@ container runs the deterministic simulation and a separate bounded BASIC
 VM for every seat. Matches support 2 to 10 FFA players. File policies do
 not need their own containers or a gameplay WebSocket connection.
 
+This document describes the retained standalone `-d:coworld` wrapper. Its
+pinned shared configuration and results API supports seeds from 0 through
+2147483647. Larger seeds are rejected before that API is called. The official
+runner under `integrations/softmax`, the standalone CLI, and replay viewers
+support the full unsigned 64-bit range, 0 through 18446744073709551615.
+
 ## Release inputs
 
 | Path | Purpose |

@@ -60,7 +60,7 @@ assignments while keeping supplied names and MMR values.
 | --- | --- |
 | `--replay PATH` | Play a recorded action tape, or verify it when headless. |
 | `--record PATH` | Save the live match as a Polyworld action tape. |
-| `--seed N` | Seed the generated map. |
+| `--seed N` | Seed the generated map, from 0 to 18446744073709551615. |
 | `--ticks N` | Maximum simulation ticks, from 1 through 100000. |
 | `--seconds N` | Set the limit to `N × 2` ticks. |
 | `--minutes N` | Set the limit to `N × 120` ticks. |

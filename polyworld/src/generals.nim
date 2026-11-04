@@ -142,7 +142,7 @@ proc usage() =
   echo "  --bot:PATH[:COUNT]    Equivalent compact bot form."
   echo "  --players N          Set the FFA roster size, 2 through 10."
   echo "  --config PATH        Load engine JSON before CLI overrides."
-  echo "  --seed N             Reproduce a map, 0 through 2147483647."
+  echo "  --seed N             Reproduce a map, 0 through 18446744073709551615."
   echo "  --headless           Simulate or verify without a window."
   echo "  --record PATH        Save a Polyworld action replay."
   echo "  --replay PATH        Watch or verify a recorded match."

@@ -310,7 +310,7 @@ proc layout(view: View) =
 proc start(view: View, newSeed = false) =
   ## Resets match state and gives the selected human seat its own general.
   if newSeed:
-    view.config.seed = (view.config.seed + 1) mod 1_000_000_000
+    view.config.seed = view.config.seed + 1'u64
   let defaults = defaultConfig(view.config.seed, view.config.players)
   if view.autoWidth:
     view.config.width = defaults.width

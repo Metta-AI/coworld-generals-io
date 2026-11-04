@@ -9,9 +9,9 @@ const
     (24, 31), (25, 33), (26, 34), (26, 35)
   ]
   SeedSevenHashes = [
-    187894509'u32, 1079226161'u32, 1959172222'u32,
-    1726120293'u32, 803266350'u32, 149375408'u32,
-    273856192'u32, 3487652237'u32, 1555999541'u32
+    4066235706'u32, 3981090564'u32, 723501003'u32,
+    3333240923'u32, 2136627035'u32, 4217085026'u32,
+    1649587078'u32, 3295942409'u32, 2696611605'u32
   ]
 
 proc separation(world: World, first, second: int): int =
@@ -172,10 +172,13 @@ for dimension in [-1, 0, 12, 62, int.high]:
   config = defaultConfig()
   config.height = dimension
   config.assertRejected()
-for seed in [-1, int32.high.int + 1, int.high]:
-  var config = defaultConfig()
-  config.seed = seed
-  config.assertRejected()
+block:
+  var rejected = false
+  try:
+    discard defaultConfig(-1)
+  except GeneralsError:
+    rejected = true
+  doAssert rejected
 for turns in [0, -1, 100_001]:
   var config = defaultConfig()
   config.maxTurns = turns

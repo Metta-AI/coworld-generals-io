@@ -117,7 +117,7 @@ block:
 
 for bytes in [
   "{", "[]", "null", "{\"players\":[]}", "{\"players\":[{}]}",
-  "{\"seed\":-1}", "{\"seed\":2147483648}", "{\"maxTicks\":0}",
+  "{\"seed\":-1}", "{\"seed\":18446744073709551616}", "{\"maxTicks\":0}",
   "{\"maxTicks\":100001}", "{\"width\":12}", "{\"height\":62}",
   "{\"players\":[{\"mmr\":-2},{}]}",
   "{\"players\":[{\"name\":\"" &
@@ -135,14 +135,16 @@ block:
     "+1", "01", "-01", "1_0", "1.0", "1e0", "--1", "- 1"
   ]
   for token in invalidIntegers:
-    for field in ["seed", "maxTicks", "max_ticks", "width", "height"]:
+    if token notin ["18446744073709551615", "9223372036854775808"]:
+      expectInvalid("{\"seed\":" & token & "}")
+    for field in ["maxTicks", "max_ticks", "width", "height"]:
       expectInvalid("{\"" & field & "\":" & token & "}")
     expectInvalid("{\"players\":[{\"mmr\":" & token & "},{}]}")
   let limits = parseSettings("""{
-    "seed": 2147483647, "max_ticks": 100000, "width": 61, "height": 61,
+    "seed": 18446744073709551615, "max_ticks": 100000, "width": 61, "height": 61,
     "players": [{"mmr": 2147483647}, {"mmr": -1}]
   }""")
-  doAssert limits.config.seed == int32.high.int
+  doAssert limits.config.seed == uint64.high
   doAssert limits.config.maxTurns == 100_000
   doAssert limits.config.width == 61 and limits.config.height == 61
   doAssert limits.resolvedRoster().playerMmr(0) == int32.high

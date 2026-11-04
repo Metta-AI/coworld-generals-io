@@ -6,6 +6,12 @@ import
 proc hostedOptions*(): Options =
   ## Validates game settings before starting the shared file-policy host.
   result.settings = loadSettings(localPath(getEnv("COGAME_CONFIG_URI")))
+  if result.settings.config.seed > int32.high.uint64:
+    raise newException(
+      GeneralsError,
+      "The legacy CoWorld wrapper requires a seed from 0 to 2147483647. " &
+        "Use integrations/softmax for the full 64-bit runner."
+    )
   if result.settings.config.maxTurns > DefaultDurationTicks.int:
     raise newException(
       GeneralsError,

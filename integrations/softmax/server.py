@@ -421,8 +421,10 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
             )
         except Exception as exc:  # noqa: BLE001 - startup tracebacks must not expose config URLs or tokens
             raise RuntimeError(f"cannot load game config ({type(exc).__name__})") from None
+        engine_name = engine or os.environ.get("GENERALS_ENGINE", "jax")
         if cfg.seed is None:
-            cfg = cfg.model_copy(update={"seed": secrets.randbits(32)})
+            seed_bits = 64 if engine_name == "polyworld" else 32
+            cfg = cfg.model_copy(update={"seed": secrets.randbits(seed_bits)})
         destinations = (
             artifacts
             if artifacts is not None
@@ -435,7 +437,6 @@ def create_app(config: GameConfig | None = None, artifacts: dict | None = None, 
                 "failure_method": os.environ.get("COGAME_PLAYER_FAILURE_METHOD", "PUT"),
             }
         )
-        engine_name = engine or os.environ.get("GENERALS_ENGINE", "jax")
         if engine_name == "polyworld":
             from .polyworld_engine import Match as PolyworldMatch
 

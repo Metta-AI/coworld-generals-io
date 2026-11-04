@@ -93,7 +93,7 @@ proc connected(world: World, scratch: var MapScratch): bool =
 
 proc placeGenerals(
     world: var World,
-    random: var uint32,
+    random: var uint64,
     scratch: var MapScratch
 ): bool =
   ## Places separated random starts with exits and balanced duel expansion.
@@ -167,7 +167,7 @@ proc citiesNear(world: World): bool =
 proc duelCities(
     world: var World,
     desired: int,
-    random: var uint32,
+    random: var uint64,
     scratch: var MapScratch
 ): bool =
   ## Pairs opposite city opportunities at equal walking costs and garrisons.
@@ -239,7 +239,7 @@ proc duelCities(
 proc ffaCities(
     world: var World,
     desired: int,
-    random: var uint32,
+    random: var uint64,
     scratch: var MapScratch
 ): bool =
   ## Gives each FFA start a nearby city before filling the random city budget.
@@ -275,8 +275,6 @@ proc generateWorld*(config: Config): World =
     raise newException(GeneralsError, "Map dimensions must be 13 to 61.")
   if config.players notin 2 .. MaxPlayers:
     raise newException(GeneralsError, "A match needs 2 to 10 players.")
-  if config.seed < 0 or config.seed > int32.high.int:
-    raise newException(GeneralsError, "Map seed must be 0 to 2147483647.")
   if config.maxTurns notin 1 .. 100_000:
     raise newException(GeneralsError, "Turn limit must be 1 to 100000.")
   result.config = config
