@@ -3,7 +3,7 @@
 Every FFA player count from 2 through 10 is supported. The same seed,
 player count, dimensions, and map-generation version produce exactly the
 same tiles, city armies, and player starts. The generator uses a private
-xorshift32 stream, so creating another game or running bots cannot affect it.
+SplitMix64 stream, so creating another game or running bots cannot affect it.
 Seeds are integers from 0 through 2147483647.
 
 Default dimensions depend on both the seed and player count. Ten-player
@@ -59,3 +59,8 @@ Replays store concrete dimensions, the seed, and a generator version.
 Current recordings use the asymmetric generator and standard Polyworld
 lockstep action replay. Older recordings use the archived game build that
 created them.
+
+Map generator version 3 accepts every unsigned 64-bit seed, from 0 to
+18446744073709551615. All seed bits participate in map generation. Its
+unsigned arithmetic produces the same board in native and WebAssembly builds.
+Earlier map versions remain with the archived game builds that created them.

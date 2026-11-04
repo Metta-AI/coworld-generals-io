@@ -31,7 +31,7 @@ class GameConfig(BaseModel):
     players: list[PlayerName] = Field(min_length=2, max_length=8)
     player_ratings: PlayerRatings | None = None
     ruleset: Literal["classic", "build_castles"] = "classic"
-    seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
+    seed: int | None = Field(default=None, ge=0, le=2**64 - 1)
     max_turns: int = Field(default=1200, ge=1, le=50002)
     turn_timeout_seconds: float = Field(default=0.5, ge=0.05, le=1)
     tick_interval_seconds: float = Field(default=0, ge=0, le=0.5)

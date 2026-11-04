@@ -88,7 +88,7 @@ rules, general trades, scoring, and replay format as other seats. FFA bots allow
 
 ## Limits and failures
 
-Each policy runs in a separate process with 256 MiB address space, 120 seconds
+Each policy runs in a separate process with 512 MiB address space, 1,200 seconds
 of CPU time per episode, and no core dumps. BASIC exposes no filesystem,
 network, shell, or process functions. Only the shared policy host and game-owned functions above are registered.
 The process sandbox is an additional hosted isolation boundary; Docker players
@@ -98,8 +98,8 @@ Limits per policy:
 
 - Compressed policy package: 16 MiB; raw/extracted BASIC source: 256 KiB.
 - Bytecode: 65,536 instructions.
-- Logical VM memory: 4 MiB; native memory: 4 MiB. Array storage must fit the same VM budget.
-- Each decision: 200,000 VM instructions and 400,000 work units, matching the standalone host.
+- Logical VM memory: 8 MiB; native memory: 8 MiB. Array storage must fit the same VM budget.
+- Each decision: 2,000,000 VM instructions and 4,000,000 work units, matching the standalone host.
 - Each decision's PRINT output: 4 KiB and 128 events.
 - Total retained private log: 10 MiB. Further output is drained and discarded.
 

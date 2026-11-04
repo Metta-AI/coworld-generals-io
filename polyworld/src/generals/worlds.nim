@@ -101,8 +101,6 @@ proc newWorldLegacy*(config: Config): World =
       raise newException(GeneralsError, "Map dimensions must be 13 to 61.")
   if config.players notin [2, 4]:
     raise newException(GeneralsError, "A match needs two or four players.")
-  if config.seed < 0:
-    raise newException(GeneralsError, "Map seed must not be negative.")
   if config.maxTurns < 1 or config.maxTurns > 100_000:
     raise newException(GeneralsError, "Turn limit must be 1 to 100000.")
   result.config = config
@@ -110,7 +108,7 @@ proc newWorldLegacy*(config: Config): World =
   result.tiles = newSeq[Tile](config.width * config.height)
   result.generals = newSeq[int](config.players)
   result.alive = newSeq[bool](config.players)
-  var random = uint32(config.seed and 0xffff_ffff) xor 0xa3c5_9ac3'u32
+  var random = uint32(config.seed and 0xffff_ffff'u64) xor 0xa3c5_9ac3'u32
   if random == 0:
     random = 1
   for tile in result.tiles.mitems:

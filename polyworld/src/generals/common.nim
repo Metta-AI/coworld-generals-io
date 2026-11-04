@@ -13,7 +13,8 @@ type
     owner*: int8
     army*: int
   Config* = object
-    width*, height*, players*, seed*, maxTurns*: int
+    width*, height*, players*, maxTurns*: int
+    seed*: uint64
   World* = object
     config*: Config
     tiles*: seq[Tile]
@@ -32,25 +33,43 @@ type
     eliminationOrder*: seq[int]
     damage*: seq[seq[int]]
 
-proc mapRandom*(seed: int): uint32 {.raises: [].} =
-  ## Seeds the map's private random stream without global random state.
-  result = uint32(seed and 0xffff_ffff) xor 0xa3c5_9ac3'u32
-  if result == 0:
-    result = 1
+proc parseSeed*(text: string): uint64 {.raises: [GeneralsError].} =
+  ## Parses an exact unsigned 64-bit decimal seed without wrapping.
+  if text.len == 0 or (text.len > 1 and text[0] == '0'):
+    raise newException(GeneralsError, "Seed must be an unsigned decimal integer.")
+  for digit in text:
+    if digit notin '0' .. '9':
+      raise newException(GeneralsError, "Seed must be an unsigned decimal integer.")
+    let value = uint64(ord(digit) - ord('0'))
+    if result > (uint64.high - value) div 10:
+      raise newException(GeneralsError, "Seed exceeds 18446744073709551615.")
+    result = result * 10 + value
 
-proc nextRandom*(random: var uint32, maximum: int): int {.raises: [].} =
-  ## Draws one bounded integer using a fixed xorshift32 sequence.
+proc mapRandom*(seed: uint64): uint64 {.raises: [].} =
+  ## Seeds the map's private 64-bit stream without discarding any seed bits.
+  seed
+
+proc nextRandom*(random: var uint64, maximum: int): int {.raises: [].} =
+  ## Draws a bounded integer with portable unsigned SplitMix64 arithmetic.
   assert maximum > 0
-  random = random xor (random shl 13)
-  random = random xor (random shr 17)
-  random = random xor (random shl 5)
-  int(random mod maximum.uint32)
+  random += 0x9e37_79b9_7f4a_7c15'u64
+  var value = random
+  value = (value xor (value shr 30)) * 0xbf58_476d_1ce4_e5b9'u64
+  value = (value xor (value shr 27)) * 0x94d0_49bb_1331_11eb'u64
+  value = value xor (value shr 31)
+  int(value mod maximum.uint64)
 
-proc defaultDimensions*(seed, players: int): tuple[width, height: int] =
+proc defaultDimensions*(
+    seed: SomeInteger,
+    players: int
+): tuple[width, height: int] =
   ## Chooses seeded classic dimensions that grow with the FFA player count.
   if players notin 2 .. MaxPlayers:
     raise newException(GeneralsError, "A match needs 2 to 10 players.")
-  var random = mapRandom(seed)
+  when seed is SomeSignedInt:
+    if seed < 0:
+      raise newException(GeneralsError, "Map seed must not be negative.")
+  var random = mapRandom(uint64(seed))
   let
     base = uint64(32 + 2 * min(8, players) + max(0, players - 6))
     scale = uint64(8 + players)
@@ -65,14 +84,17 @@ proc defaultDimensions*(seed, players: int): tuple[width, height: int] =
     else:
       result.height = size
 
-proc defaultConfig*(seed = 1, players = DefaultPlayers): Config =
+proc defaultConfig*(
+    seed: SomeInteger = 1,
+    players = DefaultPlayers
+): Config =
   ## Creates a standard local match with a bounded simulation duration.
   let dimensions = defaultDimensions(seed, players)
   Config(
     width: dimensions.width,
     height: dimensions.height,
     players: players,
-    seed: seed,
+    seed: uint64(seed),
     maxTurns: DefaultTurns
   )
 

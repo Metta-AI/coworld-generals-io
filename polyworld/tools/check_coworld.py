@@ -103,7 +103,7 @@ def fixture(slot, scout, annotations=True):
 
 
 def episode(args, root, name, sources, ticks=24, failed_slot=None,
-            runtime_error=False, annotations=True, expose=True):
+            runtime_error=False, annotations=True, expose=True, seed=2026):
     """Stage one episode and inspect outputs before allowing collection."""
     directory = root / name
     directory.mkdir()
@@ -114,7 +114,7 @@ def episode(args, root, name, sources, ticks=24, failed_slot=None,
             {"name": f"Hosted Player {slot}", "mmr": 31 + slot}
             for slot in range(count)
         ],
-        "seed": 2026,
+        "seed": seed,
         "max_ticks": ticks,
         "expose_player_info": expose,
     }
@@ -179,6 +179,14 @@ def episode(args, root, name, sources, ticks=24, failed_slot=None,
             command, cwd=ROOT, env=env, stdout=output, stderr=subprocess.STDOUT
         )
         try:
+            if seed > 2**31 - 1:
+                process.wait(timeout=30)
+                assert process.returncode != 0
+                assert "legacy CoWorld wrapper requires a seed" in game_log.read_text()
+                assert not marker.exists() and not unexpected.exists()
+                assert not (directory / "replay").exists()
+                print(f"PASS {name} (rejected before the legacy seed narrows)", flush=True)
+                return None, b""
             while not marker.exists():
                 assert not unexpected.exists(), unexpected.read_text()
                 assert process.poll() is None, game_log.read_text()
@@ -219,7 +227,7 @@ def episode(args, root, name, sources, ticks=24, failed_slot=None,
                 assert all(type(score) is int and score in (0, 1)
                            for score in outcome["scores"])
                 assert sum(outcome["scores"]) in (0, 1)
-                assert outcome["seed"] == 2026
+                assert outcome["seed"] == seed
                 assert 0 < outcome["ticks"] <= ticks
                 assert outcome["outcome"] in ("draw", "victory")
                 assert (outcome["outcome"] == "victory") == (
@@ -310,6 +318,7 @@ def main():
         )
         scout = (ROOT / "examples/scout.bas").read_bytes()
         pair = [fixture(slot, scout) for slot in range(2)]
+        episode(args, root, "rejected-large-seed", pair, seed=2**64 - 1)
         first = episode(args, root, "two-raw", pair)
         second = episode(args, root, "two-repeat", pair)
         assert first == second, "Same seed and actions changed results or replay bytes"

@@ -10,9 +10,9 @@ type
     kind*: HostedEventKind
     slots*: uint8
 
-proc newHostedWorld*(seed, players: int, building: bool): World =
+proc newHostedWorld*(seed: uint64, players: int, building: bool): World =
   ## Creates the shared hosted map, including the castle-building preset.
-  var config = defaultConfig(seed and 0x7fff_ffff, players)
+  var config = defaultConfig(seed, players)
   config.maxTurns = 100_000
   result = newWorld(config)
   if building:
@@ -82,7 +82,7 @@ proc applyHosted*(world: var World, request: JsonNode): StepReport =
   let op = request["op"].getStr()
   if op == "new":
     world = newHostedWorld(
-      int(request["seed"].getBiggestInt() and 0x7fff_ffff'i64),
+      parseSeed(request["seed"].getStr()),
       request["players"].getInt(), request["ruleset"].getStr() == "build_castles")
     return
   var event: HostedEvent
@@ -110,13 +110,14 @@ proc hostedHashValue*(world: World): uint64 =
   var hash = 14695981039346656037'u64
   template add(value: untyped) =
     block:
-      var word = cast[uint64](int64(value))
+      var word = cast[uint64](value)
       for i in 0 ..< 8:
         hash = (hash xor (word and 255)) * 1099511628211'u64
         word = word shr 8
   for value in [world.config.width, world.config.height, world.config.players,
-                world.config.seed, world.config.maxTurns, world.turn, world.winner]:
+                world.config.maxTurns, world.turn, world.winner]:
     add(value)
+  add(world.config.seed)
   add(world.finished.int)
   for tile in world.tiles:
     add(tile.kind.ord)

@@ -63,11 +63,12 @@ looping. Up to 16,384 public messages fit in a recording; later messages
 still reach the UI and mailboxes without stopping simulation recording.
 Direct messages, BASIC source, and bot file paths are not saved.
 
-The current game reads and writes replay version 4 only. Earlier replay
+The current game reads and writes game version 5 only. Earlier replay
 versions belong to the archived game builds that created them. There is
 no conversion or older-format reader in this build.
 
-Version 4 stores ordinary commands as one 32-bit word, instead of eight
+Version 5 retains the compact encoding introduced in version 4. It stores
+ordinary commands as one 32-bit word, instead of eight
 32-bit fields. The action tape contains a Flatty sequence of these words:
 
 | Bits | Value |
@@ -91,6 +92,8 @@ without changing their meaning. Ordinary valid army moves use the compact
 form. Decoding bounds the expanded action count before allocating it and
 rejects noncanonical encodings, invalid geometry, and truncated records.
 
+The configuration stores the full unsigned 64-bit seed. Map generator version
+3 uses SplitMix64, and this build rejects older game and map versions.
 The same seed, dimensions, player count, and generator version always
 reconstruct the same starting board for this game build. The public
 roster retains names, MMR, and the bot identity-query flag. See

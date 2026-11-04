@@ -367,10 +367,6 @@ block:
     let oversized = Move(source: int32.high.int + 1, target: 0)
     expectReplayError:
       recorder.recordTick(world, [oversized, noMove()])
-    expectReplayError:
-      discard newReplayRecorder(
-        newWorld(defaultConfig(int32.high.int + 1, 2))
-      )
   recorder.recordTick(world, [noMove(), noMove()])
   doAssert recorder.data.hashes.len == 2
   inc world.turn
@@ -493,11 +489,10 @@ block:
   changed.config.width = int.high
   expectReplayError:
     discard newReplayPlayer(changed)
-  when sizeof(int) > sizeof(int32):
-    changed = bytes.decodeReplay()
-    changed.config.seed = int32.high.int + 1
-    expectReplayError:
-      discard newReplayPlayer(changed)
+  changed = bytes.decodeReplay()
+  changed.config.seed = changed.config.seed xor (1'u64 shl 63)
+  expectReplayError:
+    discard newReplayPlayer(changed)
   changed = bytes.decodeReplay()
   changed.actions[0].player = uint32(changed.config.players)
   expectReplayError:

@@ -15,6 +15,76 @@ from integrations.softmax.replay import replay_frame
 from integrations.softmax.server import create_app
 
 
+def test_runner_seeds_reproduce_full_width_maps_and_binary_replays(tmp_path, monkeypatch, inspect_native_replay):
+    """Runner JSON, native generation and saved replays preserve all seed bits."""
+    if "GENERALS_POLYWORLD_ENGINE" not in os.environ:
+        pytest.skip("Compile polyworld_bridge.nim and set GENERALS_POLYWORLD_ENGINE")
+    seeds = [0, 7, (1 << 31) | 7, (1 << 32) | 7,
+             (1 << 53) | 7, (1 << 63) | 7, (1 << 64) - 1]
+    maps = []
+    for seed in seeds:
+        recordings = []
+        boards = []
+        for repetition in range(2):
+            directory = tmp_path / f"{seed}-{repetition}"
+            directory.mkdir()
+            tokens = ["red", "blue", "green", "purple"]
+            config = {
+                "tokens": tokens,
+                "players": [{"name": token} for token in tokens],
+                "seed": seed,
+                "max_turns": 4,
+                "turn_timeout_seconds": 1,
+            }
+            config_path = directory / "config.json"
+            config_path.write_text(json.dumps(config))
+            monkeypatch.setenv("COGAME_CONFIG_URI", config_path.as_uri())
+            artifacts = {key: (directory / f"{key}.json").as_uri()
+                         for key in ("results", "replay", "failure")}
+            with TestClient(create_app(artifacts=artifacts, engine="polyworld")) as client, ExitStack() as stack:
+                sockets = [stack.enter_context(client.websocket_connect(f"/player?slot={slot}&token={token}"))
+                           for slot, token in enumerate(tokens)]
+                for ws in sockets:
+                    assert ws.receive_json()["type"] == "hello"
+                for turn in range(config["max_turns"]):
+                    for ws in sockets:
+                        observation = ws.receive_json()
+                        assert observation["turn"] == turn
+                        ws.send_json({"type": "action", "turn": turn, "action": PASS})
+                result = sockets[0].receive_json()["result"]
+                assert result["turns"] == 4 and result["timeouts"] == [0] * 4
+                diagnostic = client.get("/replay.json").json()
+                assert diagnostic["seed"] == seed
+                boards.append(replay_frame(diagnostic["frames"], 0))
+                response = client.get("/client/replay.data")
+                assert response.status_code == 200
+                recordings.append(response.content)
+            path = directory / "replay.json"
+            assert recordings[-1] == path.read_bytes()
+            inspected = inspect_native_replay(path)
+            assert inspected["seed"] == str(seed)
+            assert inspected["game_version"] == 2 and inspected["turns"] == 4
+            assert not (directory / "failure.json").exists()
+        assert boards[0] == boards[1], f"seed {seed} generated different maps"
+        assert recordings[0] == recordings[1], f"seed {seed} generated different recordings"
+        maps.append(boards[0])
+    fingerprints = {json.dumps(board, sort_keys=True) for board in maps}
+    assert len(fingerprints) == len(seeds), "upper seed bits must affect the map"
+
+
+@pytest.mark.parametrize("seed", [-1, 1 << 64])
+def test_runner_rejects_seeds_outside_unsigned_64_bits(tmp_path, monkeypatch, seed):
+    """Reject invalid runner input before starting the authoritative engine."""
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"tokens": ["red", "blue"],
+                                "players": [{"name": "Red"}, {"name": "Blue"}],
+                                "seed": seed}))
+    monkeypatch.setenv("COGAME_CONFIG_URI", path.as_uri())
+    with pytest.raises(RuntimeError, match="cannot load game config.*ValidationError"):
+        with TestClient(create_app(engine="polyworld")):
+            pytest.fail("invalid seed started a game")
+
+
 def test_polyworld_builders_finish_and_replay_their_constructed_castles(tmp_path, inspect_native_replay):
     if "GENERALS_POLYWORLD_ENGINE" not in os.environ:
         pytest.skip("Compile polyworld_bridge.nim and set GENERALS_POLYWORLD_ENGINE")
@@ -77,13 +147,17 @@ def test_polyworld_final_surrenders_persist_one_terminal_tick(tmp_path, inspect_
 
 
 @pytest.mark.parametrize("viewer", ["polyworld"], indirect=True)
-@pytest.mark.parametrize("variant,count,turns", [("ffa", 8, 80), ("castles", 2, 140)])
+@pytest.mark.parametrize("variant,count,turns,seed", [
+    ("ffa", 8, 80, (1 << 64) - 1),
+    ("castles", 2, 140, (1 << 63) | 7),
+    ("ffa", 4, 80, (1 << 53) | 7),
+])
 @pytest.mark.skipif(
     os.environ.get("GENERALS_BROWSER_TESTS") != "1" or
     "GENERALS_POLYWORLD_ENGINE" not in os.environ or "GENERALS_POLYWORLD_VIEWER" not in os.environ,
     reason="requires the compiled Polyworld engine/viewer and the real browser suite",
 )
-def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, variant, count, turns, native_controls, inspect_native_replay):
+def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, variant, count, turns, seed, native_controls, inspect_native_replay):
     """A shipped replay must reproduce hosted rules in the actual WASM viewer."""
     import gzip
     import socket
@@ -102,13 +176,14 @@ def test_polyworld_tapes_verify_seek_and_reject_divergence(tmp_path, viewer, var
     root = Path(__file__).resolve().parents[2]
     subprocess.run(
         [sys.executable, "-m", "integrations.softmax.local", "--variant", variant,
-         *(["--players", str(count)] if variant == "ffa" else []), "--seed", "4294967295", "--max-turns", str(turns),
+         *(["--players", str(count)] if variant == "ffa" else []), "--seed", str(seed), "--max-turns", str(turns),
          "--port", str(port), "--output", str(tmp_path / "episodes")],
         cwd=root, check=True, capture_output=True, text=True, timeout=180,
     )
     recording = next((tmp_path / "episodes").glob("episode-*/game.replay"))
     tape = inspect_native_replay(recording)
     assert tape["format"] == "POLYWORLDREPLAY"
+    assert tape["seed"] == str(seed) and tape["game_version"] == 2
     assert json.loads((recording.parent / "results.json").read_text())["timeouts"] == [0] * count
     (bundle / "replay.gz").write_bytes(gzip.compress(recording.read_bytes()))
     scores = [-2.34, *([27.38] * (count - 2)), None]

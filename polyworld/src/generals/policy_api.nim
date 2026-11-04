@@ -25,10 +25,10 @@ type
 proc policyLimits*(): Limits =
   ## The same decision and storage budgets apply in every BASIC runtime.
   result = defaultLimits()
-  result.maxInstructions = 200_000
-  result.maxWorkUnits = 400_000
-  result.maxMemoryBytes = 4 * 1024 * 1024
-  result.maxNativeMemoryBytes = 4 * 1024 * 1024
+  result.maxInstructions = 2_000_000
+  result.maxWorkUnits = 4_000_000
+  result.maxMemoryBytes = 8 * 1024 * 1024
+  result.maxNativeMemoryBytes = 8 * 1024 * 1024
   result.maxSourceBytes = 256 * 1024
   result.maxCodeInstructions = 65_536
   result.maxPrintBytes = 4096

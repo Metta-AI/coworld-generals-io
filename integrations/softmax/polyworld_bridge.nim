@@ -17,6 +17,7 @@ if paramCount() == 2 and paramStr(1) == "--inspect-replay":
     names.add(data.header.setup.roster.displayName(slot))
   stdout.writeLine($(%*{"format": ReplayMagic, "game": ReplayGame,
     "game_version": ReplayGameVersion, "turns": state.turn,
+    "seed": $data.config.seed,
     "players": names, "skill_scores": data.header.setup.skillScores,
     "final_hash": state.hostedHash(),
     "first_hash": (if data.hashes.len > 0: data.hashes[0] else: data.header.setup.mapHash).toHex(16),

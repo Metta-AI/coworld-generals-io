@@ -80,7 +80,7 @@ server.run()
                     time.sleep(0.05)
                 assert client.get(base + "/healthz").status_code == 200
                 with sync_playwright() as playwright:
-                    browser = playwright.chromium.launch()
+                    browser = playwright.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH"))
                     try:
                         player = browser.new_page()
                         spectator = browser.new_page()
@@ -95,6 +95,16 @@ server.run()
                             env={**os.environ, "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{port}/player?slot=1&token=bot"},
                             stdout=log, stderr=subprocess.STDOUT)
                         for page in (player, spectator):
+                            expect(page.locator("#mode")).to_have_text("FINISHED", timeout=30000)
+                            expect(page.locator("#cover-title")).to_have_text("The game is a draw.")
+                            expect(page.locator("#cover.winner")).to_be_visible()
+                        winner_shown = time.monotonic()
+                        player.wait_for_timeout(4400)
+                        for page in (player, spectator):
+                            expect(page.locator("#cover.winner")).to_be_visible()
+                            if native:
+                                expect(page.locator("#polyworld-replay")).to_be_hidden()
+                        for page in (player, spectator):
                             if native:
                                 expect(page.locator("#polyworld-replay")).to_be_visible(timeout=30000)
                                 frame = page.frames[1]
@@ -104,6 +114,7 @@ server.run()
                             else:
                                 expect(page.locator("#mode")).to_have_text("REPLAY", timeout=30000)
                                 expect(page.locator("#board .tile").first).to_be_visible()
+                        assert time.monotonic() - winner_shown >= 4.8
                         assert json.loads((tmp_path / "results.json").read_text())["timeouts"] == [0, 0]
                         bot.wait(timeout=10)
                         assert bot.returncode == 0

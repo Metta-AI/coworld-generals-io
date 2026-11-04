@@ -14,7 +14,8 @@ from .protocol import VERSION
 class EngineCommand(BaseModel):
     model_config = ConfigDict(extra="forbid")
     op: Literal["new", "step", "surrender", "neutralize"]
-    seed: int = 0
+    # Decimal text preserves all bits across Nim's signed JSON integer parser.
+    seed: str = "0"
     players: int = 2
     ruleset: Literal["classic", "build_castles"] = "classic"
     actions: list[list[int]] = []
@@ -47,6 +48,8 @@ class Match:
     engine_name = "polyworld"
 
     def __init__(self, seed: int, num_players: int = 2, ruleset: str = "classic"):
+        if type(seed) is not int or not 0 <= seed < 2**64:
+            raise ValueError("seed must be an unsigned 64-bit integer")
         if not 2 <= num_players <= 8 or ruleset not in ("classic", "build_castles"):
             raise ValueError("expected two to eight players and a known ruleset")
         if ruleset == "build_castles" and num_players != 2:
@@ -68,7 +71,7 @@ class Match:
             [os.environ.get("GENERALS_POLYWORLD_ENGINE", "/usr/local/bin/generals-polyworld")],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
         )
-        self._command(EngineCommand(op="new", seed=seed, players=num_players, ruleset=ruleset))
+        self._command(EngineCommand(op="new", seed=str(seed), players=num_players, ruleset=ruleset))
         self.width, self.height = self.state.width, self.state.height
 
     def _command(self, command: EngineCommand):

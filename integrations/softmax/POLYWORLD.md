@@ -47,8 +47,11 @@ binary `ReplayMessages` section; private mail never enters recordings or
 spectator updates. The broker closes with the episode. Hosted BASIC keeps its
 additional process sandbox, while containers keep platform-owned resources.
 
-The hosted game uses Polyworld's deterministic map generator. Hosted seeds use
-their low 31 bits for identical native and WebAssembly arithmetic. Map dimensions,
+The hosted game uses Polyworld's deterministic map generator. Hosted seeds retain
+all 64 unsigned bits, from 0 through 18446744073709551615. The private
+process boundary sends seeds as decimal text to preserve their exact value.
+Map generator version 3 uses SplitMix64 with identical native and WebAssembly
+arithmetic. Map dimensions,
 layouts and seeds differ from the former JAX generator. This release does not
 claim official map parity. Human seats retain the browser player client. Completed
 matches use the actual Polyworld Silky viewer compiled to WebAssembly.
@@ -89,9 +92,10 @@ and castle construction use the upstream extended-word escape.
 
 Hosted rules additionally need typed, ordered surrender/neutralization markers,
 the castle preset, public roster/skill metadata and the final outcome. Their
-versioned game identifier is `generals_hosted`, version 1, inside the shared
+versioned game identifier is `generals_hosted`, version 2, inside the shared
 Polyworld file format version 2. This avoids assigning new meaning to upstream's
-`generals` version 4, whose standalone rules and reader remain unchanged.
+`generals` version 5. Both store the full unsigned 64-bit seed and use map
+generator version 3. Earlier versions remain with their archived game builds.
 The hosted viewer and process use identical `polyworld_hosted.nim` transitions.
 The new reader accepts binary tapes; published JSON tapes retain their original
 immutable viewer bundles. No stored replay or published bundle is rewritten.

@@ -92,8 +92,8 @@ destination. Acceptance does not guarantee winning the battle. A policy
 can submit at most one accepted move per decision. Omitting a move passes.
 
 The program runs once before each tick and its variables persist between
-decisions. Each decision has bounded instruction and work budgets, with
-4 MiB available for persistent BASIC memory.
+decisions. Each decision allows 2,000,000 instructions and 4,000,000 work
+units, with 8 MiB available for persistent BASIC memory.
 A compile error aborts match setup. A runtime error reports the failing
 seat and makes that policy pass for the remainder of the match.
 

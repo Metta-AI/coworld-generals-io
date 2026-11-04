@@ -213,7 +213,12 @@ proc resolve(options: var Options, explicitCount, seatBots: bool) =
   if groupCount > 0 or options.game.playerSlot > 0:
     options.startGame = true
   discard options.settings.resolvedRoster()
-  options.game.seed = options.settings.config.seed.int32
+  # Generals uses the full settings seed, not the shared CLI's signed field.
+  options.game.seed =
+    if options.settings.config.seed <= int32.high.uint64:
+      options.settings.config.seed.int32
+    else:
+      0
   options.game.maximumTicks = options.settings.config.maxTurns.int32
   options.game.seconds = options.game.maximumTicks div 2
 
@@ -221,7 +226,7 @@ proc parseOptions*(arguments: seq[string]): Options =
   ## Parses shared Polyworld flags and the game's existing CLI aliases.
   result.settings = defaultSettings()
   result.game = GameOptions(
-    seed: result.settings.config.seed.int32,
+    seed: 1,
     maximumTicks: result.settings.config.maxTurns.int32,
     seconds: result.settings.config.maxTurns.int32 div 2,
     speed: 1,

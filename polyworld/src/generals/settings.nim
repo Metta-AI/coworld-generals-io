@@ -10,6 +10,7 @@ const
 
 type
   EngineInteger = distinct int64
+  EngineSeed = distinct uint64
   Settings* = object
     config*: Config
     roster*: Roster
@@ -21,7 +22,8 @@ type
     mmr: EngineInteger = EngineInteger(-1)
   EngineConfig = object
     players: seq[EnginePlayer]
-    seed, maxTicks, width, height: EngineInteger
+    seed: EngineSeed
+    maxTicks, width, height: EngineInteger
     exposePlayerInfo: bool
 
 proc parseHook(bytes: string, index: var int, value: var EngineInteger) =
@@ -41,6 +43,14 @@ proc parseHook(bytes: string, index: var int, value: var EngineInteger) =
   except ValueError:
     raise newException(JsonError, "JSON integer exceeds signed 64-bit range.")
 
+proc parseHook(bytes: string, index: var int, value: var EngineSeed) =
+  ## Preserves every seed bit while enforcing the unsigned JSON integer grammar.
+  let token = parseSymbol(bytes, index)
+  try:
+    value = EngineSeed(parseSeed(token))
+  except GeneralsError as error:
+    raise newException(JsonError, error.msg)
+
 proc defaultSettings*(): Settings =
   ## Creates the same unnamed roster and board settings as a local match.
   Settings(
@@ -58,7 +68,7 @@ proc newHook(config: var EngineConfig) =
   ## Fills omitted JSON fields from the native game defaults.
   config = EngineConfig(
     players: newSeq[EnginePlayer](DefaultPlayers),
-    seed: EngineInteger(1),
+    seed: EngineSeed(1),
     maxTicks: EngineInteger(DefaultTurns),
     exposePlayerInfo: true
   )
@@ -200,7 +210,7 @@ proc parseSettings*(bytes: string, directory = getCurrentDir()): Settings =
     )
   result = defaultSettings()
   result.config = Config(
-    seed: checked(config.seed, "Seed", 0, int32.high.int),
+    seed: config.seed.uint64,
     maxTurns: checked(config.maxTicks, "Turn limit", 1, 100_000),
     width: checked(config.width, "Map width", 0, 61),
     height: checked(config.height, "Map height", 0, 61),
@@ -265,9 +275,7 @@ proc applySetting*(settings: var Settings, argument: string): bool =
   if argument.startsWith("--config="):
     discard
   elif argument.startsWith("--seed="):
-    settings.config.seed = boundedNumber(
-      argument[7 .. ^1], "Seed", 0, int32.high.int
-    )
+    settings.config.seed = parseSeed(argument[7 .. ^1])
     settings.refreshDimensions()
   elif argument.startsWith("--players="):
     settings.config.players = boundedNumber(

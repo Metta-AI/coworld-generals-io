@@ -89,6 +89,21 @@ def main():
         assert "Verified 8 replay ticks" in output
         print("PASS headless pacing without replay changes")
 
+        for seed in (2**31, 2**32 + 17, 2**63 + 17, 2**64 - 1):
+            output = run(executable, [*base, "--seed", seed, "--record", first])
+            assert f"Seed {seed}, 2 players, 8 ticks." in output
+            config.write_text(json.dumps({
+                "players": [{}, {}], "seed": seed, "max_ticks": 8,
+            }), encoding="utf-8")
+            run(executable, [
+                "--headless", "--bot", f"{bot}:2", "--config", config,
+                "--record", second,
+            ])
+            assert first.read_bytes() == second.read_bytes()
+            output = run(executable, ["--headless", "--replay", first])
+            assert "Verified 8 replay ticks in lockstep." in output
+        print("PASS full unsigned 64-bit seeds through CLI, config, and replay")
+
         for flags in [
             ["--player"], ["--player:10"], ["--player", "2"],
             ["--screenshot", folder / "frame.png"],
@@ -101,7 +116,7 @@ def main():
             ["--bot", f"{bot}:2", "--players", "3"],
             ["--bot", f"{bot}:2", f"--bot=1:{bot}"],
             ["--seconds", "50001"], ["--ticks", "0"],
-            ["--seed", "-1"], ["--seed", "2147483648"],
+            ["--seed", "-1"], ["--seed", "18446744073709551616"],
             ["--play=perhaps"], ["--speed", "0"],
             ["--windowSize", "0x400"], ["--vsync", "perhaps"],
             ["--headless-tick-rate", "10001"], ["--llm-mode", "unknown"],

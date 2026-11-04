@@ -20,6 +20,7 @@ const
   ChatLineHeight = 24.0'f
   ChatInputHeight = 36.0'f
   MaxChatLines = 12
+  WinnerPauseSeconds = 5.0
   Emotes = [":)", ":D", ":(", "<3", "GG", "GLHF"]
 
 type
@@ -53,6 +54,8 @@ type
     pov: Pov
     visibilityScratch: seq[bool]
     replaying: bool
+    replayEnded: bool
+    replayEndAt: MonoTime
     recordPath: string
     controls: Controls
     screen: Screen
@@ -310,7 +313,7 @@ proc layout(view: View) =
 proc start(view: View, newSeed = false) =
   ## Resets match state and gives the selected human seat its own general.
   if newSeed:
-    view.config.seed = (view.config.seed + 1) mod 1_000_000_000
+    view.config.seed = view.config.seed + 1'u64
   let defaults = defaultConfig(view.config.seed, view.config.players)
   if view.autoWidth:
     view.config.width = defaults.width
@@ -418,6 +421,7 @@ proc replayChats(view: View) =
 
 proc resetReplay(view: View) =
   ## Reconstructs the seeded board and clears derived event history.
+  view.replayEnded = false
   view.world = newReplayWorld(view.replay.data)
   view.replay.syncCursor(0)
   view.log.resetLog()
@@ -495,8 +499,77 @@ proc playReplay(view: View, elapsed: float64) =
     elapsed.float32 / (60.0'f * TickSeconds.float32),
     60
   )
-  while view.transport.player.shouldTick(frameStart):
-    view.advanceReplay()
+  while view.world.turn < view.replay.data.hashes.len and
+    view.transport.player.shouldTick(frameStart):
+      view.advanceReplay()
+  if view.world.turn == view.replay.data.hashes.len:
+    when not defined(softmaxReplay):
+      if not view.world.finished:
+        discard view.transport.player.shouldTick(frameStart)
+        return
+    if not view.replayEnded:
+      view.replayEnded = true
+      view.replayEndAt = getMonoTime()
+    view.transport.player.accumulator = 0
+    view.transport.player.targetTick = -1
+    if not view.transport.player.repeating:
+      view.transport.player.playing = false
+    elif view.transport.player.playing and
+      view.transport.player.timelineEnd > 0 and
+      (getMonoTime() - view.replayEndAt).inNanoseconds.float64 / 1e9 >=
+      WinnerPauseSeconds:
+        view.transport.player.seekTo(0, automatic = true)
+
+proc winnerText(view: View): string =
+  ## Names the final winner without exposing results before the last tick.
+  if view.world.winner >= 0:
+    view.roster.displayName(view.world.winner) & " wins the game!"
+  else:
+    "The game is a draw."
+
+proc drawReplayOutcome(view: View) =
+  ## Shows the final result while leaving replay controls available below it.
+  if not view.replaying or view.world.turn != view.replay.data.hashes.len:
+    return
+  when not defined(softmaxReplay):
+    if not view.world.finished:
+      return
+  let
+    boardSize = vec2(
+      view.world.config.width.float32,
+      view.world.config.height.float32
+    ) * view.cellSize
+    size = vec2(min(540.0'f, boardSize.x - 24), 180)
+    origin = view.boardOrigin + (boardSize - size) / 2
+  view.sk.drawRect(view.boardOrigin, boardSize, rgbx(0, 0, 0, 96))
+  view.panel(origin, size)
+  if view.world.winner >= 0:
+    view.centered(
+      view.fitted(
+        view.roster.displayName(view.world.winner),
+        size.x - 32,
+        "OutcomeName"
+      ),
+      origin + vec2(16, 42),
+      size.x - 32,
+      Black,
+      "OutcomeName"
+    )
+    view.centered(
+      "wins the game!",
+      origin + vec2(0, 96),
+      size.x,
+      Black,
+      "OutcomeDetail"
+    )
+  else:
+    view.centered(
+      "The game is a draw.",
+      origin + vec2(0, 72),
+      size.x,
+      Black,
+      "OutcomeDetail"
+    )
 
 proc drawBlockedGlow(view: View, target: int, origin: Vec2, size: float32) =
   ## Fades red along the selected edge of one adjacent blocked terrain tile.
@@ -1191,28 +1264,21 @@ proc drawOutcome(view: View) =
         "Game Over"
     defeated = view.hasHuman() and not view.humanAlive() and view.captor >= 0
     detail =
-      if defeated:
+      if view.world.finished and view.world.winner >= 0:
+        view.fitted(view.winnerText(), size.x - 40, "OutcomeDetail")
+      elif defeated:
         "You were defeated by "
-      elif view.hasHuman() and view.world.finished and
-        view.world.winner == view.humanPlayer:
-          "Your crown is the last one standing."
       elif view.world.finished and view.world.winner < 0:
         "The turn limit was reached."
-      elif not view.hasHuman():
-        "Winner: "
       else:
         "Your general was captured."
     detailWidth = view.sk.getTextSize("OutcomeDetail", detail).x
     name =
-      if defeated:
+      if view.world.finished and view.world.winner >= 0:
+        ""
+      elif defeated:
         view.fitted(
           view.roster.displayName(view.captor),
-          size.x - detailWidth - 40,
-          "OutcomeName"
-        ) & "."
-      elif not view.hasHuman() and view.world.winner >= 0:
-        view.fitted(
-          view.roster.displayName(view.world.winner),
           size.x - detailWidth - 40,
           "OutcomeName"
         ) & "."
@@ -1458,6 +1524,7 @@ proc frame(view: View) =
           size: vec2(view.size.x, replayTransportHeight(view.size.x))
         ))
       view.drawOutcome()
+      view.drawReplayOutcome()
     silkyContexts.textInputs(view.sk).submitInput(
       view.window,
       "generals-chat",
@@ -1480,6 +1547,12 @@ proc frame(view: View) =
         repeating = view.transport.player.repeating.int
         skillScores = view.replay.data.header.setup.skillScores.join("|")
         skillScoresCString = skillScores.cstring
+        outcome =
+          if view.world.turn == view.replay.data.hashes.len:
+            view.winnerText()
+          else:
+            ""
+        outcomeCString = outcome.cstring
       var messages: string
       for line in view.chatLines:
         for part in line.parts:
@@ -1493,7 +1566,9 @@ proc frame(view: View) =
         Module.replayRepeating = !!$1;
         Module.replaySkillScores = UTF8ToString($2).split('|');
         Module.replayMessages = UTF8ToString($3);
-      }, `playing`, `repeating`, `skillScoresCString`, `messagesCString`);
+        Module.replayOutcome = UTF8ToString($4);
+      }, `playing`, `repeating`, `skillScoresCString`, `messagesCString`,
+        `outcomeCString`);
       """.}
 
 proc runWindow(

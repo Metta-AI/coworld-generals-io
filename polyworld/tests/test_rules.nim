@@ -320,7 +320,7 @@ for players in [2, 4]:
         width: 23,
         height: 19,
         players: players,
-        seed: seed,
+        seed: seed.uint64,
         maxTurns: DefaultTurns
       )
       world = newWorldLegacy(config)

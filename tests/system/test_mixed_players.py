@@ -210,7 +210,50 @@ def test_unmodified_polyworld_scout_plays_a_hosted_socket_opponent(tmp_path: Pat
     assert not (tmp_path / "failure").exists()
 
 
-@pytest.mark.parametrize("source", ["this is not BASIC", "do\nloop", "zip_escape"])
+def test_basic_larger_budgets_complete_a_hosted_game(tmp_path: Path, monkeypatch, inspect_native_replay):
+    """A policy exceeding the old storage and compute budgets finishes normally."""
+    if "GENERALS_BASIC_WORKER" not in os.environ:
+        pytest.skip("Build the native BASIC worker and set GENERALS_BASIC_WORKER")
+    policy = tmp_path / "policy"
+    policy.write_text("""
+dim cache(163840)
+for i = 0 to 99999
+  count = count + 1
+next i
+cache(163840) = cache(163840) + count
+print "BUDGET", worldTick(), count, cache(163840)
+pass()
+""")
+    roster = tmp_path / "seats.json"
+    roster.write_text(json.dumps({
+        "schema": "coworld-play-seats/2",
+        "player_status_uri": (tmp_path / "status.json").as_uri(),
+        "seats": [{
+            "kind": "policy", "slot": 0, "file_uri": policy.as_uri(),
+            "content_hash": "sha256:" + "e" * 64, "size_bytes": policy.stat().st_size,
+            "log_uri": (tmp_path / "basic.log").as_uri(),
+            "artifact_uri": (tmp_path / "basic.zip").as_uri(),
+        }, {"kind": "container", "slot": 1}],
+    }))
+    monkeypatch.setenv("COGAME_PLAYER_SEATS_URI", roster.as_uri())
+    config = GameConfig(tokens=["basic", "socket"], players=[{"name": "Basic"}, {"name": "Socket"}],
+                        seed=7, max_turns=2)
+    artifacts = {name: (tmp_path / name).as_uri() for name in ("results", "replay", "failure")}
+    with TestClient(create_app(config, artifacts, engine="polyworld")) as client:
+        with client.websocket_connect("/player?slot=1&token=socket") as opponent:
+            assert opponent.receive_json()["type"] == "hello"
+            for tick in range(2):
+                observation = opponent.receive_json()
+                assert observation["turn"] == tick
+                opponent.send_json({"type": "action", "turn": tick, "action": [1, 0, 0, 0, 0]})
+            final = opponent.receive_json()
+            assert final["type"] == "final" and final["result"]["timeouts"] == [0, 0]
+    assert (tmp_path / "basic.log").read_text() == "BUDGET 0 100000 100000\nBUDGET 1 200000 300000\n"
+    assert inspect_native_replay(tmp_path / "replay")["turns"] == 2
+    assert not (tmp_path / "failure").exists()
+
+
+@pytest.mark.parametrize("source", ["this is not BASIC", "do\nloop", "dim oversized(1000000)", "zip_escape"])
 @pytest.mark.parametrize("engine", ["jax", "polyworld"])
 def test_broken_basic_never_publishes_competitive_scores(tmp_path: Path, monkeypatch, source, engine):
     if "GENERALS_BASIC_WORKER" not in os.environ:

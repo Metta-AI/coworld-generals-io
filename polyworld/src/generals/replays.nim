@@ -12,8 +12,8 @@ export tapes
 const
   ReplayGame* = (when defined(softmaxReplay): "generals_hosted" else: "generals")
   ReplayFormatVersion* = 4'u16
-  ReplayGameVersion* = (when defined(softmaxReplay): 1'u16 else: 4'u16)
-  ReplayMapVersion* = 2'u16
+  ReplayGameVersion* = (when defined(softmaxReplay): 2'u16 else: 5'u16)
+  ReplayMapVersion* = 3'u16
   MaxReplayTicks* = 100_000
   MaxReplayActions* = MaxReplayTicks * MaxPlayers
   MaxReplayChats* = 16_384
@@ -96,8 +96,6 @@ proc initialWorld(
     mapVersion = ReplayMapVersion
 ): World {.raises: [GeneralsError].} =
   ## Rebuilds the recorded generator with portable native integer fields.
-  if config.seed > int32.high.int:
-    fail("map seed exceeds the portable signed 32-bit range")
   if mapVersion != ReplayMapVersion:
     fail("unsupported map generation version " & $mapVersion)
   newWorld(config)
@@ -196,6 +194,8 @@ proc validate(data: ReplayData): World {.raises: [GeneralsError].} =
     data.header.requireTapeVersion(ReplayFormatVersion, ReplayGameVersion)
   except ReplayError as error:
     fail(error.msg)
+  if data.header.setup.mapVersion != ReplayMapVersion:
+    fail("unsupported map generation version " & $data.header.setup.mapVersion)
   when defined(softmaxReplay):
     let setup = data.header.setup
     if data.config.players notin 2 .. 8 or data.hashes.len > 50_002 or
@@ -654,7 +654,7 @@ when defined(softmaxReplay):
         maximumTicks: 100_000, roster: defaultRoster(),
         building: initial["ruleset"].getStr() == "build_castles"))
     let world = newHostedWorld(
-      int(initial["seed"].getBiggestInt() and 0x7fff_ffff'i64),
+      parseSeed(initial["seed"].getStr()),
       initial["players"].getInt(), data.header.setup.building)
     data.config = world.config
     for slot, name in payload["players"].getElems():
