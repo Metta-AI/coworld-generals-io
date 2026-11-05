@@ -48,13 +48,24 @@ Plackett-Luce (mu 50, sigma 50/3); Classic and Build retain Elo. All follow the
 canonical Coworld version: a certified upload moves every league to it without
 league changes. Classic and Build use Swiss-neighbor scheduling.
 
-FFA uses `scaling_roster`, with seat rungs `[3, 4, 5, 6, 7, 8]`, eight episodes
-per round, `insufficient_players: do_not_run`, and `roster_overflow: partition`.
-`variant_rotation_by_seat_count` maps four seats to `ffa` and each other count
-to `ffa-N`. This seats the current roster without cloning entrants and partitions
-rosters above eight into separate tables. Publish the new variants before
-applying this scheduler configuration. Preserve the other stored league settings
-using a conditional replacement from `/settings/snapshot`.
+FFA uses `random_fill`, `num_episodes: 8`, `insufficient_players: do_not_run`,
+and `variant_rotation: ["ffa-8"]`. Its seed's default variant is also `ffa-8`;
+the planner derives the seat count from that default before checking rotation.
+Each episode selects eight distinct champions, balancing appearances across the
+round and shuffling seats. Fewer than eight champions waits for more entrants.
+OpenSkill, the thirty-minute cadence, and retry settings remain unchanged.
+
+The November 5, 2026 repair replaced the `scaling_roster` / `roster_overflow: sample`
+configuration, which sampled once and repeated the same lineup across all eight episodes.
+Rounds 4821–4823 each contained one distinct lineup. Preserve other stored settings
+using a conditional replacement from `/settings/snapshot`. Default-variant changes
+require paused rounds, locked submissions, and no active rounds; restore the
+previous pause and submission state after the change.
+
+Verification round `round_4d9f19e9-d679-448d-9874-62580817c38f` (4827) completed
+all eight episodes on 0.7.4 at 01:27 UTC. It used seven distinct lineups;
+all twelve eligible champions appeared five or six times. Scheduling is owned
+by the platform and did not require a game rebuild.
 
 The FFA and Build leagues were created on September 17 (20:24 UTC) by the
 Softmax team, after Matej's account was refused with HTTP 403
